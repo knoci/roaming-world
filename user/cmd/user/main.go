@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"user/internal/conf"
+	"github.com/knoci/roaming-world/user/internal/conf"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"

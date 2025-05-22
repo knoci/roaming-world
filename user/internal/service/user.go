@@ -4,14 +4,16 @@ import (
 	"context"
 
 	pb "github.com/knoci/roaming-world/user/api/user/v1"
+	"github.com/knoci/roaming-world/user/internal/biz"
+
+	"github.com/go-kratos/kratos/v2/log"
 )
 
-type UserService struct {
-	pb.UnimplementedUserServer
-}
-
-func NewUserService() *UserService {
-	return &UserService{}
+func NewUserService(user *biz.UserUsecase, logger log.Logger) *UserService {
+	return &UserService{
+		user: user,
+		log:  log.NewHelper(logger),
+	}
 }
 
 func (s *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterReply, error) {

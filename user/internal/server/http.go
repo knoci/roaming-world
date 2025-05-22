@@ -1,9 +1,9 @@
 package server
 
 import (
-	v1 "github.com/knoci/roaming-world/user/user/api/user/v1"
-	"github.com/knoci/roaming-world/user/user/internal/conf"
-	"github.com/knoci/roaming-world/user/user/internal/service"
+	v1 "github.com/knoci/roaming-world/user/api/user/v1"
+	"github.com/knoci/roaming-world/user/internal/conf"
+	"github.com/knoci/roaming-world/user/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -11,7 +11,7 @@ import (
 )
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, user *service.UserService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -27,6 +27,6 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	v1.RegisterGreeterHTTPServer(srv, greeter)
+	v1.RegisterUserHTTPServer(srv, user)
 	return srv
 }

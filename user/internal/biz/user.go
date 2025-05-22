@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	v1 "user/api/user/v1"
+	v1 "github.com/knoci/roaming-world/user/api/user/v1"
 
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
@@ -13,7 +13,7 @@ import (
 
 var (
 	// 错误定义
-	ErrUserNotFound          = errors.NotFound(v1.ErrorReason_USER_NOT_FOUND.String(), "用户不存在")
+	ErrUserNotFound          = errors.NotFound(v1.ErrorReason_NOT_FOUND.String(), "不存在")
 	ErrInvalidArgument       = errors.BadRequest(v1.ErrorReason_INVALID_ARGUMENT.String(), "请求参数错误")
 	ErrEmailAlreadyExists    = errors.Conflict(v1.ErrorReason_EMAIL_ALREADY_EXISTS.String(), "邮箱已被注册")
 	ErrUsernameAlreadyExists = errors.Conflict(v1.ErrorReason_USERNAME_ALREADY_EXISTS.String(), "用户名已存在")
@@ -43,15 +43,7 @@ type UserRepo interface {
 	FindByKeyword(ctx context.Context, keyword string) (*User, error)
 	Delete(ctx context.Context, uid string) error
 	VerifyCode(ctx context.Context, email, code string) error
-	SaveCode(ctx context.Context, email, code string, expiration time.Duration) error
 	UploadAvatar(ctx context.Context, uid string, file []byte, filename string) (string, error)
-	MultiUpload(ctx context.Context, files []FileInfo) ([]string, error)
-}
-
-// FileInfo 文件信息
-type FileInfo struct {
-	Content  []byte
-	Filename string
 }
 
 // UserUsecase 用户用例
@@ -112,11 +104,6 @@ func (uc *UserUsecase) SendVerificationCode(ctx context.Context, email string) (
 	// 生成6位随机验证码
 	code := generateVerificationCode()
 
-	// 保存验证码，设置10分钟过期
-	if err := uc.repo.SaveCode(ctx, email, code, 10*time.Minute); err != nil {
-		return "", err
-	}
-
 	return code, nil
 }
 
@@ -134,21 +121,6 @@ func (uc *UserUsecase) Login(ctx context.Context, req *v1.LoginRequest) (*v1.Log
 		Uid:    user.UID,
 		Name:   user.Name,
 		Avatar: user.Avatar,
-	}, nil
-}
-
-// GetUserInfo 获取用户信息
-func (uc *UserUsecase) GetUserInfo(ctx context.Context, uid string) (*v1.GetUserInfoReply, error) {
-	user, err := uc.repo.FindByUID(ctx, uid)
-	if err != nil {
-		return nil, ErrUserNotFound
-	}
-
-	return &v1.GetUserInfoReply{
-		Uid:    user.UID,
-		Name:   user.Name,
-		Avatar: user.Avatar,
-		Email:  user.Email,
 	}, nil
 }
 
@@ -253,19 +225,6 @@ func (uc *UserUsecase) UploadAvatar(ctx context.Context, uid string, fileBytes [
 		Uid:    updatedUser.UID,
 		Name:   updatedUser.Name,
 		Avatar: updatedUser.Avatar,
-	}, nil
-}
-
-// MultiPost 多文件上传
-func (uc *UserUsecase) MultiPost(ctx context.Context, files []FileInfo) (*v1.MultiPostReply, error) {
-	// 上传多个文件
-	urls, err := uc.repo.MultiUpload(ctx, files)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v1.MultiPostReply{
-		Urls: urls,
 	}, nil
 }
 

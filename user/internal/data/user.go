@@ -13,22 +13,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// VerificationCode 验证码模型
-type VerificationCode struct {
-	ID        uint      `gorm:"primaryKey"`
-	Email     string    `gorm:"type:varchar(50);not null;index"`
-	Code      string    `gorm:"type:varchar(10);not null"`
-	ExpiredAt time.Time `gorm:"not null"`
-	CreatedAt time.Time
-}
-
 // User 用户模型
 type User struct {
 	UID       string    `gorm:"primaryKey;type:varchar(36);column:uid" json:"uid"`
 	Name      string    `gorm:"type:varchar(50);not null" json:"name"`
 	Avatar    string    `gorm:"type:varchar(100)" json:"avatar"`
 	Password  string    `gorm:"type:text;not null" json:"-"`
-	Email     string    `gorm:"type:varchar(50);not null;unique" json:"email"`
+	Email     string    `gorm:"type:varchar(20);not null;unique" json:"email"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -185,39 +176,8 @@ func (r *userRepo) Delete(ctx context.Context, uid string) error {
 	return nil
 }
 
-// SaveCode 保存验证码
-func (r *userRepo) SaveCode(ctx context.Context, email, code string, expiration time.Duration) error {
-	// 删除旧的验证码
-	r.data.db.Where("email = ?", email).Delete(&VerificationCode{})
-
-	// 创建新的验证码
-	vc := &VerificationCode{
-		Email:     email,
-		Code:      code,
-		ExpiredAt: time.Now().Add(expiration),
-		CreatedAt: time.Now(),
-	}
-
-	result := r.data.db.Create(vc)
-	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("save verification code error: %v", result.Error)
-		return result.Error
-	}
-
-	return nil
-}
-
 // VerifyCode 验证验证码
 func (r *userRepo) VerifyCode(ctx context.Context, email, code string) error {
-	var vc VerificationCode
-	result := r.data.db.Where("email = ? AND code = ? AND expired_at > ?", email, code, time.Now()).First(&vc)
-	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("verify code error: %v", result.Error)
-		return result.Error
-	}
-
-	// 验证成功后删除验证码
-	r.data.db.Delete(&vc)
 
 	return nil
 }
@@ -238,15 +198,4 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file []byte, fi
 	r.data.db.Save(&u)
 
 	return avatarURL, nil
-}
-
-// MultiUpload 批量上传文件
-func (r *userRepo) MultiUpload(ctx context.Context, files []biz.FileInfo) ([]string, error) {
-	// 这里应该实现批量文件上传逻辑，暂时返回模拟的URL列表
-	urls := make([]string, len(files))
-	for i, file := range files {
-		urls[i] = fmt.Sprintf("https://example.com/files/%s", file.Filename)
-	}
-
-	return urls, nil
 }

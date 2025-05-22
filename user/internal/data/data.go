@@ -1,11 +1,15 @@
 package data
 
 import (
+	"context"
 	"fmt"
-	"github.com/knoci/roaming-world/user/internal/conf"
+	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	"github.com/knoci/roaming-world/user/internal/conf"
+	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -16,8 +20,9 @@ var ProviderSet = wire.NewSet(NewData, NewUserRepo)
 
 // Data .
 type Data struct {
-	db  *gorm.DB
-	log *log.Helper
+	db   *gorm.DB
+	etcd *clientv3.Client
+	log  *log.Helper
 }
 
 // NewData .
@@ -26,11 +31,11 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 	// 构建PostgreSQL连接字符串
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
-		nacos.GetConfig().Value("postgre.host"),
-		c.Database.Username,
-		c.Database.Password,
-		c.Database.Dbname,
-		c.Database.Port,
+		nacos.GetConfig().Value("postgre.host").String(),
+		nacos.GetConfig().Value("postgre.user"),
+		nacos.GetConfig().Value("postgre.password"),
+		nacos.GetConfig().Value("postgre.dbname"),
+		nacos.GetConfig().Value("postgre.sslmode"),
 	)
 
 	// 连接数据库
@@ -46,10 +51,35 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	// 自动迁移表结构
-	err = db.AutoMigrate(&User{}, &VerificationCode{})
+	err = db.AutoMigrate(&User{})
 	if err != nil {
 		log.Errorf("failed to auto migrate: %v", err)
 		return nil, nil, err
+	}
+
+	// 从viper获取etcd配置
+	endpoints := nacos.GetConfig().Value("etcd.endpoints").String()
+	dialTimeout := nacos.GetConfig().Value("etcd.dialTimeout").Int()
+
+	// 创建etcd客户端
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: dialTimeout * time.Second,
+	})
+
+	if err != nil {
+		log.Error("failed to create etcd client", err)
+		return nil, nil, err
+	}
+
+	// 测试连接
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = client.Status(ctx, endpoints[0])
+	if err != nil {
+		log.Error("failed to connect etcd", err)
+
 	}
 
 	d := &Data{
