@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
@@ -29,13 +30,14 @@ type Data struct {
 func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	log := log.NewHelper(logger)
 
-	// 构建PostgreSQL连接字符串
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
-		nacos.GetConfig().Value("postgre.host").String(),
-		nacos.GetConfig().Value("postgre.user"),
-		nacos.GetConfig().Value("postgre.password"),
-		nacos.GetConfig().Value("postgre.dbname"),
-		nacos.GetConfig().Value("postgre.sslmode"),
+	cfg := nacos.GetConfig()
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
+		getConfigString(cfg, "postgre.host"),
+		getConfigString(cfg, "postgre.user"),
+		getConfigString(cfg, "postgre.password"),
+		getConfigString(cfg, "postgre.dbname"),
+		getConfigInt(cfg, "postgre.port"),
+		getConfigString(cfg, "postgre.sslmode"),
 	)
 
 	// 连接数据库
@@ -58,8 +60,8 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	// 从viper获取etcd配置
-	endpoints := nacos.GetConfig().Value("etcd.endpoints").String()
-	dialTimeout := nacos.GetConfig().Value("etcd.dialTimeout").Int()
+	endpoints := getConfigString(cfg, "etcd.endpoints"),
+	dialTimeout := getConfigInt(cfg, "etcd.dialTimeout"),
 
 	// 创建etcd客户端
 	client, err := clientv3.New(clientv3.Config{
@@ -98,4 +100,20 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	return d, cleanup, nil
+}
+
+func getConfigString(cfg config.Config, key string) string {
+	value, err := cfg.Value(key).String()
+	if err != nil {
+		log.Fatalf("Failed to get config %s: %v", key, err)
+	}
+	return value
+}
+
+func getConfigInt(cfg config.Config, key string) int {
+	value, err := cfg.Value(key).Int()
+	if err != nil {
+		log.Fatalf("Failed to get config %s: %v", key, err)
+	}
+	return value
 }
