@@ -78,7 +78,7 @@ service User {
     };
   }
 
-  // 验证游戏
+  // 验证邮箱
   rpc ConfirmEmail(ConfirmEmailRequest) returns (ConfirmEmailReply) {
     option (google.api.http) = {
       post: "/v1/user/avatar"

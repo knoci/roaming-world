@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"net/url"
+	"net/http"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
 	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"github.com/tencentyun/cos-go-sdk-v5"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -23,6 +26,7 @@ type Data struct {
 	db   *gorm.DB
 	etcd *clientv3.Client
 	log  *log.Helper
+	cos  *cos.Client
 }
 
 // NewData .
@@ -81,12 +85,39 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	_, err = client.Status(ctx, endpoints[0])
 	if err != nil {
 		log.Error("failed to connect etcd", err)
-
+		return nil, nil, err
 	}
+
+	bucketURL := nacos.GetConfigString(cfg, "cos.bucket_url")
+	secretID := nacos.GetConfigString(cfg, "cos.secret_id")
+	secretKey := nacos.GetConfigString(cfg, "cos.secret_key")
+
+	// 检查配置是否存在
+	if bucketURL == "" || secretID == "" || secretKey == "" {
+		log.Error("cos config missing")
+		return nil, nil, fmt.Errorf("cos config missing")
+	}
+
+	// 解析bucket URL
+	u, err := url.Parse(bucketURL)
+	if err != nil {
+		log.Error("parse cos Bucket URL failed", err)
+		return nil, nil, err
+	}
+
+	// 创建COS客户端
+	b := &cos.BaseURL{BucketURL: u}
+	cos := cos.NewClient(b, &http.Client{
+		Transport: &cos.AuthorizationTransport{
+			SecretID:  secretID,
+			SecretKey: secretKey,
+		},
+	})
 
 	d := &Data{
 		db:  db,
 		log: log,
+		cos: cos,
 	}
 
 	cleanup := func() {
@@ -100,4 +131,18 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	return d, cleanup, nil
+}
+
+func (d *Data)SetEtcd(ctx context.Context, key string ,time int64) error {
+	lease, err := d.etcd.Grant(ctx, 600) // 10分钟 = 600秒
+	if err != nil {
+		return err
+	}
+
+	// 使用租约存储验证码，值设为1
+	_, err = d.etcd.Put(ctx, key, "1", clientv3.WithLease(lease.ID))
+	if err != nil {
+		return err
+	}
+	return nil
 }
