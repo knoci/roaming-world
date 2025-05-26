@@ -6,6 +6,7 @@ import (
 	"github.com/knoci/roaming-world/user/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
+	mmd "github.com/go-kratos/kratos/v2/middleware/metadata"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 )
@@ -15,6 +16,7 @@ func NewGRPCServer(c *conf.Server, user *service.UserService, logger log.Logger)
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
+			mmd.Server(),
 		),
 	}
 	if c.Grpc.Network != "" {

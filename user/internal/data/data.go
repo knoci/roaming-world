@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
@@ -32,12 +31,12 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 	cfg := nacos.GetConfig()
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
-		getConfigString(cfg, "postgre.host"),
-		getConfigString(cfg, "postgre.user"),
-		getConfigString(cfg, "postgre.password"),
-		getConfigString(cfg, "postgre.dbname"),
-		getConfigInt(cfg, "postgre.port"),
-		getConfigString(cfg, "postgre.sslmode"),
+		nacos.GetConfigString(cfg, "postgre.host"),
+		nacos.GetConfigString(cfg, "postgre.user"),
+		nacos.GetConfigString(cfg, "postgre.password"),
+		nacos.GetConfigString(cfg, "postgre.dbname"),
+		nacos.GetConfigInt(cfg, "postgre.port"),
+		nacos.GetConfigString(cfg, "postgre.sslmode"),
 	)
 
 	// 连接数据库
@@ -60,13 +59,14 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	// 从viper获取etcd配置
-	endpoints := getConfigString(cfg, "etcd.endpoints"),
-	dialTimeout := getConfigInt(cfg, "etcd.dialTimeout"),
+	endpoint := nacos.GetConfigString(cfg, "etcd.endpoints")
+	endpoints := []string{endpoint}
+	dialTimeout := nacos.GetConfigInt(cfg, "etcd.dialTimeout")
 
 	// 创建etcd客户端
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
-		DialTimeout: dialTimeout * time.Second,
+		DialTimeout: time.Second * time.Duration(dialTimeout),
 	})
 
 	if err != nil {
@@ -100,20 +100,4 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	return d, cleanup, nil
-}
-
-func getConfigString(cfg config.Config, key string) string {
-	value, err := cfg.Value(key).String()
-	if err != nil {
-		log.Fatalf("Failed to get config %s: %v", key, err)
-	}
-	return value
-}
-
-func getConfigInt(cfg config.Config, key string) int {
-	value, err := cfg.Value(key).Int()
-	if err != nil {
-		log.Fatalf("Failed to get config %s: %v", key, err)
-	}
-	return value
 }

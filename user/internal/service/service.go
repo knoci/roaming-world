@@ -15,3 +15,4 @@ type UserService struct {
 	log  *log.Helper
 	user *biz.UserUsecase
 }
+

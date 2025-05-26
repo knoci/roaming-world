@@ -96,3 +96,19 @@ func GetConfig() config.Config {
 	}
 	return nacosConfig
 }
+
+func GetConfigString(cfg config.Config, key string) string {
+	value, err := cfg.Value(key).String()
+	if err != nil {
+		log.Fatalf("Failed to get config %s: %v", key, err)
+	}
+	return value
+}
+
+func GetConfigInt(cfg config.Config, key string) int {
+	value, err := cfg.Value(key).Int()
+	if err != nil {
+		log.Fatalf("Failed to get config %s: %v", key, err)
+	}
+	return int(value)
+}
