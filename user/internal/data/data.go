@@ -10,6 +10,7 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
+	kafka "github.com/knoci/roaming-world/user/internal/pkg"
 	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"github.com/tencentyun/cos-go-sdk-v5"
@@ -27,6 +28,7 @@ type Data struct {
 	etcd *clientv3.Client
 	log  *log.Helper
 	cos  *cos.Client
+	kafka *kafka.KafkaSender
 }
 
 // NewData .
@@ -114,10 +116,18 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		},
 	})
 
+	address := nacos.GetConfigString(cfg, "kafka.address")
+	topic := nacos.GetConfigString(cfg, "kafka.topic")
+	sender, err := kafka.NewKafkaSender([]string{address}, topic)
+	if err != nil {
+		panic(err)
+	}
+
 	d := &Data{
 		db:  db,
 		log: log,
 		cos: cos,
+		kafka: sender,
 	}
 
 	cleanup := func() {

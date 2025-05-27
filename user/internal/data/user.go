@@ -2,14 +2,16 @@ package data
 
 import (
 	"context"
-	"errors" 
+	"encoding/json"
+	"errors"
 	"fmt"
-	"time"
-	"mime/multipart"
 	"math/rand"
+	"mime/multipart"
 	"path/filepath"
+	"time"
 
 	"github.com/knoci/roaming-world/user/internal/biz"
+	kafka "github.com/knoci/roaming-world/user/internal/pkg"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
@@ -33,6 +35,11 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 		u.UID = uuid.New().String()
 	}
 	return nil
+}
+
+type SqlMsg struct {
+	Query  string        `json:"query"`
+	Params []interface{} `json:"params"`
 }
 
 type userRepo struct {
@@ -68,6 +75,22 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 	if result.Error != nil {
 		r.log.WithContext(ctx).Errorf("create user error: %v", result.Error)
 		return nil, result.Error
+	}
+
+	sql := `INSERT INTO users (uid, name, email, password, avatar) VALUES ($1, $2, $3, $4, $5)`
+	params := []any{user.UID, user.Name, user.Email, string(hashPassword), user.Avatar}
+	msg := SqlMsg{
+		Query:  sql,
+		Params: params,
+	}
+	sqlbyte, err := json.Marshal(msg)
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+	}
+	log := kafka.NewMessage("user", sqlbyte)
+	err = r.data.kafka.Send(ctx, log)
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
 	}
 
 	return &biz.User{
@@ -167,6 +190,9 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	// 更新字段
 	existingUser.Name = user.Name
 	existingUser.Email = user.Email
+	existingUser.Password = user.Password
+	existingUser.Avatar = user.Avatar
+	existingUser.UpdatedAt = time.Now() // 确保更新时间被设置
 	if user.Avatar != "" {
 		existingUser.Avatar = user.Avatar
 	}
@@ -176,6 +202,28 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	if saveResult.Error != nil {
 		r.log.WithContext(ctx).Errorf("db error updating user, uid: %s, error: %v", user.UID, saveResult.Error)
 		return nil, biz.ErrInternalError
+	}
+
+	sql := "UPDATE users SET name = $1, email = $2, password = $3, avatar = $4, updated_at = NOW() WHERE id = $5"
+	params := []any{
+		user.Name,
+		user.Email,
+		user.Password,
+		user.Avatar,
+		existingUser.UID,
+	}
+	msg := SqlMsg{
+		Query:  sql,
+		Params: params,
+	}
+	sqlbyte, err := json.Marshal(msg)
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+	}
+	log := kafka.NewMessage("user", sqlbyte)
+	err = r.data.kafka.Send(ctx, log)
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
 	}
 
 	return &biz.User{
@@ -198,6 +246,22 @@ func (r *userRepo) Delete(ctx context.Context, uid string) error {
 	if result.RowsAffected == 0 {
 		r.log.WithContext(ctx).Warnf("user not found for deletion, uid: %s", uid)
 		return biz.ErrUserNotFound // 如果记录不存在，也应该告知
+	} else {
+		sql := "DELETE FROM users WHERE uid = $1"
+		params := []any{uid}
+		msg := SqlMsg{
+			Query:  sql,
+			Params: params,
+		}
+		sqlbyte, err := json.Marshal(msg)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+		}
+		log := kafka.NewMessage("user", sqlbyte)
+		err = r.data.kafka.Send(ctx, log)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
+		}
 	}
 
 	r.log.WithContext(ctx).Infof("user deleted successfully, uid: %s, rows_affected: %d", uid, result.RowsAffected)
@@ -275,6 +339,26 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 	if saveResult.Error != nil {
 		r.log.WithContext(ctx).Errorf("db error saving user avatar, uid: %s, error: %v", uid, saveResult.Error)
 		return nil, biz.ErrInternalError
+	}
+
+	// 发送消息到Kafka
+	sql := "UPDATE users SET avatar = $1, updated_at = NOW() WHERE id = $2"
+	params := []any{
+		avatarURL.String(),
+		u.UID,
+	}
+	msg := SqlMsg{
+		Query:  sql,
+		Params: params,
+	}
+	sqlbyte, err := json.Marshal(msg)
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+	}
+	log := kafka.NewMessage("user", sqlbyte)
+	err = r.data.kafka.Send(ctx, log)
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
 	}
 
 	// 尝试删除旧头像（如果不是默认头像）

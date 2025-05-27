@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
+	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/transport/http"
 	pb "github.com/knoci/roaming-world/user/api/user/v1"
 	"github.com/knoci/roaming-world/user/internal/biz"
 	jwt "github.com/knoci/roaming-world/user/internal/pkg"
-	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/transport/http"
 )
 
 func NewUserService(user *biz.UserUsecase, logger log.Logger) *UserService {
@@ -75,7 +75,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 }
 func (s *UserService) FindUser(ctx context.Context, req *pb.FindUserRequest) (*pb.FindUserReply, error) {
 	s.log.WithContext(ctx).Infof("FindUser received: Uid=%s", req.Keyword)
-	user, err := s.user.FindUser(ctx, req.Keyword) 
+	user, err := s.user.FindUser(ctx, req.Keyword)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("FindUser failed: %v", err)
 		return nil, err
@@ -116,8 +116,8 @@ func (s *UserService) UpdateUserInfo(ctx context.Context, req *pb.UpdateUserInfo
 		return nil, err
 	}
 	return &pb.UpdateUserInfoReply{
-		Uid:    user.Uid,
-		Name:   user.Name,
+		Uid:   user.Uid,
+		Name:  user.Name,
 		Email: user.Email,
 	}, nil
 }
@@ -160,7 +160,7 @@ func (s *UserService) UploadAvatar(ctx context.Context, req *pb.UploadAvatarRequ
 }
 func (s *UserService) ConfirmUser(ctx context.Context, req *pb.ConfirmUserRequest) (*pb.ConfirmUserReply, error) {
 	status := "验证成功"
-	
+
 	claims, err := GetJwtClaim(ctx)
 	if err != nil {
 		return nil, biz.ErrUnauthorized
@@ -188,12 +188,12 @@ func (s *UserService) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailRequ
 
 func GetJwtClaim(ctx context.Context) (*jwt.Claims, error) {
 	httpReq, _ := http.RequestFromServerContext(ctx)
-    authHeader := httpReq.Header.Get("Authorization")
-    
-    if len(authHeader) == 0 {
-        return nil, biz.ErrUnauthorized
-    }
-    parts := strings.SplitN(authHeader, " ", 2)
+	authHeader := httpReq.Header.Get("Authorization")
+
+	if len(authHeader) == 0 {
+		return nil, biz.ErrUnauthorized
+	}
+	parts := strings.SplitN(authHeader, " ", 2)
 	if !(len(parts) == 2 && parts[0] == "Bearer") {
 		return nil, biz.ErrUnauthorized
 	}
