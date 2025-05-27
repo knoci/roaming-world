@@ -1,4 +1,4 @@
-module food
+module github.com/knoci/roaming-world/food
 
 go 1.21
 

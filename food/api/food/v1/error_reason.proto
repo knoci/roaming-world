@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package food.v1;
+
+import "errors/errors.proto";
+
+option go_package = "food/api/food/v1;v1";
+
+enum ErrorReason {
+  option (errors.default_code) = 500;
+  
+  INVALID_ARGUMENT = 0 [(errors.code) = 400];
+  UNAUTHORIZED = 1 [(errors.code) = 401];
+  INTERNAL_ERROR = 2 [(errors.code) = 500];
+}

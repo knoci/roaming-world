@@ -7,11 +7,11 @@
 package main
 
 import (
-	"food/internal/biz"
-	"food/internal/conf"
-	"food/internal/data"
-	"food/internal/server"
-	"food/internal/service"
+	"github.com/knoci/roaming-world/food/internal/biz"
+	"github.com/knoci/roaming-world/food/internal/conf"
+	"github.com/knoci/roaming-world/food/internal/data"
+	"github.com/knoci/roaming-world/food/internal/server"
+	"github.com/knoci/roaming-world/food/internal/service"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 )
@@ -28,11 +28,11 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	greeterRepo := data.NewGreeterRepo(dataData, logger)
-	greeterUsecase := biz.NewGreeterUsecase(greeterRepo, logger)
-	greeterService := service.NewGreeterService(greeterUsecase)
-	grpcServer := server.NewGRPCServer(confServer, greeterService, logger)
-	httpServer := server.NewHTTPServer(confServer, greeterService, logger)
+	foodRepo := data.NewFoodRepo(dataData, logger)
+	foodUsecase := biz.NewFoodUsecase(foodRepo, logger)
+	foodService := service.NewFoodService(foodUsecase)
+	grpcServer := server.NewGRPCServer(confServer, foodService, logger)
+	httpServer := server.NewHTTPServer(confServer, foodService, logger)
 	app := newApp(logger, grpcServer, httpServer)
 	return app, func() {
 		cleanup()

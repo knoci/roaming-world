@@ -1,7 +1,7 @@
 syntax = "proto3";
-package kratos.api;
+package conf;
 
-option go_package = "food/internal/conf;conf";
+option go_package = "github.com/knoci/roaming-world/food/internal/conf;conf";
 
 import "google/protobuf/duration.proto";
 

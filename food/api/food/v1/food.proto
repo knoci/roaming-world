@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package food.v1;
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+option go_package = "food/api/food/v1;v1";
+
+// FoodService 服务定义
+service Food {
+  // CreateFood 创建食物
+  rpc CreateFood(CreateFoodRequest) returns (CreateFoodReply) {
+    option (google.api.http) = {
+      post: "/v1/food",
+      body: "*"
+    };
+  }
+
+  // GetFoodList 获取食物列表
+  rpc GetFoodList(GetFoodListRequest) returns (GetFoodListReply) {
+    option (google.api.http) = {
+      get: "/v1/food"
+    };
+  }
+
+  // GetRandomFood 获取随机食物
+  rpc GetRandomFood(GetRandomFoodRequest) returns (GetRandomFoodReply) {
+    option (google.api.http) = {
+      get: "/v1/food/random"
+    };
+  }
+}
+
+// FoodMessage 食物信息
+message FoodMessage {
+  string fid = 1;
+  repeated string view = 2;
+  string name = 3;
+  string describe = 4;
+  string recipe = 5;
+  string article = 6;
+  string location = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+// CreateFoodRequest 创建食物请求
+message CreateFoodRequest {
+  string name = 1 [(validate.rules).string = {min_len: 1, max_len: 50}];
+  repeated string view = 2 [(validate.rules).repeated = {min_items: 1, max_items: 10}];
+  string describe = 3 [(validate.rules).string.min_len = 1];
+  string recipe = 4 [(validate.rules).string.min_len = 1];
+  string article = 5 [(validate.rules).string.min_len = 1];
+  string location = 6 [(validate.rules).string = {min_len: 1, max_len: 30}];
+}
+
+// CreateFoodReply 创建食物响应
+message CreateFoodReply {
+  FoodMessage food = 1;
+}
+
+// GetFoodListRequest 获取食物列表请求
+message GetFoodListRequest {}
+
+// GetFoodListReply 获取食物列表响应
+message GetFoodListReply {
+  repeated FoodMessage foods = 1;
+}
+
+// GetRandomFoodRequest 获取随机食物请求
+message GetRandomFoodRequest {}
+
+// GetRandomFoodReply 获取随机食物响应
+message GetRandomFoodReply {
+  FoodMessage food = 1;
+}
