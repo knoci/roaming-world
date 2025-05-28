@@ -35,54 +35,6 @@ func ErrorInvalidArgument(format string, args ...interface{}) *errors.Error {
 	return errors.New(400, ErrorReason_INVALID_ARGUMENT.String(), fmt.Sprintf(format, args...))
 }
 
-func IsEmailAlreadyExists(err error) bool {
-	if err == nil {
-		return false
-	}
-	e := errors.FromError(err)
-	return e.Reason == ErrorReason_EMAIL_ALREADY_EXISTS.String() && e.Code == 409
-}
-
-func ErrorEmailAlreadyExists(format string, args ...interface{}) *errors.Error {
-	return errors.New(409, ErrorReason_EMAIL_ALREADY_EXISTS.String(), fmt.Sprintf(format, args...))
-}
-
-func IsUsernameAlreadyExists(err error) bool {
-	if err == nil {
-		return false
-	}
-	e := errors.FromError(err)
-	return e.Reason == ErrorReason_USERNAME_ALREADY_EXISTS.String() && e.Code == 409
-}
-
-func ErrorUsernameAlreadyExists(format string, args ...interface{}) *errors.Error {
-	return errors.New(409, ErrorReason_USERNAME_ALREADY_EXISTS.String(), fmt.Sprintf(format, args...))
-}
-
-func IsVerificationCodeExpired(err error) bool {
-	if err == nil {
-		return false
-	}
-	e := errors.FromError(err)
-	return e.Reason == ErrorReason_VERIFICATION_CODE_EXPIRED.String() && e.Code == 400
-}
-
-func ErrorVerificationCodeExpired(format string, args ...interface{}) *errors.Error {
-	return errors.New(400, ErrorReason_VERIFICATION_CODE_EXPIRED.String(), fmt.Sprintf(format, args...))
-}
-
-func IsIncorrectPassword(err error) bool {
-	if err == nil {
-		return false
-	}
-	e := errors.FromError(err)
-	return e.Reason == ErrorReason_INCORRECT_PASSWORD.String() && e.Code == 401
-}
-
-func ErrorIncorrectPassword(format string, args ...interface{}) *errors.Error {
-	return errors.New(401, ErrorReason_INCORRECT_PASSWORD.String(), fmt.Sprintf(format, args...))
-}
-
 func IsUnauthorized(err error) bool {
 	if err == nil {
 		return false

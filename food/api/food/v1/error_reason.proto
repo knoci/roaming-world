@@ -11,10 +11,6 @@ enum ErrorReason {
   
   NOT_FOUND = 0 [(errors.code) = 404];
   INVALID_ARGUMENT = 1 [(errors.code) = 400];
-  EMAIL_ALREADY_EXISTS = 2 [(errors.code) = 409];
-  USERNAME_ALREADY_EXISTS = 3 [(errors.code) = 409];
-  VERIFICATION_CODE_EXPIRED = 4 [(errors.code) = 400];
-  INCORRECT_PASSWORD = 5 [(errors.code) = 401];
-  UNAUTHORIZED = 6 [(errors.code) = 401];
-  INTERNAL_ERROR = 7 [(errors.code) = 500];
+  UNAUTHORIZED = 2 [(errors.code) = 401];
+  INTERNAL_ERROR = 3 [(errors.code) = 500];
 }
