@@ -85,7 +85,7 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 	}
 	sqlbyte, err := json.Marshal(msg)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
 	}
 	log := kafka.NewMessage("user", sqlbyte)
 	err = r.data.kafka.Send(ctx, log)
@@ -218,7 +218,7 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	}
 	sqlbyte, err := json.Marshal(msg)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
 	}
 	log := kafka.NewMessage("user", sqlbyte)
 	err = r.data.kafka.Send(ctx, log)
@@ -255,7 +255,7 @@ func (r *userRepo) Delete(ctx context.Context, uid string) error {
 		}
 		sqlbyte, err := json.Marshal(msg)
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+			r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
 		}
 		log := kafka.NewMessage("user", sqlbyte)
 		err = r.data.kafka.Send(ctx, log)
@@ -353,7 +353,7 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 	}
 	sqlbyte, err := json.Marshal(msg)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("json marshal error: %v", err)
+		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
 	}
 	log := kafka.NewMessage("user", sqlbyte)
 	err = r.data.kafka.Send(ctx, log)
