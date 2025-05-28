@@ -3,17 +3,17 @@ package data
 import (
 	"context"
 	"fmt"
-	"time"
-	"net/url"
 	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
-	kafka "github.com/knoci/roaming-world/user/internal/pkg"
 	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
-	clientv3 "go.etcd.io/etcd/client/v3"
+	kafka "github.com/knoci/roaming-world/user/internal/pkg"
 	"github.com/tencentyun/cos-go-sdk-v5"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -24,10 +24,10 @@ var ProviderSet = wire.NewSet(NewData, NewUserRepo)
 
 // Data .
 type Data struct {
-	db   *gorm.DB
-	etcd *clientv3.Client
-	log  *log.Helper
-	cos  *cos.Client
+	db    *gorm.DB
+	etcd  *clientv3.Client
+	log   *log.Helper
+	cos   *cos.Client
 	kafka *kafka.KafkaSender
 }
 
@@ -64,7 +64,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	// 从viper获取etcd配置
+	// 获取etcd配置
 	endpoint := nacos.GetConfigString(cfg, "etcd.endpoints")
 	endpoints := []string{endpoint}
 	dialTimeout := nacos.GetConfigInt(cfg, "etcd.dialTimeout")
@@ -124,9 +124,10 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	d := &Data{
-		db:  db,
-		log: log,
-		cos: cos,
+		db:    db,
+		log:   log,
+		etcd:  client,
+		cos:   cos,
 		kafka: sender,
 	}
 
@@ -143,7 +144,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	return d, cleanup, nil
 }
 
-func (d *Data)SetEtcd(ctx context.Context, key string ,time int64) error {
+func (d *Data) SetEtcd(ctx context.Context, key string, time int64) error {
 	lease, err := d.etcd.Grant(ctx, 600) // 10分钟 = 600秒
 	if err != nil {
 		return err
