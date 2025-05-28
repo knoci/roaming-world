@@ -30,7 +30,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	}
 	foodRepo := data.NewFoodRepo(dataData, logger)
 	foodUsecase := biz.NewFoodUsecase(foodRepo, logger)
-	foodService := service.NewFoodService(foodUsecase)
+	foodService := service.NewFoodService(foodUsecase, logger)
 	grpcServer := server.NewGRPCServer(confServer, foodService, logger)
 	httpServer := server.NewHTTPServer(confServer, foodService, logger)
 	app := newApp(logger, grpcServer, httpServer)

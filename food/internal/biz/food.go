@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
-	v1 "github.com/knoci/roaming-world/food/api/food/v1"
 	"github.com/go-kratos/kratos/v2/log"
+	v1 "github.com/knoci/roaming-world/food/api/food/v1"
 )
 
-// Food 结构定义了食物的属性	ype Food struct {
+// Food 结构定义了食物的属性
+type Food struct {
 	FID       string
 	View      []string
 	Name      string
@@ -20,13 +21,15 @@ import (
 	UpdatedAt time.Time
 }
 
-// FoodRepo 定义了 Food 数据仓库的接口	ype FoodRepo interface {
+// FoodRepo 定义了 Food 数据仓库的接口
+type FoodRepo interface {
 	CreateFood(ctx context.Context, food *Food) (*Food, error)
 	GetFoodList(ctx context.Context) ([]*Food, error)
 	GetRandomFood(ctx context.Context) (*Food, error)
 }
 
-// FoodUsecase 定义了 Food 相关的业务逻辑	ype FoodUsecase struct {
+// FoodUsecase 定义了 Food 相关的业务逻辑
+type FoodUsecase struct {
 	repo FoodRepo
 	log  *log.Helper
 }

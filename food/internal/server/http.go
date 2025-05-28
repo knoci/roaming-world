@@ -1,9 +1,9 @@
 package server
 
 import (
-	v1 "food/api/helloworld/v1"
-	"food/internal/conf"
-	"food/internal/service"
+	v1 "github.com/knoci/roaming-world/food/api/food/v1"
+	"github.com/knoci/roaming-world/food/internal/conf"
+	"github.com/knoci/roaming-world/food/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -11,7 +11,7 @@ import (
 )
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, food *service.FoodService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -27,6 +27,6 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	v1.RegisterGreeterHTTPServer(srv, greeter)
+	v1.RegisterFoodHTTPServer(srv, food)
 	return srv
 }
