@@ -141,10 +141,6 @@ cd cmd/food
 wire
 ```
 
-## 贡献指南
-
-欢迎提交Issue和Pull Request，一起完善项目。
-
 ## 许可证
 
 本项目采用MIT许可证。
