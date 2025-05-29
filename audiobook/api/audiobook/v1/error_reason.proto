@@ -20,8 +20,6 @@ enum ErrorReason {
   CREATE_DETAIL_FAILED = 4 [(errors.code) = 500];
   // 数据库错误
   DATABASE_ERROR = 5 [(errors.code) = 500];
-  // 缓存错误
-  CACHE_ERROR = 6 [(errors.code) = 500];
-  // 参数错误
-  INVALID_ARGUMENT = 7 [(errors.code) = 400];
+  // 未授权
+  UNAUTHORIZED = 6 [(errors.code) = 401];
 }

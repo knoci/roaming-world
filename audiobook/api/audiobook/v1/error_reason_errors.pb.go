@@ -95,30 +95,16 @@ func ErrorDatabaseError(format string, args ...interface{}) *errors.Error {
 	return errors.New(500, ErrorReason_DATABASE_ERROR.String(), fmt.Sprintf(format, args...))
 }
 
-// 缓存错误
-func IsCacheError(err error) bool {
+// 未授权
+func IsUnauthorized(err error) bool {
 	if err == nil {
 		return false
 	}
 	e := errors.FromError(err)
-	return e.Reason == ErrorReason_CACHE_ERROR.String() && e.Code == 500
+	return e.Reason == ErrorReason_UNAUTHORIZED.String() && e.Code == 401
 }
 
-// 缓存错误
-func ErrorCacheError(format string, args ...interface{}) *errors.Error {
-	return errors.New(500, ErrorReason_CACHE_ERROR.String(), fmt.Sprintf(format, args...))
-}
-
-// 参数错误
-func IsInvalidArgument(err error) bool {
-	if err == nil {
-		return false
-	}
-	e := errors.FromError(err)
-	return e.Reason == ErrorReason_INVALID_ARGUMENT.String() && e.Code == 400
-}
-
-// 参数错误
-func ErrorInvalidArgument(format string, args ...interface{}) *errors.Error {
-	return errors.New(400, ErrorReason_INVALID_ARGUMENT.String(), fmt.Sprintf(format, args...))
+// 未授权
+func ErrorUnauthorized(format string, args ...interface{}) *errors.Error {
+	return errors.New(401, ErrorReason_UNAUTHORIZED.String(), fmt.Sprintf(format, args...))
 }

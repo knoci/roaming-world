@@ -2,17 +2,19 @@ package data
 
 import (
 	"context"
-	
+	"encoding/json"
 	"fmt"
 
 	"github.com/knoci/roaming-world/audiobook/internal/conf"
-	nacos "github.com/knoci/roaming-world/audiobook/conf/nacos"
+	nacos "github.com/knoci/roaming-world/audiobook/internal/conf/nacos"
 	kafka "github.com/knoci/roaming-world/audiobook/internal/pkg"
-	
-	"github.com/redis/go-redis/v9"
+
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 // ProviderSet is data providers.
@@ -20,10 +22,22 @@ var ProviderSet = wire.NewSet(NewData, NewAudiobookRepo)
 
 // Data .
 type Data struct {
-	db    *gorm.DB
-	log   *log.Helper
-	redis *redis.Client
-	kafka *kafka.KafkaSender
+	db        *gorm.DB
+	log       *log.Helper
+	redis     *redis.Client
+	cdc       *kafka.KafkaSender
+	logsender *kafka.KafkaSender
+}
+
+type SqlMsg struct {
+	Query  string        `json:"query"`
+	Params []interface{} `json:"params"`
+}
+
+type ErrorMsg struct {
+	ErrorMsg  string `json:"error_msg"`
+	ErrorOp   string `json:"error_op"`
+	ErrorData any    `json:"error_data"`
 }
 
 // NewData .
@@ -48,20 +62,27 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		log.Errorf("failed to connect database: %v", err)
+		log.Errorf("audiobookData: failed to connect database: %v", err)
 		return nil, nil, err
 	}
 
 	// 自动迁移表结构
 	err = db.AutoMigrate(&Audiobook{}, &AudiobookDetail{})
 	if err != nil {
-		log.Errorf("failed to auto migrate: %v", err)
+		log.Errorf("audiobookData: failed to auto migrate: %v", err)
 		return nil, nil, err
 	}
 
-	address := nacos.GetConfigString(cfg, "kafka.address")
-	topic := nacos.GetConfigString(cfg, "kafka.topic")
-	sender, err := kafka.NewKafkaSender([]string{address}, topic)
+	address1 := nacos.GetConfigString(cfg, "kafka.address.cdc")
+	topic1 := nacos.GetConfigString(cfg, "kafka.topic.cdc")
+	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
+	if err != nil {
+		panic(err)
+	}
+
+	address2 := nacos.GetConfigString(cfg, "kafka.address.log")
+	topic2 := nacos.GetConfigString(cfg, "kafka.topic.log")
+	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
 	if err != nil {
 		panic(err)
 	}
@@ -77,26 +98,62 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	// 测试连接
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
-		log.Error("failed to connect redis", err)
+		log.Error("audiobookData: failed to connect redis", err)
 		return nil, nil, err
 	}
 
 	d := &Data{
-		db:    db,
-		log:   log,
-		redis: client,
-		kafka: sender,
+		db:        db,
+		log:       log,
+		redis:     client,
+		cdc:       cdc,
+		logsender: logsender,
 	}
 
 	cleanup := func() {
-		log.Info("closing the data resources")
+		log.Info("audiobookData: closing the data resources")
 		sqlDB, err := d.db.DB()
 		if err != nil {
-			log.Errorf("failed to get sqlDB: %v", err)
+			log.Errorf("audiobookData: failed to get sqlDB: %v", err)
 			return
 		}
 		sqlDB.Close()
 	}
 
 	return d, cleanup, nil
+}
+
+func (d *Data) SendSqlLog(ctx context.Context, key string, sql string, params []interface{}) error {
+	msg := SqlMsg{
+		Query:  sql,
+		Params: params,
+	}
+	sqlbyte, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	sqllog := kafka.NewMessage(key, sqlbyte)
+	err = d.cdc.Send(ctx, sqllog)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
+	msg := ErrorMsg{
+		ErrorMsg:  errmsg,
+		ErrorOp:   errop,
+		ErrorData: errdata,
+	}
+	errbyte, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	errorlog := kafka.NewMessage(key, errbyte)
+	err = d.logsender.Send(ctx, errorlog)
+	if err != nil {
+		return err
+	}
+	return nil
 }

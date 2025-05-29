@@ -6,25 +6,7 @@ import (
 
 	v1 "github.com/knoci/roaming-world/audiobook/api/audiobook/v1"
 
-	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
-)
-
-var (
-	// ErrAudiobookNotFound 有声书不存在
-	ErrAudiobookNotFound = errors.NotFound(v1.ErrorReason_AUDIOBOOK_NOT_FOUND.String(), "audiobook not found")
-	// ErrDetailNotFound 章节不存在
-	ErrDetailNotFound = errors.NotFound(v1.ErrorReason_DETAIL_NOT_FOUND.String(), "detail not found")
-	// ErrCreateAudiobookFailed 创建有声书失败
-	ErrCreateAudiobookFailed = errors.InternalServer(v1.ErrorReason_CREATE_AUDIOBOOK_FAILED.String(), "create audiobook failed")
-	// ErrCreateDetailFailed 创建章节失败
-	ErrCreateDetailFailed = errors.InternalServer(v1.ErrorReason_CREATE_DETAIL_FAILED.String(), "create detail failed")
-	// ErrDatabaseError 数据库错误
-	ErrDatabaseError = errors.InternalServer(v1.ErrorReason_DATABASE_ERROR.String(), "database error")
-	// ErrCacheError 缓存错误
-	ErrCacheError = errors.InternalServer(v1.ErrorReason_CACHE_ERROR.String(), "cache error")
-	// ErrInvalidArgument 参数错误
-	ErrInvalidArgument = errors.BadRequest(v1.ErrorReason_INVALID_ARGUMENT.String(), "invalid argument")
 )
 
 // Audiobook 有声书实体
@@ -74,7 +56,7 @@ func NewAudiobookUsecase(repo AudiobookRepo, logger log.Logger) *AudiobookUsecas
 
 // CreateAudiobook 创建有声书
 func (uc *AudiobookUsecase) CreateAudiobook(ctx context.Context, req *v1.CreateAudiobookRequest) (*v1.AudiobookMessage, error) {
-	uc.log.WithContext(ctx).Infof("CreateAudiobook: %v", req.Name)
+	uc.log.WithContext(ctx).Infof("audiobookUsecase: CreateAudiobook: %v", req.Name)
 
 	audiobook := &Audiobook{
 		View:        req.View,
@@ -88,7 +70,7 @@ func (uc *AudiobookUsecase) CreateAudiobook(ctx context.Context, req *v1.CreateA
 
 	createdAudiobook, err := uc.repo.CreateAudiobook(ctx, audiobook)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("CreateAudiobook failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("audiobookUsecase: CreateAudiobook failed: %v", err)
 		return nil, ErrCreateAudiobookFailed
 	}
 
@@ -108,7 +90,7 @@ func (uc *AudiobookUsecase) CreateAudiobook(ctx context.Context, req *v1.CreateA
 
 // CreateAudiobookDetail 创建有声书章节
 func (uc *AudiobookUsecase) CreateAudiobookDetail(ctx context.Context, req *v1.CreateAudiobookDetailRequest) (*v1.AudiobookDetailMessage, error) {
-	uc.log.WithContext(ctx).Infof("CreateAudiobookDetail: BID=%s, Chapter=%d", req.Bid, req.Chapter)
+	uc.log.WithContext(ctx).Infof("audiobookUsecase: CreateAudiobookDetail BID=%s, Chapter=%d", req.Bid, req.Chapter)
 
 	detail := &AudiobookDetail{
 		BID:      req.Bid,
@@ -120,7 +102,7 @@ func (uc *AudiobookUsecase) CreateAudiobookDetail(ctx context.Context, req *v1.C
 
 	createdDetail, err := uc.repo.CreateAudiobookDetail(ctx, detail)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("CreateAudiobookDetail failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("audiobookUsecase: CreateAudiobookDetail failed: %v", err)
 		return nil, ErrCreateDetailFailed
 	}
 
@@ -138,11 +120,11 @@ func (uc *AudiobookUsecase) CreateAudiobookDetail(ctx context.Context, req *v1.C
 
 // GetAudiobooks 获取所有有声书
 func (uc *AudiobookUsecase) GetAudiobooks(ctx context.Context) ([]*v1.AudiobookMessage, error) {
-	uc.log.WithContext(ctx).Info("GetAudiobooks")
+	uc.log.WithContext(ctx).Info("audiobookUsecase: GetAudiobooks")
 
 	audiobooks, err := uc.repo.GetAudiobooks(ctx)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("GetAudiobooks failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("audiobookUsecase: GetAudiobooks failed: %v", err)
 		return nil, ErrDatabaseError
 	}
 
@@ -167,12 +149,12 @@ func (uc *AudiobookUsecase) GetAudiobooks(ctx context.Context) ([]*v1.AudiobookM
 
 // GetAudiobookDetails 获取指定有声书的所有章节
 func (uc *AudiobookUsecase) GetAudiobookDetails(ctx context.Context, bid string) ([]*v1.AudiobookDetailMessage, error) {
-	uc.log.WithContext(ctx).Infof("GetAudiobookDetails: BID=%s", bid)
+	uc.log.WithContext(ctx).Infof("audiobookUsecase: GetAudiobookDetails: BID=%s", bid)
 
 	details, err := uc.repo.GetAudiobookDetails(ctx, bid)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("GetAudiobookDetails failed: %v", err)
-		return nil, ErrAudiobookNotFound
+		uc.log.WithContext(ctx).Errorf("audiobookUsecase: GetAudiobookDetails failed: %v", err)
+		return nil, ErrDetailNotFound
 	}
 
 	result := make([]*v1.AudiobookDetailMessage, 0, len(details))
