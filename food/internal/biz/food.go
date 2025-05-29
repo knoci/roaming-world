@@ -41,7 +41,7 @@ func NewFoodUsecase(repo FoodRepo, logger log.Logger) *FoodUsecase {
 
 // CreateFood 创建食物的业务逻辑
 func (uc *FoodUsecase) CreateFood(ctx context.Context, req *v1.CreateFoodRequest) (*Food, error) {
-	uc.log.WithContext(ctx).Infof("CreateFood: %v", req.Name)
+	uc.log.WithContext(ctx).Infof("foodUsecase: CreateFood: %v", req.Name)
 	food := &Food{
 		Name:     req.Name,
 		View:     req.View,
@@ -59,7 +59,7 @@ func (uc *FoodUsecase) CreateFood(ctx context.Context, req *v1.CreateFoodRequest
 
 // GetFoodList 获取食物列表的业务逻辑
 func (uc *FoodUsecase) GetFoodList(ctx context.Context) ([]*Food, error) {
-	uc.log.WithContext(ctx).Info("GetFoodList")
+	uc.log.WithContext(ctx).Info("foodUsecase: GetFoodList")
 	foods, err := uc.repo.GetFoodList(ctx)
 	if err != nil  {
 		return nil, ErrInternalError
@@ -69,7 +69,7 @@ func (uc *FoodUsecase) GetFoodList(ctx context.Context) ([]*Food, error) {
 
 // GetRandomFood 获取随机食物的业务逻辑
 func (uc *FoodUsecase) GetRandomFood(ctx context.Context) (*Food, error) {
-	uc.log.WithContext(ctx).Info("GetRandomFood")
+	uc.log.WithContext(ctx).Info("foodUsecase: GetRandomFood")
 	food, err := uc.repo.GetRandomFood(ctx)
 	if err != nil  {
 		return nil, ErrInternalError
