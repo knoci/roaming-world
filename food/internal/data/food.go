@@ -10,7 +10,6 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
 	"github.com/knoci/roaming-world/food/internal/biz"
-	kafka "github.com/knoci/roaming-world/food/internal/pkg"
 	"gorm.io/gorm"
 )
 
@@ -40,10 +39,6 @@ type foodRepo struct {
 	log  *log.Helper
 }
 
-type SqlMsg struct {
-	Query  string        `json:"query"`
-	Params []interface{} `json:"params"`
-}
 
 // NewFoodRepo .
 func NewFoodRepo(data *Data, logger log.Logger) biz.FoodRepo {
@@ -63,43 +58,46 @@ func (r *foodRepo) CreateFood(ctx context.Context, g *biz.Food) (*biz.Food, erro
 		Location: g.Location,
 	}
 	if err := r.data.db.WithContext(ctx).Create(&food).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("CreateFood error: %v", err)
+		r.log.WithContext(ctx).Errorf("foodRepo: CreateFood error: %v", err)
+		error := r.data.SendErrorLog(ctx, "food", err.Error(), "db.Create", food)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("foodRepo: : kafka send errorlog error: %v", error)
+		}
 		return nil, err
 	}
 
 	sql := `INSERT INTO foods (fid, name, view, describe, recipe, article, location) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	params := []any{food.FID, food.Name, food.View, food.Describe, food.Recipe, food.Article, food.Location}
-	msg := SqlMsg{
-		Query:  sql,
-		Params: params,
-	}
-	sqlbyte, err := json.Marshal(msg)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
-	}
-	log := kafka.NewMessage("food", sqlbyte)
-	err = r.data.kafka.Send(ctx, log)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
+	error := r.data.SendSqlLog(ctx, "food", sql, params)
+	if error != nil {
+		r.log.WithContext(ctx).Errorf("foodRepo: kafka send sqllog error: %v", error)
 	}
 
 	// 将食物信息保存到Redis
 	// 1. 保存单个食物详情
 	foodJSON, err := json.Marshal(food)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Redis: json marshal food error: %v", err)
+		r.log.WithContext(ctx).Errorf("foodRepo: Redis json marshal food error: %v", err)
 	} else {
 		// 使用food:fid:{fid}作为键存储单个食物详情
 		key := fmt.Sprintf("food:fid:%s", food.FID)
 		err = r.data.redis.Set(ctx, key, foodJSON, 24*time.Hour).Err()
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: set food detail error: %v", err)
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis set food detail error: %v", err)
+			error := r.data.SendErrorLog(ctx, "food", err.Error(), "redis.Set", foodJSON)
+			if error != nil {
+				r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+			}
 		}
 
 		// 2. 将FID添加到食物列表集合中
 		err = r.data.redis.SAdd(ctx, "food:list", food.FID).Err()
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: add to food list error: %v", err)
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis add to food list error: %v", err)
+			error := r.data.SendErrorLog(ctx, "food", err.Error(), "redis.SAdd", food.FID)
+			if error != nil {
+				r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+			}
 		}
 	}
 
@@ -120,7 +118,7 @@ func (r *foodRepo) GetFoodList(ctx context.Context) ([]*biz.Food, error) {
 	// 尝试从Redis获取食物列表
 	foodIDs, err := r.data.redis.SMembers(ctx, "food:list").Result()
 	if err == nil && len(foodIDs) > 0 {
-		r.log.WithContext(ctx).Info("GetFoodList: using Redis cache")
+		r.log.WithContext(ctx).Info("foodRepo: GetFoodList using Redis cache")
 
 		var bizFoods []*biz.Food
 		for _, fid := range foodIDs {
@@ -132,7 +130,7 @@ func (r *foodRepo) GetFoodList(ctx context.Context) ([]*biz.Food, error) {
 
 			var food Food
 			if err := json.Unmarshal([]byte(foodJSON), &food); err != nil {
-				r.log.WithContext(ctx).Errorf("Redis: unmarshal food error: %v", err)
+				r.log.WithContext(ctx).Errorf("foodRepo: Redis unmarshal food error: %v", err)
 				continue
 			}
 
@@ -162,7 +160,11 @@ func (r *foodRepo) GetFoodList(ctx context.Context) ([]*biz.Food, error) {
 	// 从数据库获取
 	var foods []Food
 	if err := r.data.db.WithContext(ctx).Find(&foods).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("GetFoodList error: %v", err)
+		r.log.WithContext(ctx).Errorf("foodRepo: GetFoodList error: %v", err)
+		error := r.data.SendErrorLog(ctx, "food", err.Error(), "db.Find(&foods)", foods)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+		}
 		return nil, err
 	}
 
@@ -170,19 +172,27 @@ func (r *foodRepo) GetFoodList(ctx context.Context) ([]*biz.Food, error) {
 	for _, food := range foods {
 		foodJSON, err := json.Marshal(food)
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: json marshal food error: %v", err)
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis: json marshal food error: %v", err)
 			continue
 		}
 
 		key := fmt.Sprintf("food:fid:%s", food.FID)
 		err = r.data.redis.Set(ctx, key, foodJSON, 24*time.Hour).Err()
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: set food detail error: %v", err)
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis set food detail error: %v", err)
+			error := r.data.SendErrorLog(ctx, "food", err.Error(), "redis.Set", foodJSON)
+			if error != nil {
+				r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+			}
 		}
 
 		err = r.data.redis.SAdd(ctx, "food:list", food.FID).Err()
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: add to food list error: %v", err)
+			error := r.data.SendErrorLog(ctx, "food", err.Error(), "redis.SAdd", food.FID)
+			if error != nil {
+				r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+			}
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis add to food list error: %v", err)
 		}
 	}
 
@@ -210,7 +220,7 @@ func (r *foodRepo) GetRandomFood(ctx context.Context) (*biz.Food, error) {
 	// 尝试从Redis获取食物列表
 	foodIDs, err := r.data.redis.SMembers(ctx, "food:list").Result()
 	if err == nil && len(foodIDs) > 0 {
-		r.log.WithContext(ctx).Info("GetRandomFood: using Redis cache")
+		r.log.WithContext(ctx).Info("foodRepo: GetRandomFood using Redis cache")
 
 		// 随机选择一个FID
 		rand.Seed(time.Now().UnixNano())
@@ -241,32 +251,44 @@ func (r *foodRepo) GetRandomFood(ctx context.Context) (*biz.Food, error) {
 	// 从数据库获取
 	var foods []Food
 	if err := r.data.db.WithContext(ctx).Find(&foods).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("GetRandomFood - find error: %v", err)
+		r.log.WithContext(ctx).Errorf("foodRepo: GetRandomFood  find error: %v", err)
+		error := r.data.SendErrorLog(ctx, "food", err.Error(), "db.Find(&foods)", foods)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+		}
 		return nil, err
 	}
 
 	if len(foods) == 0 {
-		r.log.WithContext(ctx).Info("GetRandomFood - no food found")
-		return nil, nil // 或者返回一个特定的错误，如 ErrFoodNotFound
+		r.log.WithContext(ctx).Info("foodRepo: GetRandomFood  no food found")
+		return nil, nil
 	}
 
 	// 将数据库结果缓存到Redis
 	for _, food := range foods {
 		foodJSON, err := json.Marshal(food)
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: json marshal food error: %v", err)
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis json marshal food error: %v", err)
 			continue
 		}
 
 		key := fmt.Sprintf("food:fid:%s", food.FID)
 		err = r.data.redis.Set(ctx, key, foodJSON, 24*time.Hour).Err()
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: set food detail error: %v", err)
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis set food detail error: %v", err)
+			error := r.data.SendErrorLog(ctx, "food", err.Error(), "redis.Set", foodJSON)
+			if error != nil {
+				r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+			}
 		}
 
 		err = r.data.redis.SAdd(ctx, "food:list", food.FID).Err()
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("Redis: add to food list error: %v", err)
+			r.log.WithContext(ctx).Errorf("foodRepo: Redis add to food list error: %v", err)
+			error := r.data.SendErrorLog(ctx, "food", err.Error(), "redis.SAdd", food.FID)
+			if error != nil {
+				r.log.WithContext(ctx).Errorf("foodRepo: kafka send errorlog error: %v", error)
+			}
 		}
 	}
 

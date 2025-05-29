@@ -19,7 +19,7 @@ func NewFoodService(food *biz.FoodUsecase, logger log.Logger) *FoodService {
 }
 
 func (s *FoodService) CreateFood(ctx context.Context, req *pb.CreateFoodRequest) (*pb.CreateFoodReply, error) {
-	s.log.WithContext(ctx).Infof("CreateFood: %v", req.Name)
+	s.log.WithContext(ctx).Infof("foodService: CreateFood: %v", req.Name)
 
 	httpReq, _ := http.RequestFromServerContext(ctx)
 	authHeader := httpReq.Header.Get("Authorization")
@@ -29,7 +29,7 @@ func (s *FoodService) CreateFood(ctx context.Context, req *pb.CreateFoodRequest)
 
 	food, err := s.food.CreateFood(ctx, req)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("CreateFood error: %v", err)
+		s.log.WithContext(ctx).Errorf("foodService: CreateFood error: %v", err)
 		return nil, err
 	}
 
@@ -49,11 +49,11 @@ func (s *FoodService) CreateFood(ctx context.Context, req *pb.CreateFoodRequest)
 	}, nil
 }
 func (s *FoodService) GetFoodList(ctx context.Context, req *pb.GetFoodListRequest) (*pb.GetFoodListReply, error) {
-	s.log.WithContext(ctx).Info("GetFoodList")
+	s.log.WithContext(ctx).Info("foodService: GetFoodList")
 
 	foods, err := s.food.GetFoodList(ctx)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("GetFoodList error: %v", err)
+		s.log.WithContext(ctx).Errorf("foodService: GetFoodList error: %v", err)
 		return nil, err
 	}
 
@@ -75,11 +75,11 @@ func (s *FoodService) GetFoodList(ctx context.Context, req *pb.GetFoodListReques
 	return reply, nil
 }
 func (s *FoodService) GetRandomFood(ctx context.Context, req *pb.GetRandomFoodRequest) (*pb.GetRandomFoodReply, error) {
-	s.log.WithContext(ctx).Info("GetRandomFood")
+	s.log.WithContext(ctx).Info("foodService: GetRandomFood")
 
 	food, err := s.food.GetRandomFood(ctx)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("GetRandomFood error: %v", err)
+		s.log.WithContext(ctx).Errorf("foodService: GetRandomFood error: %v", err)
 		return nil, err
 	}
 

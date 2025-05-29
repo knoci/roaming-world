@@ -50,17 +50,29 @@ func (uc *FoodUsecase) CreateFood(ctx context.Context, req *v1.CreateFoodRequest
 		Article:  req.Article,
 		Location: req.Location,
 	}
-	return uc.repo.CreateFood(ctx, food)
+	food, err := uc.repo.CreateFood(ctx, food)
+	if err != nil  {
+		return nil, ErrInternalError
+	}
+	return food, nil
 }
 
 // GetFoodList 获取食物列表的业务逻辑
 func (uc *FoodUsecase) GetFoodList(ctx context.Context) ([]*Food, error) {
 	uc.log.WithContext(ctx).Info("GetFoodList")
-	return uc.repo.GetFoodList(ctx)
+	foods, err := uc.repo.GetFoodList(ctx)
+	if err != nil  {
+		return nil, ErrInternalError
+	}
+	return foods, nil
 }
 
 // GetRandomFood 获取随机食物的业务逻辑
 func (uc *FoodUsecase) GetRandomFood(ctx context.Context) (*Food, error) {
 	uc.log.WithContext(ctx).Info("GetRandomFood")
-	return uc.repo.GetRandomFood(ctx)
+	food, err := uc.repo.GetRandomFood(ctx)
+	if err != nil  {
+		return nil, ErrInternalError
+	}
+	return food, nil
 }
