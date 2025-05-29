@@ -46,7 +46,7 @@ func (s *UserService) SendVerificationCode(ctx context.Context, req *pb.SendVeri
 		s.log.WithContext(ctx).Errorf("SendVerificationCode failed: %v", err)
 		return nil, err
 	}
-	// 实际验证码不应该在响应中返回，这里仅为示例，或者返回一个状态信息
+	
 	return &pb.SendVerificationCodeReply{
 		Code: code,
 	}, nil
