@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package audiobook.v1;
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+option go_package = "audiobook/api/audiobook/v1;v1";
+
+// AudiobookService 有声书服务定义
+service Audiobook {
+  // CreateAudiobook 创建有声书
+  rpc CreateAudiobook(CreateAudiobookRequest) returns (CreateAudiobookReply) {
+    option (google.api.http) = {
+      post: "/v1/audiobook"
+      body: "*"
+    };
+  }
+
+  // CreateAudiobookDetail 创建有声书章节
+  rpc CreateAudiobookDetail(CreateAudiobookDetailRequest) returns (CreateAudiobookDetailReply) {
+    option (google.api.http) = {
+      post: "/v1/audiobook/detail"
+      body: "*"
+    };
+  }
+
+  // GetAudiobooks 获取所有有声书
+  rpc GetAudiobooks(GetAudiobooksRequest) returns (GetAudiobooksReply) {
+    option (google.api.http) = {
+      get: "/v1/audiobook"
+    };
+  }
+
+  // GetAudiobookDetails 获取指定有声书的所有章节
+  rpc GetAudiobookDetails(GetAudiobookDetailsRequest) returns (GetAudiobookDetailsReply) {
+    option (google.api.http) = {
+      get: "/v1/audiobook/detail"
+    };
+  }
+}
+
+// AudiobookMessage 有声书信息
+message AudiobookMessage {
+  string bid = 1;
+  string view = 2;
+  string author = 3;
+  string name = 4;
+  int32 playcount = 5;
+  int32 chapternum = 6;
+  double rating = 7;
+  string description = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+// AudiobookDetailMessage 有声书章节信息
+message AudiobookDetailMessage {
+  string did = 1;
+  string bid = 2;
+  int32 chapter = 3;
+  string audio = 4;
+  string name = 5;
+  int32 duration = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+// CreateAudiobookRequest 创建有声书请求
+message CreateAudiobookRequest {
+  string view = 1;
+  string author = 2 [(validate.rules).string = {min_len: 1, max_len: 50}];
+  string name = 3 [(validate.rules).string = {min_len: 1, max_len: 50}];
+  double rating = 4;
+  string description = 5;
+}
+
+// CreateAudiobookReply 创建有声书响应
+message CreateAudiobookReply {
+  AudiobookMessage audiobook = 1;
+}
+
+// CreateAudiobookDetailRequest 创建有声书章节请求
+message CreateAudiobookDetailRequest {
+  string bid = 1 [(validate.rules).string.min_len = 1];
+  int32 chapter = 2;
+  string audio = 3 [(validate.rules).string.min_len = 1];
+  string name = 4 [(validate.rules).string = {min_len: 1, max_len: 255}];
+  int32 duration = 5;
+}
+
+// CreateAudiobookDetailReply 创建有声书章节响应
+message CreateAudiobookDetailReply {
+  AudiobookDetailMessage detail = 1;
+}
+
+// GetAudiobooksRequest 获取所有有声书请求
+message GetAudiobooksRequest {
+  string status = 1;
+}
+
+// GetAudiobooksReply 获取所有有声书响应
+message GetAudiobooksReply {
+  repeated AudiobookMessage audiobooks = 1;
+}
+
+// GetAudiobookDetailsRequest 获取指定有声书的所有章节请求
+message GetAudiobookDetailsRequest {
+  string bid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// GetAudiobookDetailsReply 获取指定有声书的所有章节响应
+message GetAudiobookDetailsReply {
+  repeated AudiobookDetailMessage details = 1;
+}

@@ -6,11 +6,11 @@
 package main
 
 import (
-	"audiobook/internal/biz"
-	"audiobook/internal/conf"
-	"audiobook/internal/data"
-	"audiobook/internal/server"
-	"audiobook/internal/service"
+	"github.com/knoci/roaming-world/audiobook/internal/biz"
+	"github.com/knoci/roaming-world/audiobook/internal/conf"
+	"github.com/knoci/roaming-world/audiobook/internal/data"
+	"github.com/knoci/roaming-world/audiobook/internal/server"
+	"github.com/knoci/roaming-world/audiobook/internal/service"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"

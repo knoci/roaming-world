@@ -7,11 +7,11 @@
 package main
 
 import (
-	"audiobook/internal/biz"
-	"audiobook/internal/conf"
-	"audiobook/internal/data"
-	"audiobook/internal/server"
-	"audiobook/internal/service"
+	"github.com/knoci/roaming-world/audiobook/internal/biz"
+	"github.com/knoci/roaming-world/audiobook/internal/conf"
+	"github.com/knoci/roaming-world/audiobook/internal/data"
+	"github.com/knoci/roaming-world/audiobook/internal/server"
+	"github.com/knoci/roaming-world/audiobook/internal/service"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 )
@@ -28,11 +28,11 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	greeterRepo := data.NewGreeterRepo(dataData, logger)
-	greeterUsecase := biz.NewGreeterUsecase(greeterRepo, logger)
-	greeterService := service.NewGreeterService(greeterUsecase)
-	grpcServer := server.NewGRPCServer(confServer, greeterService, logger)
-	httpServer := server.NewHTTPServer(confServer, greeterService, logger)
+	audiobookRepo := data.NewAudiobookRepo(dataData, logger)
+	audiobookUsecase := biz.NewAudiobookUsecase(audiobookRepo, logger)
+	audiobookService := service.NewAudiobookService(audiobookUsecase, logger)
+	grpcServer := server.NewGRPCServer(confServer, audiobookService, logger)
+	httpServer := server.NewHTTPServer(confServer, audiobookService, logger)
 	app := newApp(logger, grpcServer, httpServer)
 	return app, func() {
 		cleanup()

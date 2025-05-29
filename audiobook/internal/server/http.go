@@ -1,9 +1,9 @@
 package server
 
 import (
-	v1 "audiobook/api/helloworld/v1"
-	"audiobook/internal/conf"
-	"audiobook/internal/service"
+	v1 "github.com/knoci/roaming-world/audiobook/api/audiobook/v1"
+	"github.com/knoci/roaming-world/audiobook/internal/conf"
+	"github.com/knoci/roaming-world/audiobook/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -11,7 +11,7 @@ import (
 )
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, audiobook *service.AudiobookService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -27,6 +27,6 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	v1.RegisterGreeterHTTPServer(srv, greeter)
+	v1.RegisterAudiobookHTTPServer(srv, audiobook)
 	return srv
 }

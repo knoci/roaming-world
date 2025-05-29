@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"audiobook/internal/conf"
+	"github.com/knoci/roaming-world/audiobook/internal/conf"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"

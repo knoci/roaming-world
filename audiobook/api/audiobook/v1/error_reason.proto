@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package audiobook.v1;
+
+option go_package = "audiobook/api/audiobook/v1;v1";
+
+import "third_party/errors/errors.proto";
+
+enum ErrorReason {
+  option (errors.default_code) = 500;
+  // 未知错误
+  UNKNOWN_ERROR = 0 [(errors.code) = 500];
+  // 有声书不存在
+  AUDIOBOOK_NOT_FOUND = 1 [(errors.code) = 404];
+  // 章节不存在
+  DETAIL_NOT_FOUND = 2 [(errors.code) = 404];
+  // 创建有声书失败
+  CREATE_AUDIOBOOK_FAILED = 3 [(errors.code) = 500];
+  // 创建章节失败
+  CREATE_DETAIL_FAILED = 4 [(errors.code) = 500];
+  // 数据库错误
+  DATABASE_ERROR = 5 [(errors.code) = 500];
+  // 缓存错误
+  CACHE_ERROR = 6 [(errors.code) = 500];
+  // 参数错误
+  INVALID_ARGUMENT = 7 [(errors.code) = 400];
+}
