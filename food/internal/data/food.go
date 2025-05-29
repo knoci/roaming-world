@@ -77,7 +77,7 @@ func (r *foodRepo) CreateFood(ctx context.Context, g *biz.Food) (*biz.Food, erro
 	if err != nil {
 		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
 	}
-	log := kafka.NewMessage("user", sqlbyte)
+	log := kafka.NewMessage("food", sqlbyte)
 	err = r.data.kafka.Send(ctx, log)
 	if err != nil {
 		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
