@@ -2,8 +2,8 @@ package data
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
@@ -21,9 +21,9 @@ var ProviderSet = wire.NewSet(NewData, NewFoodRepo)
 
 // Data .
 type Data struct {
-	db    *gorm.DB
-	redis *redis.Client
-	log   *log.Helper
+	db        *gorm.DB
+	redis     *redis.Client
+	log       *log.Helper
 	cdc       *kafka.KafkaSender
 	logsender *kafka.KafkaSender
 }
@@ -102,9 +102,9 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	d := &Data{
-		db:    db,
-		redis: client,
-		log:   log,
+		db:        db,
+		redis:     client,
+		log:       log,
 		cdc:       cdc,
 		logsender: logsender,
 	}

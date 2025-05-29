@@ -1,4 +1,4 @@
-module scene
+module github.com/knoci/roaming-world/scene
 
 go 1.21
 
