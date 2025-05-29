@@ -46,7 +46,7 @@ func (s *UserService) SendVerificationCode(ctx context.Context, req *pb.SendVeri
 		s.log.WithContext(ctx).Errorf("SendVerificationCode failed: %v", err)
 		return nil, err
 	}
-	
+
 	return &pb.SendVerificationCodeReply{
 		Code: code,
 	}, nil
@@ -74,10 +74,10 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	}, nil
 }
 func (s *UserService) FindUser(ctx context.Context, req *pb.FindUserRequest) (*pb.FindUserReply, error) {
-	s.log.WithContext(ctx).Infof("FindUser received: Uid=%s", req.Keyword)
+	s.log.WithContext(ctx).Infof("userService: FindUser received: Uid=%s", req.Keyword)
 	user, err := s.user.FindUser(ctx, req.Keyword)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("FindUser failed: %v", err)
+		s.log.WithContext(ctx).Errorf("userService: FindUser failed: %v", err)
 		return nil, err
 	}
 	return &pb.FindUserReply{
@@ -94,10 +94,10 @@ func (s *UserService) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest)
 		return nil, biz.ErrUnauthorized
 	}
 
-	s.log.WithContext(ctx).Infof("DeleteUser received: Uid=%s", claims.UID)
+	s.log.WithContext(ctx).Infof("userService: DeleteUser received: Uid=%s", claims.UID)
 	err = s.user.DeleteUser(ctx, claims.UID)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("DeleteUser failed: %v", err)
+		s.log.WithContext(ctx).Errorf("userService: DeleteUser failed: %v", err)
 		return nil, err
 	}
 	return &pb.DeleteUserReply{}, nil
@@ -109,10 +109,10 @@ func (s *UserService) UpdateUserInfo(ctx context.Context, req *pb.UpdateUserInfo
 		return nil, biz.ErrUnauthorized
 	}
 
-	s.log.WithContext(ctx).Infof("UpdateUserInfo received: Uid=%s, Name=%s", claims.UID, claims.Name)
+	s.log.WithContext(ctx).Infof("userService: UpdateUserInfo received: Uid=%s, Name=%s", claims.UID, claims.Name)
 	user, err := s.user.UpdateUserInfo(ctx, claims.UID, req)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("UpdateUserInfo failed: %v", err)
+		s.log.WithContext(ctx).Errorf("userService: UpdateUserInfo failed: %v", err)
 		return nil, err
 	}
 	return &pb.UpdateUserInfoReply{
@@ -127,10 +127,10 @@ func (s *UserService) ResetPassword(ctx context.Context, req *pb.ResetPasswordRe
 		return nil, biz.ErrUnauthorized
 	}
 
-	s.log.WithContext(ctx).Infof("ResetPassword received: Uid=%s, Name=%s", claims.UID, claims.Name)
+	s.log.WithContext(ctx).Infof("userService: ResetPassword received: Uid=%s, Name=%s", claims.UID, claims.Name)
 	err = s.user.ResetPassword(ctx, req)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("ResetPassword failed: %v", err)
+		s.log.WithContext(ctx).Errorf("userService: ResetPassword failed: %v", err)
 		return nil, err
 	}
 	return &pb.ResetPasswordReply{}, nil
@@ -141,7 +141,7 @@ func (s *UserService) UploadAvatar(ctx context.Context, req *pb.UploadAvatarRequ
 		return nil, biz.ErrUnauthorized
 	}
 
-	s.log.WithContext(ctx).Infof("UploadAvatar received: Uid=%s", claims.UID)
+	s.log.WithContext(ctx).Infof("userService: UploadAvatar received: Uid=%s", claims.UID)
 	httpReq, _ := http.RequestFromServerContext(ctx)
 	_, file, err := httpReq.FormFile("avatar")
 	contentType := file.Header.Get("Content-Type")
@@ -153,7 +153,7 @@ func (s *UserService) UploadAvatar(ctx context.Context, req *pb.UploadAvatarRequ
 	}
 	rep, err := s.user.UploadAvatar(ctx, claims.UID, file)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("UploadAvatar failed: %v", err)
+		s.log.WithContext(ctx).Errorf("userService: UploadAvatar failed: %v", err)
 		return nil, err
 	}
 	return rep, nil
@@ -177,10 +177,10 @@ func (s *UserService) ConfirmUser(ctx context.Context, req *pb.ConfirmUserReques
 	}, nil
 }
 func (s *UserService) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailRequest) (*pb.ConfirmEmailReply, error) {
-	s.log.WithContext(ctx).Infof("VerifyCode received: Email=%s, Code=%s", req.Email, req.Code)
+	s.log.WithContext(ctx).Infof("userService: VerifyCode received: Email=%s, Code=%s", req.Email, req.Code)
 	rep, err := s.user.ConfirmEmail(ctx, req)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("VerifyCode failed: %v", err)
+		s.log.WithContext(ctx).Errorf("userService: VerifyCode failed: %v", err)
 		return rep, err
 	}
 	return rep, nil
@@ -199,7 +199,7 @@ func GetJwtClaim(ctx context.Context) (*jwt.Claims, error) {
 	}
 	claims, err := jwt.ParseToken(parts[1])
 	if err != nil {
-		return nil, err
+		return nil, biz.ErrUnauthorized
 	}
 	return claims, nil
 }

@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/knoci/roaming-world/user/internal/biz"
-	kafka "github.com/knoci/roaming-world/user/internal/pkg"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
@@ -37,11 +35,6 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-type SqlMsg struct {
-	Query  string        `json:"query"`
-	Params []interface{} `json:"params"`
-}
-
 type userRepo struct {
 	data *Data
 	log  *log.Helper
@@ -59,7 +52,7 @@ func NewUserRepo(data *Data, logger log.Logger) biz.UserRepo {
 func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error) {
 	hashPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("hash password error: %v", err)
+		r.log.WithContext(ctx).Errorf("userRepo: hash password error: %v", err)
 		return nil, err
 	}
 
@@ -73,24 +66,19 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 
 	result := r.data.db.Create(u)
 	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("create user error: %v", result.Error)
+		r.log.WithContext(ctx).Errorf("userRepo: create user error: %v", result.Error)
+		err = r.data.SendErrorLog(ctx, "user", result.Error.Error(), "db.Create", u)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", err)
+		}
 		return nil, result.Error
 	}
 
 	sql := `INSERT INTO users (uid, name, email, password, avatar) VALUES ($1, $2, $3, $4, $5)`
 	params := []any{user.UID, user.Name, user.Email, string(hashPassword), user.Avatar}
-	msg := SqlMsg{
-		Query:  sql,
-		Params: params,
-	}
-	sqlbyte, err := json.Marshal(msg)
+	err = r.data.SendSqlLog(ctx, "user", sql, params)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
-	}
-	log := kafka.NewMessage("user", sqlbyte)
-	err = r.data.kafka.Send(ctx, log)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
+		r.log.WithContext(ctx).Errorf("userRepo: kafka send sqllog error: %v", err)
 	}
 
 	return &biz.User{
@@ -109,11 +97,15 @@ func (r *userRepo) FindByUID(ctx context.Context, uid string) (*biz.User, error)
 	result := r.data.db.WithContext(ctx).Where("uid = ?", uid).First(&u)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			r.log.WithContext(ctx).Warnf("user not found by uid: %s", uid)
-			return nil, biz.ErrUserNotFound
+			r.log.WithContext(ctx).Warnf("userRepo: user not found by uid: %s", uid)
+			return nil, result.Error
 		}
-		r.log.WithContext(ctx).Errorf("db error finding user by uid: %s, error: %v", uid, result.Error)
-		return nil, biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: db error finding user by uid: %s, error: %v", uid, result.Error)
+		err := r.data.SendErrorLog(ctx, "user", result.Error.Error(), "db.Where('uid = ?', uid).First", uid)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", err)
+		}
+		return nil, result.Error
 	}
 
 	return &biz.User{
@@ -132,11 +124,15 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*biz.User, er
 	result := r.data.db.WithContext(ctx).Where("email = ?", email).First(&u)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			r.log.WithContext(ctx).Warnf("user not found by email: %s", email)
-			return nil, biz.ErrUserNotFound
+			r.log.WithContext(ctx).Warnf("userRepo: user not found by email: %s", email)
+			return nil, result.Error
 		}
-		r.log.WithContext(ctx).Errorf("db error finding user by email: %s, error: %v", email, result.Error)
-		return nil, biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: db error finding user by email: %s, error: %v", email, result.Error)
+		err := r.data.SendErrorLog(ctx, "user", result.Error.Error(), "db.Where('email = ?', email).First", email)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", err)
+		}
+		return nil, result.Error
 	}
 
 	return &biz.User{
@@ -156,11 +152,15 @@ func (r *userRepo) FindByKeyword(ctx context.Context, keyword string) (*biz.User
 	result := r.data.db.WithContext(ctx).Where("name = ? OR email = ?", keyword, keyword).First(&u)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			r.log.WithContext(ctx).Warnf("user not found by keyword: %s", keyword)
-			return nil, biz.ErrUserNotFound
+			r.log.WithContext(ctx).Warnf("userRepo: user not found by keyword: %s", keyword)
+			return nil, result.Error
 		}
-		r.log.WithContext(ctx).Errorf("db error finding user by keyword: %s, error: %v", keyword, result.Error)
-		return nil, biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: db error finding user by keyword: %s, error: %v", keyword, result.Error)
+		err := r.data.SendErrorLog(ctx, "user", result.Error.Error(), "db.Where('name = ? OR email = ?', keyword, keyword).First", keyword)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", err)
+		}
+		return nil, result.Error
 	}
 
 	return &biz.User{
@@ -180,11 +180,15 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	findResult := r.data.db.WithContext(ctx).Where("uid = ?", user.UID).First(&existingUser)
 	if findResult.Error != nil {
 		if errors.Is(findResult.Error, gorm.ErrRecordNotFound) {
-			r.log.WithContext(ctx).Warnf("user not found for update, uid: %s", user.UID)
-			return nil, biz.ErrUserNotFound
+			r.log.WithContext(ctx).Warnf("userRepo: user not found for update, uid: %s", user.UID)
+			return nil, findResult.Error
 		}
-		r.log.WithContext(ctx).Errorf("db error finding user for update, uid: %s, error: %v", user.UID, findResult.Error)
-		return nil, biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: db error finding user for update, uid: %s, error: %v", user.UID, findResult.Error)
+		err := r.data.SendErrorLog(ctx, "user", findResult.Error.Error(), "Where('uid = ?', user.UID).First", user.UID)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", err)
+		}
+		return nil, findResult.Error
 	}
 
 	// 更新字段
@@ -200,7 +204,7 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 
 	saveResult := r.data.db.WithContext(ctx).Save(&existingUser)
 	if saveResult.Error != nil {
-		r.log.WithContext(ctx).Errorf("db error updating user, uid: %s, error: %v", user.UID, saveResult.Error)
+		r.log.WithContext(ctx).Errorf("userRepo: db error updating user, uid: %s, error: %v", user.UID, saveResult.Error)
 		return nil, biz.ErrInternalError
 	}
 
@@ -212,18 +216,9 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 		user.Avatar,
 		existingUser.UID,
 	}
-	msg := SqlMsg{
-		Query:  sql,
-		Params: params,
-	}
-	sqlbyte, err := json.Marshal(msg)
+	err := r.data.SendSqlLog(ctx, "user", sql, params)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
-	}
-	log := kafka.NewMessage("user", sqlbyte)
-	err = r.data.kafka.Send(ctx, log)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
+		r.log.WithContext(ctx).Errorf("userRepo: kafka send sqllog error: %v", err)
 	}
 
 	return &biz.User{
@@ -240,31 +235,26 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 func (r *userRepo) Delete(ctx context.Context, uid string) error {
 	result := r.data.db.WithContext(ctx).Where("uid = ?", uid).Delete(&User{})
 	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("db error deleting user, uid: %s, error: %v", uid, result.Error)
-		return biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: db error deleting user, uid: %s, error: %v", uid, result.Error)
+		err := r.data.SendErrorLog(ctx, "user", result.Error.Error(), "Where('uid = ?', uid).Delete", uid)
+		if err != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", err)
+		}
+		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		r.log.WithContext(ctx).Warnf("user not found for deletion, uid: %s", uid)
-		return biz.ErrUserNotFound // 如果记录不存在，也应该告知
+		r.log.WithContext(ctx).Warnf("userRepo: user not found for deletion, uid: %s", uid)
+		return nil
 	} else {
 		sql := "DELETE FROM users WHERE uid = $1"
 		params := []any{uid}
-		msg := SqlMsg{
-			Query:  sql,
-			Params: params,
-		}
-		sqlbyte, err := json.Marshal(msg)
+		err := r.data.SendSqlLog(ctx, "user", sql, params)
 		if err != nil {
-			r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
-		}
-		log := kafka.NewMessage("user", sqlbyte)
-		err = r.data.kafka.Send(ctx, log)
-		if err != nil {
-			r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send sqllog error: %v", err)
 		}
 	}
 
-	r.log.WithContext(ctx).Infof("user deleted successfully, uid: %s, rows_affected: %d", uid, result.RowsAffected)
+	r.log.WithContext(ctx).Infof("userRepo: user deleted successfully, uid: %s, rows_affected: %d", uid, result.RowsAffected)
 	return nil
 }
 
@@ -273,21 +263,24 @@ func (r *userRepo) VerifyCode(ctx context.Context, email, code string) error {
 	key := fmt.Sprintf("verify_code:%s:%s", email, code)
 	resp, err := r.data.etcd.Get(ctx, key)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("etcd get verify code error: %v, key: %s", err, key)
-		return fmt.Errorf("failed to get verification code from store: %w", err)
+		r.log.WithContext(ctx).Errorf("userRepo: etcd get verify code error: %v, key: %s", err, key)
+		error := r.data.SendErrorLog(ctx, "user", err.Error(), "etcd.Get", key)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
+		}
+		return err
 	}
 	if len(resp.Kvs) == 0 {
-		r.log.WithContext(ctx).Warnf("verify code not found or expired, key: %s", key)
-		return biz.ErrVerificationExpired // 使用 biz 层定义的错误
+		return err
 	}
 
 	// 验证成功后删除验证码
 	_, err = r.data.etcd.Delete(ctx, key)
 	if err != nil {
 		// 即使删除失败，验证也已通过，记录错误但不必返回给用户
-		r.log.WithContext(ctx).Errorf("etcd delete verify code error: %v, key: %s", err, key)
+		r.log.WithContext(ctx).Errorf("userRepo: etcd delete verify code error: %v, key: %s", err, key)
 	}
-	r.log.WithContext(ctx).Infof("verify code success and deleted, key: %s", key)
+	r.log.WithContext(ctx).Infof("userRepo: verify code success and deleted, key: %s", key)
 	return nil
 }
 
@@ -297,18 +290,26 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 	findResult := r.data.db.WithContext(ctx).Where("uid = ?", uid).First(&u)
 	if findResult.Error != nil {
 		if errors.Is(findResult.Error, gorm.ErrRecordNotFound) {
-			r.log.WithContext(ctx).Warnf("user not found for update, uid: %s", uid)
-			return nil, biz.ErrUserNotFound
+			r.log.WithContext(ctx).Warnf("userRepo: user not found for update, uid: %s", uid)
+			return nil, findResult.Error
 		}
-		r.log.WithContext(ctx).Errorf("db error finding user for update, uid: %s, error: %v", uid, findResult.Error)
-		return nil, biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: db error finding user for update, uid: %s, error: %v", uid, findResult.Error)
+		error := r.data.SendErrorLog(ctx, "user", findResult.Error.Error(), "db.Where(uid = ?, uid)", uid)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
+		}
+		return nil, findResult.Error
 	}
 
 	// 打开文件
 	src, err := file.Open()
 	if err != nil {
 		r.log.WithContext(ctx).Errorf("failed to open avatar file: %s", err)
-		return nil, biz.ErrInternalError
+		error := r.data.SendErrorLog(ctx, "user", err.Error(), "file.Open", file)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
+		}
+		return nil, err
 	}
 	defer src.Close()
 
@@ -316,18 +317,22 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 	ext := filepath.Ext(file.Filename)
 	code := randcode()
 	fileName := fmt.Sprintf("avatars/%s/%s%s", u.Name, code, ext)
-	r.log.WithContext(ctx).Infof("starting avatar upload for user: %s, filename: %s", uid, fileName)
+	r.log.WithContext(ctx).Infof("userRepo: starting avatar upload for userRepo: %s, filename: %s", uid, fileName)
 
 	// 上传到腾讯云COS
 	_, err = r.data.cos.Object.Put(ctx, fileName, src, nil)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("upload avatar to COS error for user %s: %v", uid, err)
-		return nil, biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: upload avatar to COS error for user %s: %v", uid, err)
+		error := r.data.SendErrorLog(ctx, "user", err.Error(), "cos.Object.Put", src)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
+		}
+		return nil, err
 	}
 
 	// 获取文件URL
 	avatarURL := r.data.cos.Object.GetObjectURL(fileName)
-	r.log.WithContext(ctx).Infof("avatar uploaded for user %s, URL: %s", uid, avatarURL)
+	r.log.WithContext(ctx).Infof("userRepo: avatar uploaded for user %s, URL: %s", uid, avatarURL)
 
 	// 更新用户头像URL
 	oldAvatar := u.Avatar
@@ -337,8 +342,12 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 	// 更新用户头像URL
 	saveResult := r.data.db.WithContext(ctx).Save(&u)
 	if saveResult.Error != nil {
-		r.log.WithContext(ctx).Errorf("db error saving user avatar, uid: %s, error: %v", uid, saveResult.Error)
-		return nil, biz.ErrInternalError
+		r.log.WithContext(ctx).Errorf("userRepo: db error saving user avatar, uid: %s, error: %v", uid, saveResult.Error)
+		error := r.data.SendErrorLog(ctx, "user", saveResult.Error.Error(), "db.Save", u)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
+		}
+		return nil, saveResult.Error
 	}
 
 	// 发送消息到Kafka
@@ -347,18 +356,9 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 		avatarURL.String(),
 		u.UID,
 	}
-	msg := SqlMsg{
-		Query:  sql,
-		Params: params,
-	}
-	sqlbyte, err := json.Marshal(msg)
+	err = r.data.SendSqlLog(ctx, "user", sql, params)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka: json marshal error: %v", err)
-	}
-	log := kafka.NewMessage("user", sqlbyte)
-	err = r.data.kafka.Send(ctx, log)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("kafka send error: %v", err)
+		r.log.WithContext(ctx).Errorf("userRepo: kafka send sqllog error: %v", err)
 	}
 
 	// 尝试删除旧头像（如果不是默认头像）
@@ -366,12 +366,16 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 		go func(avatarURL string) {
 			_, err := r.data.cos.Object.Delete(ctx, avatarURL)
 			if err != nil {
-				r.log.WithContext(ctx).Errorf("delete oldAvatar failed: %s", err)
+				r.log.WithContext(ctx).Errorf("userRepo: delete oldAvatar failed: %s", err)
+				error := r.data.SendErrorLog(ctx, "user", err.Error(), "cos.Object.Delete", avatarURL)
+				if error != nil {
+					r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
+				}
 			}
 		}(oldAvatar)
 	}
 
-	r.log.WithContext(ctx).Infof("user avatar updated in db for user: %s, new avatar URL: %s", uid, avatarURL)
+	r.log.WithContext(ctx).Infof("userRepo: user avatar updated in db for userRepo: %s, new avatar URL: %s", uid, avatarURL)
 	return &biz.User{
 		UID:       u.UID,
 		Name:      u.Name,
@@ -385,7 +389,7 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 func (r *userRepo) SetCode(ctx context.Context, key string, time int64) error {
 	err := r.data.SetEtcd(ctx, key, time)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("save verify code failed: %s", err)
+		r.log.WithContext(ctx).Errorf("userRepo: save verify code failed: %s", err)
 		return err
 	}
 	return nil

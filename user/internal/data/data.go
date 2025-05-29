@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -24,11 +25,23 @@ var ProviderSet = wire.NewSet(NewData, NewUserRepo)
 
 // Data .
 type Data struct {
-	db    *gorm.DB
-	etcd  *clientv3.Client
-	log   *log.Helper
-	cos   *cos.Client
-	kafka *kafka.KafkaSender
+	db        *gorm.DB
+	etcd      *clientv3.Client
+	log       *log.Helper
+	cos       *cos.Client
+	cdc       *kafka.KafkaSender
+	logsender *kafka.KafkaSender
+}
+
+type SqlMsg struct {
+	Query  string        `json:"query"`
+	Params []interface{} `json:"params"`
+}
+
+type ErrorMsg struct {
+	ErrorMsg  string `json:"error_msg"`
+	ErrorOp   string `json:"error_op"`
+	ErrorData any    `json:"error_data"`
 }
 
 // NewData .
@@ -53,14 +66,14 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		log.Errorf("failed to connect database: %v", err)
+		log.Errorf("userData: failed to connect database: %v", err)
 		return nil, nil, err
 	}
 
 	// 自动迁移表结构
 	err = db.AutoMigrate(&User{})
 	if err != nil {
-		log.Errorf("failed to auto migrate: %v", err)
+		log.Errorf("userData: failed to auto migrate: %v", err)
 		return nil, nil, err
 	}
 
@@ -76,7 +89,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	})
 
 	if err != nil {
-		log.Error("failed to create etcd client", err)
+		log.Error("userData: failed to create etcd client", err)
 		return nil, nil, err
 	}
 
@@ -86,7 +99,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 	_, err = client.Status(ctx, endpoints[0])
 	if err != nil {
-		log.Error("failed to connect etcd", err)
+		log.Error("userData: failed to connect etcd", err)
 		return nil, nil, err
 	}
 
@@ -96,14 +109,14 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 	// 检查配置是否存在
 	if bucketURL == "" || secretID == "" || secretKey == "" {
-		log.Error("cos config missing")
-		return nil, nil, fmt.Errorf("cos config missing")
+		log.Error("userData: cos config missing")
+		return nil, nil, fmt.Errorf("userData: cos config missing")
 	}
 
 	// 解析bucket URL
 	u, err := url.Parse(bucketURL)
 	if err != nil {
-		log.Error("parse cos Bucket URL failed", err)
+		log.Error("userData: parse cos Bucket URL failed", err)
 		return nil, nil, err
 	}
 
@@ -116,19 +129,27 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		},
 	})
 
-	address := nacos.GetConfigString(cfg, "kafka.address")
-	topic := nacos.GetConfigString(cfg, "kafka.topic")
-	sender, err := kafka.NewKafkaSender([]string{address}, topic)
+	address1 := nacos.GetConfigString(cfg, "kafka.address.cdc")
+	topic1 := nacos.GetConfigString(cfg, "kafka.topic.cdc")
+	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
+	if err != nil {
+		panic(err)
+	}
+
+	address2 := nacos.GetConfigString(cfg, "kafka.address.log")
+	topic2 := nacos.GetConfigString(cfg, "kafka.topic.log")
+	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
 	if err != nil {
 		panic(err)
 	}
 
 	d := &Data{
-		db:    db,
-		log:   log,
-		etcd:  client,
-		cos:   cos,
-		kafka: sender,
+		db:        db,
+		log:       log,
+		etcd:      client,
+		cos:       cos,
+		cdc:       cdc,
+		logsender: logsender,
 	}
 
 	cleanup := func() {
@@ -152,6 +173,41 @@ func (d *Data) SetEtcd(ctx context.Context, key string, time int64) error {
 
 	// 使用租约存储验证码，值设为1
 	_, err = d.etcd.Put(ctx, key, "1", clientv3.WithLease(lease.ID))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Data) SendSqlLog(ctx context.Context, key string, sql string, params []interface{}) error {
+	msg := SqlMsg{
+		Query:  sql,
+		Params: params,
+	}
+	sqlbyte, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	sqllog := kafka.NewMessage(key, sqlbyte)
+	err = d.cdc.Send(ctx, sqllog)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
+	msg := ErrorMsg{
+		ErrorMsg:  errmsg,
+		ErrorOp:   errop,
+		ErrorData: errdata,
+	}
+	errbyte, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	errorlog := kafka.NewMessage(key, errbyte)
+	err = d.logsender.Send(ctx, errorlog)
 	if err != nil {
 		return err
 	}

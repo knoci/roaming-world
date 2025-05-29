@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"time"
 	"mime/multipart"
+	"time"
 
+	"github.com/go-kratos/kratos/v2/errors"
+	"github.com/go-kratos/kratos/v2/log"
 	v1 "github.com/knoci/roaming-world/user/api/user/v1"
 	"github.com/knoci/roaming-world/user/internal/pkg"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/go-kratos/kratos/v2/errors"
-	"github.com/go-kratos/kratos/v2/log"
-	
 )
 
 // User 用户实体
@@ -83,7 +82,6 @@ func (uc *UserUsecase) Register(ctx context.Context, req *v1.RegisterRequest) (*
 		return nil, err
 	}
 
-	
 	return &v1.RegisterReply{
 		Uid:    createdUser.UID,
 		Name:   createdUser.Name,
@@ -104,7 +102,7 @@ func (uc *UserUsecase) SendVerificationCode(ctx context.Context, email string) (
 		return "", ErrInternalError
 	}
 
-	err = pkg.SendVerificationCode(email, key) 
+	err = pkg.SendVerificationCode(email, key)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("failed to send code by email: %v", err)
 		return "", ErrInternalError
@@ -131,7 +129,7 @@ func (uc *UserUsecase) Login(ctx context.Context, req *v1.LoginRequest) (*v1.Log
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		return nil, ErrIncorrectPassword
 	}
-	
+
 	uc.log.WithContext(ctx).Infof("user %s logged in successfully", user.Email)
 	return &v1.LoginReply{
 		Uid:    user.UID,
@@ -157,7 +155,11 @@ func (uc *UserUsecase) FindUser(ctx context.Context, keyword string) (*v1.FindUs
 
 // DeleteUser 删除用户
 func (uc *UserUsecase) DeleteUser(ctx context.Context, uid string) error {
-	return uc.repo.Delete(ctx, uid)
+	err := uc.repo.Delete(ctx, uid)
+	if err != nil {
+		return ErrInternalError
+	}
+	return nil
 }
 
 // UpdateUserInfo 更新用户信息
@@ -206,7 +208,10 @@ func (uc *UserUsecase) ResetPassword(ctx context.Context, req *v1.ResetPasswordR
 
 	// 保存更新
 	_, err = uc.repo.Update(ctx, user)
-	return err
+	if err != nil {
+		return ErrInternalError
+	}
+	return nil
 }
 
 // UploadAvatar 上传头像
@@ -216,13 +221,13 @@ func (uc *UserUsecase) UploadAvatar(ctx context.Context, uid string, file *multi
 	result, err := uc.repo.UploadAvatar(ctx, uid, file)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("usecase: failed to upload avatar for user %s: %v", uid, err)
-		return nil, ErrInternalError 
+		return nil, ErrInternalError
 	}
 
 	uc.log.WithContext(ctx).Infof("usecase: avatar uploaded successfully for user %s, URL: %s", uid, result.Avatar)
 	return &v1.UploadAvatarReply{
-		Uid: result.UID,
-		Name: result.Name,
+		Uid:    result.UID,
+		Name:   result.Name,
 		Avatar: result.Avatar,
 	}, nil
 }
@@ -236,7 +241,7 @@ func (uc *UserUsecase) ConfirmEmail(ctx context.Context, req *v1.ConfirmEmailReq
 		uc.log.WithContext(ctx).Errorf("usecase: failed to confirm mail email %s, code: %s", req.Email, req.Code)
 		return &v1.ConfirmEmailReply{
 			Status: "验证失败",
-		}, ErrInternalError 
+		}, ErrInternalError
 	}
 
 	uc.log.WithContext(ctx).Infof("usecase: successfully confirm mail email %s, code: %s", req.Email, req.Code)
