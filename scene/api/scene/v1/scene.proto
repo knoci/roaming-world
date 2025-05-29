@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package scene.v1;
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+option go_package = "scene/api/scene/v1;v1";
+
+// SceneService 场景服务定义
+service Scene {
+  // CreateScene 创建场景
+  rpc CreateScene(CreateSceneRequest) returns (CreateSceneReply) {
+    option (google.api.http) = {
+      post: "/v1/scene"
+      body: "*"
+    };
+  }
+
+  // DeleteScene 删除场景
+  rpc DeleteScene(DeleteSceneRequest) returns (DeleteSceneReply) {
+    option (google.api.http) = {
+      delete: "/v1/scene/{sid}"
+    };
+  }
+
+  // UpdateScene 更新场景
+  rpc UpdateScene(UpdateSceneRequest) returns (UpdateSceneReply) {
+    option (google.api.http) = {
+      put: "/v1/scene"
+      body: "*"
+    };
+  }
+
+  // SearchScene 搜索场景
+  rpc SearchScene(SearchSceneRequest) returns (SearchSceneReply) {
+    option (google.api.http) = {
+      get: "/v1/scene/search"
+    };
+  }
+
+  // ListScenes 获取场景列表
+  rpc ListScenes(ListScenesRequest) returns (ListScenesReply) {
+    option (google.api.http) = {
+      get: "/v1/scene"
+    };
+  }
+
+  // GetSceneByID 根据ID获取场景
+  rpc GetSceneByID(GetSceneByIDRequest) returns (GetSceneByIDReply) {
+    option (google.api.http) = {
+      get: "/v1/scene/{sid}"
+    };
+  }
+}
+
+// SceneMessage 场景信息
+message SceneMessage {
+  string sid = 1;
+  string name = 2;
+  string describe = 3;
+  repeated string view = 4;
+  string location = 5;
+  string article = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+// CreateSceneRequest 创建场景请求
+message CreateSceneRequest {
+  string name = 1 [(validate.rules).string = {min_len: 2, max_len: 100}];
+  string describe = 2 [(validate.rules).string = {max_len: 100}];
+  repeated string view = 3;
+  string location = 4 [(validate.rules).string = {max_len: 20}];
+  string article = 5;
+}
+
+// CreateSceneReply 创建场景响应
+message CreateSceneReply {
+  SceneMessage scene = 1;
+}
+
+// DeleteSceneRequest 删除场景请求
+message DeleteSceneRequest {
+  string sid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// DeleteSceneReply 删除场景响应
+message DeleteSceneReply {}
+
+// UpdateSceneRequest 更新场景请求
+message UpdateSceneRequest {
+  string sid = 1 [(validate.rules).string.min_len = 1];
+  string name = 2;
+  string describe = 3;
+  repeated string view = 4;
+  string location = 5;
+  string article = 6;
+}
+
+// UpdateSceneReply 更新场景响应
+message UpdateSceneReply {
+  SceneMessage scene = 1;
+}
+
+// SearchSceneRequest 搜索场景请求
+message SearchSceneRequest {
+  string keyword = 1 [(validate.rules).string.min_len = 1];
+}
+
+// SearchSceneReply 搜索场景响应
+message SearchSceneReply {
+  repeated SceneMessage scenes = 1;
+}
+
+// ListScenesRequest 获取场景列表请求
+message ListScenesRequest {
+  int32 limit = 1;
+}
+
+// ListScenesReply 获取场景列表响应
+message ListScenesReply {
+  repeated SceneMessage scenes = 1;
+}
+
+// GetSceneByIDRequest 根据ID获取场景请求
+message GetSceneByIDRequest {
+  string sid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// GetSceneByIDReply 根据ID获取场景响应
+message GetSceneByIDReply {
+  SceneMessage scene = 1;
+}

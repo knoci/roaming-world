@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package scene.v1;
+
+option go_package = "scene/api/scene/v1;v1";
+
+enum ErrorReason {
+  // 未知错误
+  UNKNOWN_ERROR = 0;
+  // 场景不存在
+  SCENE_NOT_FOUND = 1;
+  // 创建场景失败
+  CREATE_SCENE_FAILED = 2;
+  // 更新场景失败
+  UPDATE_SCENE_FAILED = 3;
+  // 删除场景失败
+  DELETE_SCENE_FAILED = 4;
+  // 搜索场景失败
+  SEARCH_SCENE_FAILED = 5;
+  // 数据库错误
+  DATABASE_ERROR = 6;
+  // 参数错误
+  INVALID_ARGUMENT = 7;
+}

@@ -1,7 +1,8 @@
 package server
 
 import (
-	v1 "scene/api/helloworld/v1"
+	helloworldv1 "scene/api/helloworld/v1"
+	scenesv1 "scene/api/scene/v1"
 	"scene/internal/conf"
 	"scene/internal/service"
 
@@ -11,7 +12,7 @@ import (
 )
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, scene *service.SceneService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -27,6 +28,7 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	v1.RegisterGreeterHTTPServer(srv, greeter)
+	helloworldv1.RegisterGreeterHTTPServer(srv, greeter)
+	scenesv1.RegisterSceneHTTPServer(srv, scene)
 	return srv
 }

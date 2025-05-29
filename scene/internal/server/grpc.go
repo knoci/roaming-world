@@ -1,7 +1,8 @@
 package server
 
 import (
-	v1 "scene/api/helloworld/v1"
+	helloworldv1 "scene/api/helloworld/v1"
+	scenesv1 "scene/api/scene/v1"
 	"scene/internal/conf"
 	"scene/internal/service"
 
@@ -11,7 +12,7 @@ import (
 )
 
 // NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *grpc.Server {
+func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, scene *service.SceneService, logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
@@ -27,6 +28,7 @@ func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, grpc.Timeout(c.Grpc.Timeout.AsDuration()))
 	}
 	srv := grpc.NewServer(opts...)
-	v1.RegisterGreeterServer(srv, greeter)
+	helloworldv1.RegisterGreeterServer(srv, greeter)
+	scenesv1.RegisterSceneServer(srv, scene)
 	return srv
 }
