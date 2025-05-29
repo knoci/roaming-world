@@ -67,18 +67,18 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 	result := r.data.db.Create(u)
 	if result.Error != nil {
 		r.log.WithContext(ctx).Errorf("userRepo: create user error: %v", result.Error)
-		err = r.data.SendErrorLog(ctx, "user", result.Error.Error(), "db.Create", u)
-		if err != nil {
-			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", err)
+		error := r.data.SendErrorLog(ctx, "user", result.Error.Error(), "db.Create", u)
+		if error != nil {
+			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
 		}
 		return nil, result.Error
 	}
 
 	sql := `INSERT INTO users (uid, name, email, password, avatar) VALUES ($1, $2, $3, $4, $5)`
 	params := []any{user.UID, user.Name, user.Email, string(hashPassword), user.Avatar}
-	err = r.data.SendSqlLog(ctx, "user", sql, params)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("userRepo: kafka send sqllog error: %v", err)
+	error := r.data.SendSqlLog(ctx, "user", sql, params)
+	if error != nil {
+		r.log.WithContext(ctx).Errorf("userRepo: kafka send sqllog error: %v", error)
 	}
 
 	return &biz.User{

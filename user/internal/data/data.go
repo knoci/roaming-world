@@ -153,10 +153,10 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	cleanup := func() {
-		log.Info("closing the data resources")
+		log.Info("userData: closing the data resources")
 		sqlDB, err := d.db.DB()
 		if err != nil {
-			log.Errorf("failed to get sqlDB: %v", err)
+			log.Errorf("user Data: failed to get sqlDB: %v", err)
 			return
 		}
 		sqlDB.Close()

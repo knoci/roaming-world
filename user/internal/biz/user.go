@@ -98,17 +98,17 @@ func (uc *UserUsecase) SendVerificationCode(ctx context.Context, email string) (
 	key := fmt.Sprintf("verify_code:%s:%s", email, code)
 	err := uc.repo.SetCode(ctx, key, 600)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("failed to store verification code in etcd: %v", err)
+		uc.log.WithContext(ctx).Errorf("userUsecase: failed to store verification code in etcd: %v", err)
 		return "", ErrInternalError
 	}
 
 	err = pkg.SendVerificationCode(email, key)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("failed to send code by email: %v", err)
+		uc.log.WithContext(ctx).Errorf("userUsecase: failed to send code by email: %v", err)
 		return "", ErrInternalError
 	}
 
-	uc.log.WithContext(ctx).Infof("verification code %s sent to %s and stored with key %s", code, email, key)
+	uc.log.WithContext(ctx).Infof("userUsecase: verification code %s sent to %s and stored with key %s", code, email, key)
 	return code, nil
 }
 
@@ -118,10 +118,10 @@ func (uc *UserUsecase) Login(ctx context.Context, req *v1.LoginRequest) (*v1.Log
 	user, err := uc.repo.FindByEmail(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) { // 确保比较的是业务错误
-			uc.log.WithContext(ctx).Warnf("login attempt for non-existent email: %s", req.Email)
+			uc.log.WithContext(ctx).Warnf("userUsecase: login attempt for non-existent email: %s", req.Email)
 			return nil, ErrUserNotFound
 		}
-		uc.log.WithContext(ctx).Errorf("error finding user by email during login: %v", err)
+		uc.log.WithContext(ctx).Errorf("userUsecase: error finding user by email during login: %v", err)
 		return nil, ErrInternalError
 	}
 
@@ -130,7 +130,7 @@ func (uc *UserUsecase) Login(ctx context.Context, req *v1.LoginRequest) (*v1.Log
 		return nil, ErrIncorrectPassword
 	}
 
-	uc.log.WithContext(ctx).Infof("user %s logged in successfully", user.Email)
+	uc.log.WithContext(ctx).Infof("userUsecase: user %s logged in successfully", user.Email)
 	return &v1.LoginReply{
 		Uid:    user.UID,
 		Name:   user.Name,
@@ -216,15 +216,15 @@ func (uc *UserUsecase) ResetPassword(ctx context.Context, req *v1.ResetPasswordR
 
 // UploadAvatar 上传头像
 func (uc *UserUsecase) UploadAvatar(ctx context.Context, uid string, file *multipart.FileHeader) (*v1.UploadAvatarReply, error) {
-	uc.log.WithContext(ctx).Infof("usecase: uploading avatar for user %s, filename: %s", uid, file.Filename)
+	uc.log.WithContext(ctx).Infof("userUsecase: uploading avatar for user %s, filename: %s", uid, file.Filename)
 
 	result, err := uc.repo.UploadAvatar(ctx, uid, file)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("usecase: failed to upload avatar for user %s: %v", uid, err)
+		uc.log.WithContext(ctx).Errorf("userUsecase: failed to upload avatar for user %s: %v", uid, err)
 		return nil, ErrInternalError
 	}
 
-	uc.log.WithContext(ctx).Infof("usecase: avatar uploaded successfully for user %s, URL: %s", uid, result.Avatar)
+	uc.log.WithContext(ctx).Infof("userUsecase: avatar uploaded successfully for user %s, URL: %s", uid, result.Avatar)
 	return &v1.UploadAvatarReply{
 		Uid:    result.UID,
 		Name:   result.Name,
@@ -234,17 +234,17 @@ func (uc *UserUsecase) UploadAvatar(ctx context.Context, uid string, file *multi
 
 // ConfirmEmail 验证邮箱
 func (uc *UserUsecase) ConfirmEmail(ctx context.Context, req *v1.ConfirmEmailRequest) (*v1.ConfirmEmailReply, error) {
-	uc.log.WithContext(ctx).Infof("usecase: confirm mail email %s, code: %s", req.Email, req.Code)
+	uc.log.WithContext(ctx).Infof("userUsecase: confirm mail email %s, code: %s", req.Email, req.Code)
 
 	err := uc.repo.VerifyCode(ctx, req.Email, req.Code)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("usecase: failed to confirm mail email %s, code: %s", req.Email, req.Code)
+		uc.log.WithContext(ctx).Errorf("userUsecase: failed to confirm mail email %s, code: %s", req.Email, req.Code)
 		return &v1.ConfirmEmailReply{
 			Status: "验证失败",
 		}, ErrInternalError
 	}
 
-	uc.log.WithContext(ctx).Infof("usecase: successfully confirm mail email %s, code: %s", req.Email, req.Code)
+	uc.log.WithContext(ctx).Infof("userUsecase: successfully confirm mail email %s, code: %s", req.Email, req.Code)
 	return &v1.ConfirmEmailReply{
 		Status: "验证成功",
 	}, nil
