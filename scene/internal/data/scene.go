@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"scene/internal/biz"
+	"github.com/knoci/roaming-world/scene/internal/biz"
 )
 
 // Scene 场景模型
@@ -63,12 +63,9 @@ func (r *sceneRepo) CreateScene(ctx context.Context, s *biz.Scene) (*biz.Scene, 
 	}
 
 	// 发送SQL日志到Kafka
-	viewJSON, _ := json.Marshal(scene.View)
 	sql := fmt.Sprintf("INSERT INTO scenes (sid, name, describe, view, location, article) VALUES ('%s', '%s', '%s', '%s', '%s', '%s')",
 		scene.SID, scene.Name, scene.Describe, string(viewJSON), scene.Location, scene.Article)
-	if err := r.sendSQLLog(ctx, sql); err != nil {
-		r.log.WithContext(ctx).Errorf("send SQL log error: %v", err)
-	}
+	
 
 	return &biz.Scene{
 		SID:       scene.SID,
@@ -92,9 +89,6 @@ func (r *sceneRepo) DeleteScene(ctx context.Context, sid string) error {
 
 	// 发送SQL日志到Kafka
 	sql := fmt.Sprintf("DELETE FROM scenes WHERE sid = '%s'", sid)
-	if err := r.sendSQLLog(ctx, sql); err != nil {
-		r.log.WithContext(ctx).Errorf("send SQL log error: %v", err)
-	}
 
 	return nil
 }

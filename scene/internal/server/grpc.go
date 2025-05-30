@@ -1,10 +1,10 @@
 package server
 
 import (
-	helloworldv1 "scene/api/helloworld/v1"
-	scenesv1 "scene/api/scene/v1"
-	"scene/internal/conf"
-	"scene/internal/service"
+	
+	v1 "github.com/knoci/roaming-world/scene/api/scene/v1"
+	"github.com/knoci/roaming-world/scene/internal/conf"
+	"github.com/knoci/roaming-world/scene/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -12,7 +12,7 @@ import (
 )
 
 // NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, scene *service.SceneService, logger log.Logger) *grpc.Server {
+func NewGRPCServer(c *conf.Server, scene *service.SceneService, logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
@@ -28,7 +28,6 @@ func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, scene *servi
 		opts = append(opts, grpc.Timeout(c.Grpc.Timeout.AsDuration()))
 	}
 	srv := grpc.NewServer(opts...)
-	helloworldv1.RegisterGreeterServer(srv, greeter)
-	scenesv1.RegisterSceneServer(srv, scene)
+	v1.RegisterSceneServer(srv, scene)
 	return srv
 }

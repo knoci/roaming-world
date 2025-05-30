@@ -1,10 +1,9 @@
 package server
 
 import (
-	helloworldv1 "scene/api/helloworld/v1"
-	scenesv1 "scene/api/scene/v1"
-	"scene/internal/conf"
-	"scene/internal/service"
+	v1 "github.com/knoci/roaming-world/scene/api/scene/v1"
+	"github.com/knoci/roaming-world/scene/internal/conf"
+	"github.com/knoci/roaming-world/scene/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -12,7 +11,7 @@ import (
 )
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, scene *service.SceneService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, scene *service.SceneService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -28,7 +27,6 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, scene *servi
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
-	helloworldv1.RegisterGreeterHTTPServer(srv, greeter)
-	scenesv1.RegisterSceneHTTPServer(srv, scene)
+	v1.RegisterSceneHTTPServer(srv, scene)
 	return srv
 }

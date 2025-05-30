@@ -69,7 +69,7 @@ message SceneMessage {
 // CreateSceneRequest 创建场景请求
 message CreateSceneRequest {
   string name = 1 [(validate.rules).string = {min_len: 2, max_len: 100}];
-  string describe = 2 [(validate.rules).string = {max_len: 100}];
+  string describe = 2 [(validate.rules).string = {max_len: 400}];
   repeated string view = 3;
   string location = 4 [(validate.rules).string = {max_len: 20}];
   string article = 5;
@@ -106,6 +106,8 @@ message UpdateSceneReply {
 // SearchSceneRequest 搜索场景请求
 message SearchSceneRequest {
   string keyword = 1 [(validate.rules).string.min_len = 1];
+  int32    page = 2 [(validate.rules).int32.gte = 1];
+  int32    pagesize = 3 [(validate.rules).int32.gte = 1];
 }
 
 // SearchSceneReply 搜索场景响应
@@ -115,7 +117,8 @@ message SearchSceneReply {
 
 // ListScenesRequest 获取场景列表请求
 message ListScenesRequest {
-  int32 limit = 1;
+  int32    page = 2 [(validate.rules).int32.gte = 1];
+  int32    pagesize = 3 [(validate.rules).int32.gte = 1];
 }
 
 // ListScenesReply 获取场景列表响应

@@ -3,19 +3,130 @@
 
 openapi: 3.0.3
 info:
-    title: Greeter API
-    description: The greeting service definition.
+    title: Scene API
+    description: SceneService 场景服务定义
     version: 0.0.1
 paths:
-    /helloworld/{name}:
+    /v1/scene:
         get:
             tags:
-                - Greeter
-                - subgroup
-            description: Sends a greeting
-            operationId: Greeter_SayHello
+                - Scene
+            description: ListScenes 获取场景列表
+            operationId: Scene_ListScenes
             parameters:
-                - name: name
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagesize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListScenesReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        put:
+            tags:
+                - Scene
+            description: UpdateScene 更新场景
+            operationId: Scene_UpdateScene
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateSceneRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateSceneReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - Scene
+            description: CreateScene 创建场景
+            operationId: Scene_CreateScene
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateSceneRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateSceneReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/scene/search:
+        get:
+            tags:
+                - Scene
+            description: SearchScene 搜索场景
+            operationId: Scene_SearchScene
+            parameters:
+                - name: keyword
+                  in: query
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pagesize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SearchSceneReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/scene/{sid}:
+        get:
+            tags:
+                - Scene
+            description: GetSceneByID 根据ID获取场景
+            operationId: Scene_GetSceneByID
+            parameters:
+                - name: sid
                   in: path
                   required: true
                   schema:
@@ -26,14 +137,156 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/helloworld.v1.HelloReply'
+                                $ref: '#/components/schemas/GetSceneByIDReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        delete:
+            tags:
+                - Scene
+            description: DeleteScene 删除场景
+            operationId: Scene_DeleteScene
+            parameters:
+                - name: sid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteSceneReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
     schemas:
-        helloworld.v1.HelloReply:
+        CreateSceneReply:
             type: object
             properties:
+                scene:
+                    $ref: '#/components/schemas/SceneMessage'
+            description: CreateSceneReply 创建场景响应
+        CreateSceneRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                describe:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                location:
+                    type: string
+                article:
+                    type: string
+            description: CreateSceneRequest 创建场景请求
+        DeleteSceneReply:
+            type: object
+            properties: {}
+            description: DeleteSceneReply 删除场景响应
+        GetSceneByIDReply:
+            type: object
+            properties:
+                scene:
+                    $ref: '#/components/schemas/SceneMessage'
+            description: GetSceneByIDReply 根据ID获取场景响应
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        ListScenesReply:
+            type: object
+            properties:
+                scenes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SceneMessage'
+            description: ListScenesReply 获取场景列表响应
+        SceneMessage:
+            type: object
+            properties:
+                sid:
+                    type: string
+                name:
+                    type: string
+                describe:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                location:
+                    type: string
+                article:
+                    type: string
+                createdAt:
+                    type: string
+                updatedAt:
+                    type: string
+            description: SceneMessage 场景信息
+        SearchSceneReply:
+            type: object
+            properties:
+                scenes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SceneMessage'
+            description: SearchSceneReply 搜索场景响应
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
                 message:
                     type: string
-            description: The response message containing the greetings
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        UpdateSceneReply:
+            type: object
+            properties:
+                scene:
+                    $ref: '#/components/schemas/SceneMessage'
+            description: UpdateSceneReply 更新场景响应
+        UpdateSceneRequest:
+            type: object
+            properties:
+                sid:
+                    type: string
+                name:
+                    type: string
+                describe:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                location:
+                    type: string
+                article:
+                    type: string
+            description: UpdateSceneRequest 更新场景请求
 tags:
-    - name: Greeter
+    - name: Scene
