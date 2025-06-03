@@ -62,7 +62,7 @@ func (r *sceneRepo) CreateScene(ctx context.Context, s *biz.Scene) (*biz.Scene, 
 		r.log.WithContext(ctx).Errorf("create scene error: %v", result.Error)
 		error := r.data.SendErrorLog(ctx, "scene", result.Error.Error(), "db.Create", scene)
 		if error != nil {
-			r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
+			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
 		}
 		return nil, result.Error
 	}
@@ -97,7 +97,7 @@ func (r *sceneRepo) CreateScene(ctx context.Context, s *biz.Scene) (*biz.Scene, 
 func (r *sceneRepo) DeleteScene(ctx context.Context, sid string) error {
 	result := r.data.db.Delete(&Scene{}, "sid = ?", sid)
 	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("delete scene error: %v", result.Error)
+		r.log.WithContext(ctx).Errorf("sceneRepo: delete scene error: %v", result.Error)
 		error := r.data.SendErrorLog(ctx, "scene", result.Error.Error(), "db.Delete", sid)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -123,7 +123,7 @@ func (r *sceneRepo) UpdateScene(ctx context.Context, s *biz.Scene) (*biz.Scene, 
 	// 先查找现有的场景记录
 	var existingScene Scene
 	if err := r.data.db.Where("sid = ?", s.SID).First(&existingScene).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("find scene error: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: find scene error: %v", err)
 		return nil, err
 	}
 
@@ -153,7 +153,7 @@ func (r *sceneRepo) UpdateScene(ctx context.Context, s *biz.Scene) (*biz.Scene, 
 	// 更新记录
 	result := r.data.db.Model(&existingScene).Updates(updates)
 	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("update scene error: %v", result.Error)
+		r.log.WithContext(ctx).Errorf("sceneRepo: update scene error: %v", result.Error)
 		error := r.data.SendErrorLog(ctx, "scene", result.Error.Error(), "db.Updates", updates)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -191,7 +191,7 @@ func (r *sceneRepo) SearchScene(ctx context.Context, keyword string, page int, p
 		return nil, 0, biz.ErrInvalidArgument
 	}
 
-	r.log.WithContext(ctx).Infof("searching scenes with keyword: %s, page: %d, pagesize: %d", keyword, page, pagesize)
+	r.log.WithContext(ctx).Infof("sceneRepo: searching scenes with keyword: %s, page: %d, pagesize: %d", keyword, page, pagesize)
 
 	// 计算偏移量
 	offset := (page - 1) * pagesize
@@ -206,20 +206,20 @@ func (r *sceneRepo) SearchScene(ctx context.Context, keyword string, page int, p
 	}
 
 	// 2. 如果MeiliSearch搜索失败，尝试从Redis获取
-	r.log.WithContext(ctx).Infof("MeiliSearch search failed, trying Redis: %v", err)
+	r.log.WithContext(ctx).Infof("sceneRepo: MeiliSearch search failed, trying Redis: %v", err)
 	scenes, totalHits, err = r.searchWithRedis(ctx, keyword, offset, pagesize)
 	if err == nil {
 		return scenes, totalHits, nil
 	}
 
 	// 3. 如果Redis也失败，最后回退到数据库搜索
-	r.log.WithContext(ctx).Infof("Redis search failed, falling back to database: %v", err)
+	r.log.WithContext(ctx).Infof("sceneRepo: Redis search failed, falling back to database: %v", err)
 	return r.fallbackDBSearch(ctx, keyword, page, pagesize)
 }
 
 // fallbackDBSearch 数据库搜索回退方法
 func (r *sceneRepo) fallbackDBSearch(ctx context.Context, keyword string, page int, pagesize int) ([]*biz.Scene, int, error) {
-	r.log.WithContext(ctx).Infof("Falling back to database search: %s, page: %d, pagesize: %d", keyword, page, pagesize)
+	r.log.WithContext(ctx).Infof("sceneRepo: Falling back to database search: %s, page: %d, pagesize: %d", keyword, page, pagesize)
 
 	// 按空格分割关键词
 	keywords := strings.Fields(keyword)
@@ -245,7 +245,7 @@ func (r *sceneRepo) fallbackDBSearch(ctx context.Context, keyword string, page i
 	// 获取总记录数
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("Count scenes error: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Count scenes error: %v", err)
 		return nil, 0, err
 	}
 
@@ -259,7 +259,7 @@ func (r *sceneRepo) fallbackDBSearch(ctx context.Context, keyword string, page i
 	var scenes []*Scene
 	result := query.Offset(offset).Limit(pagesize).Find(&scenes)
 	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("Search scene error: %v", result.Error)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Search scene error: %v", result.Error)
 		error := r.data.SendErrorLog(ctx, "scene", result.Error.Error(), "query.Offset(offset).Limit(pagesize).Find", nil)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -267,14 +267,14 @@ func (r *sceneRepo) fallbackDBSearch(ctx context.Context, keyword string, page i
 		return nil, 0, result.Error
 	}
 
-	r.log.WithContext(ctx).Infof("Database search found %d results (total: %d) for '%s'", len(scenes), total, keyword)
+	r.log.WithContext(ctx).Infof("sceneRepo: Database search found %d results (total: %d) for '%s'", len(scenes), total, keyword)
 
 	return convertToBizScenes(scenes), int(total), nil
 }
 
 // ListScenes 获取场景列表
 func (r *sceneRepo) ListScenes(ctx context.Context, page int, pagesize int) ([]*biz.Scene, int, error) {
-	r.log.WithContext(ctx).Infof("ListScenes: page=%d, pagesize=%d", page, pagesize)
+	r.log.WithContext(ctx).Infof("sceneRepo: ListScenes: page=%d, pagesize=%d", page, pagesize)
 
 	// 计算偏移量
 	offset := (page - 1) * pagesize
@@ -285,17 +285,17 @@ func (r *sceneRepo) ListScenes(ctx context.Context, page int, pagesize int) ([]*
 	// 尝试从Redis获取场景列表
 	scenes, total, err := r.getScenesFromRedis(ctx, offset, pagesize)
 	if err == nil && len(scenes) > 0 {
-		r.log.WithContext(ctx).Infof("Retrieved %d scenes from Redis (total: %d)", len(scenes), total)
+		r.log.WithContext(ctx).Infof("sceneRepo: Retrieved %d scenes from Redis (total: %d)", len(scenes), total)
 		return scenes, total, nil
 	}
 
 	// 如果Redis获取失败，从数据库获取
-	r.log.WithContext(ctx).Infof("Falling back to database for scene listing")
+	r.log.WithContext(ctx).Infof("sceneRepo: Falling back to database for scene listing")
 
 	// 获取总记录数
 	var total64 int64
 	if err := r.data.db.Model(&Scene{}).Count(&total64).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("Count scenes error: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Count scenes error: %v", err)
 		return nil, 0, err
 	}
 
@@ -303,7 +303,7 @@ func (r *sceneRepo) ListScenes(ctx context.Context, page int, pagesize int) ([]*
 	var dbScenes []*Scene
 	result := r.data.db.Offset(offset).Limit(pagesize).Find(&dbScenes)
 	if result.Error != nil {
-		r.log.WithContext(ctx).Errorf("list scenes error: %v", result.Error)
+		r.log.WithContext(ctx).Errorf("sceneRepo: list scenes error: %v", result.Error)
 		return nil, 0, result.Error
 	}
 
@@ -321,7 +321,7 @@ func (r *sceneRepo) GetSceneByID(ctx context.Context, sid string) (*biz.Scene, e
 		if result.Error == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
-		r.log.WithContext(ctx).Errorf("get scene by id error: %v", result.Error)
+		r.log.WithContext(ctx).Errorf("sceneRepo: get scene by id error: %v", result.Error)
 		return nil, result.Error
 	}
 	return &biz.Scene{
@@ -374,7 +374,7 @@ func (r *sceneRepo) updateMeiliSearchIndex(ctx context.Context, scene *Scene) {
 	// 添加或更新文档
 	_, err := index.AddDocuments([]map[string]interface{}{document}, "sid")
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to update MeiliSearch index: %v", scene.SID)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to update MeiliSearch index: %v", scene.SID)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "index.AddDocuments", scene.SID)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -382,7 +382,7 @@ func (r *sceneRepo) updateMeiliSearchIndex(ctx context.Context, scene *Scene) {
 		return
 	}
 
-	r.log.WithContext(ctx).Infof("Successfully updated MeiliSearch index for scene: %s", scene.SID)
+	r.log.WithContext(ctx).Infof("sceneRepo: Successfully updated MeiliSearch index for scene: %s", scene.SID)
 }
 
 // deleteMeiliSearchDocument 从MeiliSearch索引中删除文档
@@ -393,15 +393,15 @@ func (r *sceneRepo) deleteMeiliSearchDocument(ctx context.Context, sid string) {
 	// 删除文档
 	_, err := index.DeleteDocument(sid)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to delete document from MeiliSearch: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to delete document from MeiliSearch: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "index.DeleteDocument", sid)
 		if error != nil {
-			r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
+			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
 		}
 		return
 	}
 
-	r.log.WithContext(ctx).Infof("Successfully deleted document from MeiliSearch: %s", sid)
+	r.log.WithContext(ctx).Infof("sceneRepo: Successfully deleted document from MeiliSearch: %s", sid)
 }
 
 // saveSceneToRedis 将场景保存到Redis
@@ -409,7 +409,7 @@ func (r *sceneRepo) saveSceneToRedis(ctx context.Context, scene *Scene) {
 	// 将场景转换为JSON
 	sceneJSON, err := json.Marshal(scene)
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to marshal scene to JSON: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to marshal scene to JSON: %v", err)
 		return
 	}
 
@@ -417,7 +417,7 @@ func (r *sceneRepo) saveSceneToRedis(ctx context.Context, scene *Scene) {
 	key := fmt.Sprintf("scene:%s", scene.SID)
 	err = r.data.redis.Set(ctx, key, sceneJSON, 0).Err()
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to save scene to Redis: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to save scene to Redis: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "redis.Set", sceneJSON)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -429,10 +429,10 @@ func (r *sceneRepo) saveSceneToRedis(ctx context.Context, scene *Scene) {
 	listKey := "scenes:list"
 	err = r.data.redis.SAdd(ctx, listKey, scene.SID).Err()
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to add scene ID to Redis set: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to add scene ID to Redis set: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "redis.SAdd", scene.SID)
 		if error != nil {
-			r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
+			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
 		}
 		return
 	}
@@ -440,7 +440,7 @@ func (r *sceneRepo) saveSceneToRedis(ctx context.Context, scene *Scene) {
 	// 更新场景总数
 	r.updateSceneCountInRedis(ctx)
 
-	r.log.WithContext(ctx).Infof("Successfully saved scene to Redis: %s", scene.SID)
+	r.log.WithContext(ctx).Infof("sceneRepo: Successfully saved scene to Redis: %s", scene.SID)
 }
 
 // updateSceneCountInRedis 更新Redis中的场景总数
@@ -448,7 +448,7 @@ func (r *sceneRepo) updateSceneCountInRedis(ctx context.Context) {
 	// 获取数据库中的场景总数
 	var count int64
 	if err := r.data.db.Model(&Scene{}).Count(&count).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to count scenes in database: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to count scenes in database: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "db.Model(&Scene{}).Count", nil)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -460,15 +460,15 @@ func (r *sceneRepo) updateSceneCountInRedis(ctx context.Context) {
 	countKey := "scenes:count"
 	err := r.data.redis.Set(ctx, countKey, count, 24*time.Hour).Err()
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to save scene count to Redis: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to save scene count to Redis: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "redis.Set", count)
 		if error != nil {
-			r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
+			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
 		}
 		return
 	}
 
-	r.log.WithContext(ctx).Infof("Updated scene count in Redis: %d", count)
+	r.log.WithContext(ctx).Infof("sceneRepo: Updated scene count in Redis: %d", count)
 }
 
 // getScenesFromRedis 从Redis获取场景列表
@@ -477,20 +477,20 @@ func (r *sceneRepo) getScenesFromRedis(ctx context.Context, offset int, limit in
 	countKey := "scenes:count"
 	countCmd := r.data.redis.Get(ctx, countKey)
 	if countCmd.Err() != nil {
-		r.log.WithContext(ctx).Warnf("Failed to get scene count from Redis: %v", countCmd.Err())
+		r.log.WithContext(ctx).Warnf("sceneRepo: Failed to get scene count from Redis: %v", countCmd.Err())
 		error := r.data.SendErrorLog(ctx, "scene", countCmd.Err().Error(), "redis.Get", countKey)
 		if error != nil {
-			r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
+			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
 		}
 		return nil, 0, countCmd.Err()
 	}
 
 	total, err := countCmd.Int()
 	if err != nil {
-		r.log.WithContext(ctx).Warnf("Failed to convert scene count to int: %v", err)
+		r.log.WithContext(ctx).Warnf("sceneRepo: Failed to convert scene count to int: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "countCmd.Int()", nil)
 		if error != nil {
-			r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
+			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
 		}
 		return nil, 0, err
 	}
@@ -499,7 +499,7 @@ func (r *sceneRepo) getScenesFromRedis(ctx context.Context, offset int, limit in
 	listKey := "scenes:list"
 	sceneIDs, err := r.data.redis.SMembers(ctx, listKey).Result()
 	if err != nil {
-		r.log.WithContext(ctx).Warnf("Failed to get scene IDs from Redis: %v", err)
+		r.log.WithContext(ctx).Warnf("sceneRepo: Failed to get scene IDs from Redis: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "redis.SMembers", listKey)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -529,17 +529,17 @@ func (r *sceneRepo) getScenesFromRedis(ctx context.Context, offset int, limit in
 		key := fmt.Sprintf("scene:%s", sid)
 		sceneJSON, err := r.data.redis.Get(ctx, key).Result()
 		if err != nil {
-			r.log.WithContext(ctx).Warnf("Failed to get scene from Redis: %v", err)
+			r.log.WithContext(ctx).Warnf("sceneRepo: Failed to get scene from Redis: %v", err)
 			error := r.data.SendErrorLog(ctx, "scene", err.Error(), "redis.Get", key)
 			if error != nil {
-				r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
+				r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
 			}
 			continue
 		}
 
 		var scene Scene
 		if err := json.Unmarshal([]byte(sceneJSON), &scene); err != nil {
-			r.log.WithContext(ctx).Warnf("Failed to unmarshal scene JSON: %v", err)
+			r.log.WithContext(ctx).Warnf("sceneRepo: Failed to unmarshal scene JSON: %v", err)
 			continue
 		}
 
@@ -569,7 +569,7 @@ func (r *sceneRepo) saveScenesListToRedis(ctx context.Context, scenes []*Scene, 
 	countKey := "scenes:count"
 	err := r.data.redis.Set(ctx, countKey, total, 24*time.Hour).Err()
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("Failed to save scene count to Redis: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: Failed to save scene count to Redis: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "redis.Set", countKey)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: : kafka send errorlog error: %v", error)
@@ -577,12 +577,12 @@ func (r *sceneRepo) saveScenesListToRedis(ctx context.Context, scenes []*Scene, 
 		return
 	}
 
-	r.log.WithContext(ctx).Infof("Successfully saved %d scenes to Redis (total: %d)", len(scenes), total)
+	r.log.WithContext(ctx).Infof("sceneRepo: Successfully saved %d scenes to Redis (total: %d)", len(scenes), total)
 }
 
 // searchWithMeiliSearch 使用MeiliSearch进行搜索
 func (r *sceneRepo) searchWithMeiliSearch(ctx context.Context, keyword string, offset int, pagesize int) ([]*biz.Scene, int, error) {
-	r.log.WithContext(ctx).Infof("Searching with MeiliSearch: %s", keyword)
+	r.log.WithContext(ctx).Infof("sceneRepo: Searching with MeiliSearch: %s", keyword)
 
 	// 使用MeiliSearch进行搜索
 	index := r.data.meili.Index("scenes")
@@ -592,7 +592,7 @@ func (r *sceneRepo) searchWithMeiliSearch(ctx context.Context, keyword string, o
 	})
 
 	if err != nil {
-		r.log.WithContext(ctx).Errorf("MeiliSearch search error: %v", err)
+		r.log.WithContext(ctx).Errorf("sceneRepo: MeiliSearch search error: %v", err)
 		error := r.data.SendErrorLog(ctx, "scene", err.Error(), "index.Search", keyword)
 		if error != nil {
 			r.log.WithContext(ctx).Errorf("sceneRepo: kafka send errorlog error: %v", error)
@@ -602,7 +602,7 @@ func (r *sceneRepo) searchWithMeiliSearch(ctx context.Context, keyword string, o
 
 	// 获取命中总数
 	totalHits := searchRes.EstimatedTotalHits
-	r.log.WithContext(ctx).Infof("MeiliSearch found %d results for '%s'", totalHits, keyword)
+	r.log.WithContext(ctx).Infof("sceneRepo: MeiliSearch found %d results for '%s'", totalHits, keyword)
 
 	// 处理搜索结果
 	var bizScenes []*biz.Scene
@@ -610,7 +610,7 @@ func (r *sceneRepo) searchWithMeiliSearch(ctx context.Context, keyword string, o
 		// 将搜索结果转换为Scene对象
 		sceneMap, ok := hit.(map[string]interface{})
 		if !ok {
-			r.log.WithContext(ctx).Warnf("Invalid search result format")
+			r.log.WithContext(ctx).Warnf("sceneRepo: Invalid search result format")
 			continue
 		}
 
@@ -687,7 +687,7 @@ func (r *sceneRepo) searchWithMeiliSearch(ctx context.Context, keyword string, o
 				// 如果Redis获取失败且仍有缺失字段，从数据库获取
 				var dbScene Scene
 				if err := r.data.db.Where("sid = ?", sid).First(&dbScene).Error; err != nil {
-					r.log.WithContext(ctx).Warnf("Failed to get scene from DB: %v", err)
+					r.log.WithContext(ctx).Warnf("sceneRepo: Failed to get scene from DB: %v", err)
 				} else {
 					// 只补充MeiliSearch中没有的字段
 					if len(viewSlice) == 0 {
@@ -717,19 +717,19 @@ func (r *sceneRepo) searchWithMeiliSearch(ctx context.Context, keyword string, o
 
 // searchWithRedis 使用Redis进行搜索
 func (r *sceneRepo) searchWithRedis(ctx context.Context, keyword string, offset int, pagesize int) ([]*biz.Scene, int, error) {
-	r.log.WithContext(ctx).Infof("Searching with Redis: %s", keyword)
+	r.log.WithContext(ctx).Infof("sceneRepo: Searching with Redis: %s", keyword)
 
 	// 获取所有场景ID
 	listKey := "scenes:list"
 	sceneIDs, err := r.data.redis.SMembers(ctx, listKey).Result()
 	if err != nil {
-		r.log.WithContext(ctx).Warnf("Failed to get scene IDs from Redis: %v", err)
+		r.log.WithContext(ctx).Warnf("sceneRepo: Failed to get scene IDs from Redis: %v", err)
 		return nil, 0, err
 	}
 
 	// 如果没有场景，返回空列表
 	if len(sceneIDs) == 0 {
-		return []*biz.Scene{}, 0, fmt.Errorf("no scenes found in Redis")
+		return []*biz.Scene{}, 0, fmt.Errorf("sceneRepo: no scenes found in Redis")
 	}
 
 	// 获取每个场景的详细信息并进行关键词过滤
@@ -740,7 +740,7 @@ func (r *sceneRepo) searchWithRedis(ctx context.Context, keyword string, offset 
 		key := fmt.Sprintf("scene:%s", sid)
 		sceneJSON, err := r.data.redis.Get(ctx, key).Result()
 		if err != nil {
-			r.log.WithContext(ctx).Warnf("Failed to get scene from Redis: %v", err)
+			r.log.WithContext(ctx).Warnf("sceneRepo: Failed to get scene from Redis: %v", err)
 			continue
 		}
 
@@ -776,9 +776,9 @@ func (r *sceneRepo) searchWithRedis(ctx context.Context, keyword string, offset 
 	}
 
 	if len(matchedScenes) == 0 {
-		return nil, 0, fmt.Errorf("no matching scenes found in Redis for keyword: %s", keyword)
+		return nil, 0, fmt.Errorf("sceneRepo: no matching scenes found in Redis for keyword: %s", keyword)
 	}
 
-	r.log.WithContext(ctx).Infof("Redis search found %d results (total: %d) for '%s'", len(matchedScenes), totalMatches, keyword)
+	r.log.WithContext(ctx).Infof("sceneRepo: Redis search found %d results (total: %d) for '%s'", len(matchedScenes), totalMatches, keyword)
 	return matchedScenes, totalMatches, nil
 }

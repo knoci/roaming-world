@@ -12,6 +12,7 @@
 - **高性能缓存**：使用Redis缓存食物数据，提高查询性能
 - **消息队列**：使用Kafka进行数据同步和事件通知
 - **配置中心**：支持Nacos配置中心，实现配置的动态管理
+- **认证授权**：API接口支持基于Token的认证
 
 ## 技术架构
 
@@ -23,6 +24,7 @@
 - **配置中心**：Nacos
 - **依赖注入**：使用Wire进行依赖注入
 - **容器化**：支持Docker部署
+- **API验证**：使用protoc-gen-validate进行请求参数验证
 
 ## 项目结构
 
@@ -43,11 +45,53 @@
 ├── third_party         # 第三方依赖
 ```
 
+### 分层架构
+
+- **Service层**：处理API请求，参数验证，调用业务逻辑
+- **Biz层**：实现核心业务逻辑，定义领域模型和仓库接口
+- **Data层**：实现数据访问，包括数据库操作、缓存和消息队列
+
+## API接口
+
+服务提供以下API接口：
+
+### 创建食物
+
+```
+POST /v1/food
+```
+
+请求参数：
+- `name`: 食物名称 (必填，1-50字符)
+- `view`: 食物视图 (必填，1-10项)
+- `describe`: 食物描述 (必填)
+- `recipe`: 食谱 (必填)
+- `article`: 文章 (必填)
+- `location`: 位置 (必填，1-30字符)
+
+需要在请求头中包含`Authorization: knoci1337`进行认证。
+
+### 获取食物列表
+
+```
+GET /v1/food
+```
+
+返回所有食物信息，结果随机排序。
+
+### 获取随机食物
+
+```
+GET /v1/food/random
+```
+
+随机返回一个食物信息。
+
 ## 安装与部署
 
 ### 前置条件
 
-- Go 1.16+
+- Go 1.21+
 - PostgreSQL
 - Redis
 - Kafka
@@ -99,49 +143,47 @@ docker build -t roaming-world/food .
 docker run --rm -p 8000:8000 -p 9000:9000 -v /path/to/your/configs:/data/conf roaming-world/food
 ```
 
-## API接口
+## 配置说明
 
-### HTTP接口
+服务配置支持两种方式：
 
-- `POST /v1/food` - 创建食物
-- `GET /v1/food` - 获取食物列表
-- `GET /v1/food/random` - 获取随机食物
+1. 本地配置文件：`configs/config.yaml`
+2. Nacos配置中心：通过`configs/config.yaml`中的Nacos配置连接到配置中心
 
-### gRPC接口
+主要配置项：
 
-- `CreateFood` - 创建食物
-- `GetFoodList` - 获取食物列表
-- `GetRandomFood` - 获取随机食物
-
-## 性能优化
-
-- 使用Redis缓存食物数据，提高查询性能
-- 在`CreateFood`方法中将新创建的食物信息同时保存到Redis
-- `GetFoodList`和`GetRandomFood`方法优先从Redis获取数据，提高响应速度
-- 使用24小时的缓存过期时间，平衡数据一致性和性能
+- 服务地址和端口
+- 数据库连接信息
+- Redis连接信息
+- Kafka连接信息
 
 ## 开发指南
 
-### 生成API代码
+### 添加新API
+
+1. 在`api/food/v1/food.proto`中定义新的服务方法和消息
+2. 执行`make api`生成API代码
+3. 在`internal/biz`中实现业务逻辑
+4. 在`internal/data`中实现数据访问
+5. 在`internal/service`中实现服务接口
+
+### 依赖注入
+
+项目使用[Wire](https://github.com/google/wire)进行依赖注入，修改依赖关系后需要执行：
 
 ```bash
-make api
+go generate ./...
 ```
 
-### 生成配置代码
+## 贡献指南
 
-```bash
-make config
-```
-
-### 生成依赖注入代码
-
-```bash
-cd cmd/food
-wire
-```
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add some amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建Pull Request
 
 ## 许可证
 
-本项目采用MIT许可证。
+本项目采用 MIT 许可证 - 详情请参阅 [LICENSE](LICENSE) 文件。
 
