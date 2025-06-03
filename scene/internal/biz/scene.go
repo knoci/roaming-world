@@ -6,11 +6,8 @@ import (
 
 	v1 "github.com/knoci/roaming-world/scene/api/scene/v1"
 
-	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 )
-
-
 
 // Scene 场景实体
 type Scene struct {
@@ -29,8 +26,8 @@ type SceneRepo interface {
 	CreateScene(ctx context.Context, scene *Scene) (*Scene, error)
 	DeleteScene(ctx context.Context, sid string) error
 	UpdateScene(ctx context.Context, scene *Scene) (*Scene, error)
-	SearchScene(ctx context.Context, keyword string) ([]*Scene, error)
-	ListScenes(ctx context.Context, limit int) ([]*Scene, error)
+	SearchScene(ctx context.Context, keyword string, page int, pagesize int) ([]*Scene, int, error)
+	ListScenes(ctx context.Context, page int, pagesize int) ([]*Scene, int, error)
 	GetSceneByID(ctx context.Context, sid string) (*Scene, error)
 }
 
@@ -47,7 +44,7 @@ func NewSceneUsecase(repo SceneRepo, logger log.Logger) *SceneUsecase {
 
 // CreateScene 创建场景
 func (uc *SceneUsecase) CreateScene(ctx context.Context, req *v1.CreateSceneRequest) (*v1.SceneMessage, error) {
-	uc.log.WithContext(ctx).Infof("CreateScene: %v", req.Name)
+	uc.log.WithContext(ctx).Infof("sceneUsecase: CreateScene: %v", req.Name)
 
 	scene := &Scene{
 		Name:     req.Name,
@@ -59,7 +56,7 @@ func (uc *SceneUsecase) CreateScene(ctx context.Context, req *v1.CreateSceneRequ
 
 	createdScene, err := uc.repo.CreateScene(ctx, scene)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("CreateScene failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("sceneUsecase: CreateScene failed: %v", err)
 		return nil, ErrCreateSceneFailed
 	}
 
@@ -77,11 +74,11 @@ func (uc *SceneUsecase) CreateScene(ctx context.Context, req *v1.CreateSceneRequ
 
 // DeleteScene 删除场景
 func (uc *SceneUsecase) DeleteScene(ctx context.Context, sid string) error {
-	uc.log.WithContext(ctx).Infof("DeleteScene: SID=%s", sid)
+	uc.log.WithContext(ctx).Infof("sceneUsecase: DeleteScene: SID=%s", sid)
 
 	err := uc.repo.DeleteScene(ctx, sid)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("DeleteScene failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("sceneUsecase: DeleteScene failed: %v", err)
 		return ErrDeleteSceneFailed
 	}
 
@@ -90,12 +87,12 @@ func (uc *SceneUsecase) DeleteScene(ctx context.Context, sid string) error {
 
 // UpdateScene 更新场景
 func (uc *SceneUsecase) UpdateScene(ctx context.Context, req *v1.UpdateSceneRequest) (*v1.SceneMessage, error) {
-	uc.log.WithContext(ctx).Infof("UpdateScene: SID=%s", req.Sid)
+	uc.log.WithContext(ctx).Infof("sceneUsecase: UpdateScene: SID=%s", req.Sid)
 
 	// 检查场景是否存在
 	existingScene, err := uc.repo.GetSceneByID(ctx, req.Sid)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("GetSceneByID failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("sceneUsecase: GetSceneByID failed: %v", err)
 		return nil, ErrSceneNotFound
 	}
 	if existingScene == nil {
@@ -114,7 +111,7 @@ func (uc *SceneUsecase) UpdateScene(ctx context.Context, req *v1.UpdateSceneRequ
 
 	updatedScene, err := uc.repo.UpdateScene(ctx, scene)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("UpdateScene failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("sceneUsecase: UpdateScene failed: %v", err)
 		return nil, ErrUpdateSceneFailed
 	}
 
@@ -131,13 +128,13 @@ func (uc *SceneUsecase) UpdateScene(ctx context.Context, req *v1.UpdateSceneRequ
 }
 
 // SearchScene 搜索场景
-func (uc *SceneUsecase) SearchScene(ctx context.Context, keyword string) ([]*v1.SceneMessage, error) {
-	uc.log.WithContext(ctx).Infof("SearchScene: keyword=%s", keyword)
+func (uc *SceneUsecase) SearchScene(ctx context.Context, keyword string, page int, pagesize int) ([]*v1.SceneMessage, int, error) {
+	uc.log.WithContext(ctx).Infof("sceneUsecase: SearchScene: keyword=%s, page=%d, pagesize=%d", keyword, page, pagesize)
 
-	scenes, err := uc.repo.SearchScene(ctx, keyword)
+	scenes, total, err := uc.repo.SearchScene(ctx, keyword, page, pagesize)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("SearchScene failed: %v", err)
-		return nil, ErrSearchSceneFailed
+		uc.log.WithContext(ctx).Errorf("sceneUsecase: SearchScene failed: %v", err)
+		return nil, 0, ErrSearchSceneFailed
 	}
 
 	result := make([]*v1.SceneMessage, 0, len(scenes))
@@ -154,17 +151,17 @@ func (uc *SceneUsecase) SearchScene(ctx context.Context, keyword string) ([]*v1.
 		})
 	}
 
-	return result, nil
+	return result, total, nil
 }
 
 // ListScenes 获取场景列表
-func (uc *SceneUsecase) ListScenes(ctx context.Context, limit int) ([]*v1.SceneMessage, error) {
-	uc.log.WithContext(ctx).Infof("ListScenes: limit=%d", limit)
+func (uc *SceneUsecase) ListScenes(ctx context.Context, page int, pagesize int) ([]*v1.SceneMessage, int, error) {
+	uc.log.WithContext(ctx).Infof("sceneUsecase: ListScenes: page=%d, pagesize=%d", page, pagesize)
 
-	scenes, err := uc.repo.ListScenes(ctx, limit)
+	scenes, total, err := uc.repo.ListScenes(ctx, page, pagesize)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("ListScenes failed: %v", err)
-		return nil, ErrDatabaseError
+		uc.log.WithContext(ctx).Errorf("sceneUsecase: ListScenes failed: %v", err)
+		return nil, 0, ErrDatabaseError
 	}
 
 	result := make([]*v1.SceneMessage, 0, len(scenes))
@@ -181,16 +178,16 @@ func (uc *SceneUsecase) ListScenes(ctx context.Context, limit int) ([]*v1.SceneM
 		})
 	}
 
-	return result, nil
+	return result, total, nil
 }
 
 // GetSceneByID 根据ID获取场景
 func (uc *SceneUsecase) GetSceneByID(ctx context.Context, sid string) (*v1.SceneMessage, error) {
-	uc.log.WithContext(ctx).Infof("GetSceneByID: SID=%s", sid)
+	uc.log.WithContext(ctx).Infof("sceneUsecase: GetSceneByID: SID=%s", sid)
 
 	scene, err := uc.repo.GetSceneByID(ctx, sid)
 	if err != nil {
-		uc.log.WithContext(ctx).Errorf("GetSceneByID failed: %v", err)
+		uc.log.WithContext(ctx).Errorf("sceneUsecase: GetSceneByID failed: %v", err)
 		return nil, ErrDatabaseError
 	}
 

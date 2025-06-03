@@ -217,6 +217,9 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/SceneMessage'
+                total:
+                    type: integer
+                    format: int32
             description: ListScenesReply 获取场景列表响应
         SceneMessage:
             type: object
@@ -247,6 +250,9 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/SceneMessage'
+                hits:
+                    type: integer
+                    format: int32
             description: SearchSceneReply 搜索场景响应
         Status:
             type: object

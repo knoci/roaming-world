@@ -1068,6 +1068,8 @@ func (m *SearchSceneReply) validate(all bool) error {
 
 	}
 
+	// no validation rules for Hits
+
 	if len(errors) > 0 {
 		return SearchSceneReplyMultiError(errors)
 	}
@@ -1325,6 +1327,8 @@ func (m *ListScenesReply) validate(all bool) error {
 		}
 
 	}
+
+	// no validation rules for Total
 
 	if len(errors) > 0 {
 		return ListScenesReplyMultiError(errors)

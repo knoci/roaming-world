@@ -1,4 +1,4 @@
-pacakge biz
+package biz
 
 import (
 	"github.com/go-kratos/kratos/v2/errors"
@@ -20,4 +20,6 @@ var (
 	ErrDatabaseError = errors.InternalServer(v1.ErrorReason_DATABASE_ERROR.String(), "database error")
 	// ErrInvalidArgument 参数错误
 	ErrInvalidArgument = errors.BadRequest(v1.ErrorReason_INVALID_ARGUMENT.String(), "invalid argument")
+	// ErrUnauthorized 未授权访问
+	ErrUnauthorized = errors.Unauthorized(v1.ErrorReason_UNAUTHORIZED.String(), "unauthorized")
 )

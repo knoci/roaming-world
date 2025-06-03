@@ -21,4 +21,6 @@ enum ErrorReason {
   DATABASE_ERROR = 6;
   // 参数错误
   INVALID_ARGUMENT = 7;
+  // 未授权
+  UNAUTHORIZED = 8;
 }

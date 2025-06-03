@@ -113,17 +113,19 @@ message SearchSceneRequest {
 // SearchSceneReply 搜索场景响应
 message SearchSceneReply {
   repeated SceneMessage scenes = 1;
+  int32    hits = 2;
 }
 
 // ListScenesRequest 获取场景列表请求
 message ListScenesRequest {
-  int32    page = 2 [(validate.rules).int32.gte = 1];
-  int32    pagesize = 3 [(validate.rules).int32.gte = 1];
+  int32    page = 1 [(validate.rules).int32.gte = 1];
+  int32    pagesize = 2 [(validate.rules).int32.gte = 1];
 }
 
 // ListScenesReply 获取场景列表响应
 message ListScenesReply {
   repeated SceneMessage scenes = 1;
+  int32    total = 2;
 }
 
 // GetSceneByIDRequest 根据ID获取场景请求
