@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package comment.v1;
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+
+option go_package = "github.com/knoci/roaming-world/comment/api/comment/v1;v1";
+
+// CommentService 评论服务定义
+service Comment {
+  // CreateComment 发表评论
+  rpc CreateComment(CreateCommentRequest) returns (CreateCommentReply) {
+    option (google.api.http) = {
+      post: "/v1/comment"
+      body: "*"
+    };
+  }
+
+  // DeleteComment 删除评论
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentReply) {
+    option (google.api.http) = {
+      delete: "/v1/comment"
+    };
+  }
+
+  // LikeComment 点赞评论
+  rpc LikeComment(LikeCommentRequest) returns (LikeCommentReply) {
+    option (google.api.http) = {
+      post: "/v1/comment/like"
+      body: "*"
+    };
+  }
+
+  // GetCommentList 获取一级评论列表
+  rpc GetCommentList(GetCommentListRequest) returns (GetCommentListReply) {
+    option (google.api.http) = {
+      get: "/v1/comment/list"
+    };
+  }
+
+  // GetCommentListWithReplies 获取一级评论列表及其前两条二级评论
+  rpc GetCommentListWithReplies(GetCommentListWithRepliesRequest) returns (GetCommentListWithRepliesReply) {
+    option (google.api.http) = {
+      get: "/v1/comment/list/replies"
+    };
+  }
+
+  // GetReplyList 获取二级评论列表
+  rpc GetReplyList(GetReplyListRequest) returns (GetReplyListReply) {
+    option (google.api.http) = {
+      get: "/v1/comment/replies"
+    };
+  }
+}
+
+// CommentMessage 评论信息
+message CommentMessage {
+  string cid = 1;
+  string target = 2;
+  string content = 3;
+  int32 likes = 4;
+  string uid = 5;
+  string name = 6;
+  string avatar = 7;
+  string replycid = 8;
+  string replyname = 9;
+  string time = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+// CreateCommentRequest 创建评论请求
+message CreateCommentRequest {
+  string target = 1 [(validate.rules).string.min_len = 1]; // 文章AID
+  string content = 2 [(validate.rules).string.min_len = 1]; // 评论内容
+  string replycid = 3; // 回复的评论CID
+  string replyname = 4; // 回复的用户名
+}
+
+// CreateCommentReply 创建评论响应
+message CreateCommentReply {
+  CommentMessage comment = 1;
+}
+
+// DeleteCommentRequest 删除评论请求
+message DeleteCommentRequest {
+  string cid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// DeleteCommentReply 删除评论响应
+message DeleteCommentReply {
+  string status = 1;
+}
+
+// LikeCommentRequest 点赞评论请求
+message LikeCommentRequest {
+  string cid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// LikeCommentReply 点赞评论响应
+message LikeCommentReply {
+  string status = 1;
+}
+
+// GetCommentListRequest 获取一级评论列表请求
+message GetCommentListRequest {
+  string aid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// GetCommentListReply 获取一级评论列表响应
+message GetCommentListReply {
+  repeated CommentMessage comments = 1;
+}
+
+// GetCommentListWithRepliesRequest 获取一级评论列表及其前两条二级评论请求
+message GetCommentListWithRepliesRequest {
+  string aid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// GetCommentListWithRepliesReply 获取一级评论列表及其前两条二级评论响应
+message GetCommentListWithRepliesReply {
+  repeated CommentMessage comments = 1;
+}
+
+// GetReplyListRequest 获取二级评论列表请求
+message GetReplyListRequest {
+  string cid = 1 [(validate.rules).string.min_len = 1];
+}
+
+// GetReplyListReply 获取二级评论列表响应
+message GetReplyListReply {
+  repeated CommentMessage comments = 1;
+}

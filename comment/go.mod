@@ -1,4 +1,4 @@
-module comment
+module github.com/knoci/roaming-world/comment
 
 go 1.21
 
