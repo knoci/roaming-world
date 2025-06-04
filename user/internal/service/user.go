@@ -26,7 +26,9 @@ func (s *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 		return nil, err
 	}
 
-	token, err := jwt.GenerateToken(user.Uid, user.Name, req.Email, user.Avatar)
+	httpReq, _ := http.RequestFromServerContext(ctx)
+	ua := httpReq.Header.Get("User-Agent")
+	token, err := jwt.GenerateToken(ua, user.Uid, user.Name, req.Email, user.Avatar)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to generate token for user %s: %v", user.Name, err)
 		return nil, biz.ErrInternalError
@@ -60,7 +62,9 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, err
 	}
 
-	token, err := jwt.GenerateToken(reply.Uid, reply.Name, req.Email, reply.Avatar)
+	httpReq, _ := http.RequestFromServerContext(ctx)
+	ua := httpReq.Header.Get("User-Agent")
+	token, err := jwt.GenerateToken(ua, reply.Uid, reply.Name, req.Email, reply.Avatar)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to generate token for user %s: %v", reply.Name, err)
 		return nil, biz.ErrInternalError
@@ -197,7 +201,9 @@ func GetJwtClaim(ctx context.Context) (*jwt.Claims, error) {
 	if !(len(parts) == 2 && parts[0] == "Bearer") {
 		return nil, biz.ErrUnauthorized
 	}
-	claims, err := jwt.ParseToken(parts[1])
+
+	ua := httpReq.Header.Get("User-Agent")
+	claims, err := jwt.ParseToken(ua, parts[1])
 	if err != nil {
 		return nil, biz.ErrUnauthorized
 	}
