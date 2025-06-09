@@ -2,14 +2,47 @@ package data
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/google/uuid"
 	"github.com/knoci/roaming-world/comment/internal/biz"
 	"gorm.io/gorm"
 )
+
+// Comment 评论模型
+type Comment struct {
+	CID       string    `gorm:"primaryKey;type:varchar(36);column:cid" json:"cid"`
+	Target    string    `gorm:"type:varchar(36)" json:"target"`
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	Likes     int       `gorm:"default:0" json:"likes"`
+	UID       string    `gorm:"type:varchar(36);column:uid" json:"uid"`
+	Name      string    `gorm:"type:varchar(50);not null" json:"name"`
+	Avatar    string    `gorm:"type:varchar(100)" json:"avatar"`
+	Replycid  string    `gorm:"type:varchar(36)" json:"replycid"`
+	Replyname string    `gorm:"type:varchar(36)" json:"replyname"`
+	Time      string    `gorm:"type:varchar(36)" json:"time"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (c *Comment) BeforeCreate(tx *gorm.DB) error {
+	if c.CID == "" {
+		c.CID = uuid.New().String()
+	}
+	return nil
+}
+
+// Commentlike 评论点赞模型
+type Commentlike struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UID       string    `gorm:"type:varchar(36);column:uid" json:"uid"`
+	CID       string    `gorm:"type:varchar(36);column:cid" json:"cid"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
 
 type commentRepo struct {
 	data *Data
@@ -176,7 +209,7 @@ func (r *commentRepo) Delete(ctx context.Context, uid, cid string) error {
 func (r *commentRepo) Like(ctx context.Context, uid, cid string) error {
 	// 检查评论是否存在
 	var comment Comment
-	if err := r.data.db.Where("cid = ?", cid).First(&comment).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).Where("cid = ?", cid).First(&comment).Error; err != nil {
 		return biz.ErrCommentNotFound
 	}
 
@@ -236,7 +269,7 @@ func (r *commentRepo) Like(ctx context.Context, uid, cid string) error {
 // GetCommentList 获取一级评论列表
 func (r *commentRepo) GetCommentList(ctx context.Context, aid string) ([]*biz.Comment, error) {
 	var comments []Comment
-	if err := r.data.db.Where("target = ? AND replycid = ''", aid).Order("created_at desc").Find(&comments).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).Where("target = ? AND replycid = ''", aid).Order("created_at desc").Find(&comments).Error; err != nil {
 		return nil, err
 	}
 
@@ -264,7 +297,7 @@ func (r *commentRepo) GetCommentList(ctx context.Context, aid string) ([]*biz.Co
 // GetReplyList 获取二级评论列表
 func (r *commentRepo) GetReplyList(ctx context.Context, cid string) ([]*biz.Comment, error) {
 	var comments []Comment
-	if err := r.data.db.Where("replycid = ?", cid).Order("created_at desc").Find(&comments).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).Where("replycid = ?", cid).Order("created_at desc").Find(&comments).Error; err != nil {
 		return nil, err
 	}
 
@@ -363,7 +396,6 @@ func (r *commentRepo) GetCommentListWithReplies(ctx context.Context, aid string)
 // FindUser 查找用户
 func (r *commentRepo) FindUser(ctx context.Context, uid string) (*biz.User, error) {
 	// 这里应该调用user服务的gRPC接口获取用户信息
-	// 但为了简化，我们直接从数据库查询
 	type User struct {
 		UID    string `gorm:"primaryKey;type:varchar(36);column:uid"`
 		Name   string `gorm:"type:varchar(50);not null"`
@@ -372,7 +404,7 @@ func (r *commentRepo) FindUser(ctx context.Context, uid string) (*biz.User, erro
 	}
 
 	var user User
-	result := r.data.db.Table("users").Where("uid = ?", uid).First(&user)
+	result := r.data.db.WithContext(ctx).Table("users").Where("uid = ?", uid).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, biz.ErrUserNotFound
@@ -395,7 +427,7 @@ func (r *commentRepo) UpdateArticleCommentCount(ctx context.Context, aid string,
 		Comments int    `gorm:"default:0"`
 	}
 
-	result := r.data.db.Table("articles").Where("aid = ?", aid).UpdateColumn("comments", gorm.Expr("comments + ?", count))
+	result := r.data.db.WithContext(ctx).Table("articles").Where("aid = ?", aid).UpdateColumn("comments", gorm.Expr("comments + ?", count))
 	if result.Error != nil {
 		return result.Error
 	}
@@ -412,48 +444,10 @@ func (r *commentRepo) UpdateArticleCommentCount(ctx context.Context, aid string,
 
 // UpdateRedisArticleCommentCount 更新Redis中的文章评论数
 func (r *commentRepo) UpdateRedisArticleCommentCount(ctx context.Context, aid string, count float64) error {
-	err := r.data.rdb.ZIncrBy(ctx, "article_comments", count, aid).Err()
+	err := r.data.redis.ZIncrBy(ctx, "article_comments", count, aid).Err()
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-// SendSqlLog 发送SQL日志到Kafka
-func (r *commentRepo) SendSqlLog(ctx context.Context, key, sql string, params []interface{}) error {
-	msg := struct {
-		Query  string        `json:"query"`
-		Params []interface{} `json:"params"`
-	}{
-		Query:  sql,
-		Params: params,
-	}
-
-	sqlbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-
-	return r.data.cdc.Send(ctx, NewMessage(key, sqlbyte))
-}
-
-// SendErrorLog 发送错误日志到Kafka
-func (r *commentRepo) SendErrorLog(ctx context.Context, key, errmsg, errop string, errdata interface{}) error {
-	msg := struct {
-		ErrorMsg  string      `json:"error_msg"`
-		ErrorOp   string      `json:"error_op"`
-		ErrorData interface{} `json:"error_data"`
-	}{
-		ErrorMsg:  errmsg,
-		ErrorOp:   errop,
-		ErrorData: errdata,
-	}
-
-	errbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-
-	return r.data.logsender.Send(ctx, NewMessage(key, errbyte))
 }

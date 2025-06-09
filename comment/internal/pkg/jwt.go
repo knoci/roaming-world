@@ -4,13 +4,14 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"io"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
-	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
+	nacos "github.com/knoci/roaming-world/comment/internal/conf/nacos"
 )
 
 // Claims 包含自定义的 JWT 声明
@@ -22,17 +23,12 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateToken 生成加密的 JWT token
-func GenerateToken(uid, name, email, avatar string) (string, error) {
+// GenerateToken 生成加密的 JWT token，使用UA作为加密密钥
+func GenerateToken(ua, uid, name, email, avatar string) (string, error) {
 	c := nacos.GetConfig()
 	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
 	if jwtSecret == "" {
 		panic("jwt.secret configuration is required")
-	}
-
-	encryptionKey := nacos.GetConfigString(c, "jwt.encryption_key")
-	if encryptionKey == "" {
-		panic("jwt.encryption_key configuration is required")
 	}
 
 	expiration := time.Duration(nacos.GetConfigInt(c, "jwt.expiration"))
@@ -59,8 +55,8 @@ func GenerateToken(uid, name, email, avatar string) (string, error) {
 		return "", err
 	}
 
-	// 新增：对JWT进行二次加密
-	encryptedToken, err := encryptToken(tokenString, encryptionKey)
+	// 使用UA作为密钥进行二次加密
+	encryptedToken, err := encryptToken(tokenString, ua)
 	if err != nil {
 		return "", err
 	}
@@ -68,14 +64,13 @@ func GenerateToken(uid, name, email, avatar string) (string, error) {
 	return encryptedToken, nil
 }
 
-// ParseToken 解析加密的 JWT token
-func ParseToken(encryptedToken string) (*Claims, error) {
+// ParseToken 解析加密的 JWT token，使用UA作为解密密钥
+func ParseToken(ua, encryptedToken string) (*Claims, error) {
 	c := nacos.GetConfig()
 	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
-	encryptionKey := nacos.GetConfigString(c, "jwt.encryption")
 
-	// 先解密令牌
-	tokenString, err := decryptToken(encryptedToken, encryptionKey)
+	// 使用UA作为密钥解密令牌
+	tokenString, err := decryptToken(encryptedToken, ua)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +91,12 @@ func ParseToken(encryptedToken string) (*Claims, error) {
 	return nil, jwt.ErrInvalidKey
 }
 
-// 加密函数 (AES-GCM)
-func encryptToken(tokenString, key string) (string, error) {
-	block, err := aes.NewCipher([]byte(key))
+// 加密函数 (AES-GCM)，使用UA作为密钥
+func encryptToken(tokenString, ua string) (string, error) {
+	// 从UA生成固定长度的密钥
+	key := deriveKeyFromUA(ua)
+
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
@@ -117,13 +115,17 @@ func encryptToken(tokenString, key string) (string, error) {
 	return base64.URLEncoding.EncodeToString(ciphertext), nil
 }
 
-func decryptToken(encryptedToken, key string) (string, error) {
+// 解密函数，使用UA作为密钥
+func decryptToken(encryptedToken, ua string) (string, error) {
+	// 从UA生成固定长度的密钥
+	key := deriveKeyFromUA(ua)
+
 	ciphertext, err := base64.URLEncoding.DecodeString(encryptedToken)
 	if err != nil {
 		return "", err
 	}
 
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
@@ -145,4 +147,11 @@ func decryptToken(encryptedToken, key string) (string, error) {
 	}
 
 	return string(plaintext), nil
+}
+
+// 从UA生成固定长度的密钥(32字节)
+func deriveKeyFromUA(ua string) []byte {
+	hash := sha256.New()
+	hash.Write([]byte(ua))
+	return hash.Sum(nil)
 }

@@ -3,21 +3,16 @@ package service
 import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	pb "github.com/knoci/roaming-world/comment/api/comment/v1"
 	"github.com/knoci/roaming-world/comment/internal/biz"
 )
 
 // ProviderSet is service providers.
-var ProviderSet = wire.NewSet(NewGreeterService, NewCommentService)
+var ProviderSet = wire.NewSet(NewCommentService)
 
-// GreeterService is a greeter service.
-type GreeterService struct {
-	UnimplementedGreeterServer
+type CommentService struct {
+	pb.UnimplementedCommentServiceServer
 
-	uc  *biz.GreeterUsecase
+	uc  *biz.CommentUsecase
 	log *log.Helper
-}
-
-// NewGreeterService new a greeter service.
-func NewGreeterService(uc *biz.GreeterUsecase, logger log.Logger) *GreeterService {
-	return &GreeterService{uc: uc, log: log.NewHelper(logger)}
 }

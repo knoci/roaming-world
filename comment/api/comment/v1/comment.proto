@@ -6,7 +6,7 @@ import "google/api/annotations.proto";
 import "validate/validate.proto";
 
 
-option go_package = "github.com/knoci/roaming-world/comment/api/comment/v1;v1";
+option go_package = "comment/api/comment/v1;v1";
 
 // CommentService 评论服务定义
 service Comment {

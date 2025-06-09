@@ -11,7 +11,8 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
-	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
+	nc "github.com/knoci/roaming-world/user/internal/conf/nacos"
+	nacos "github.com/go-kratos/kratos/contrib/config/nacos/v2"
 	kafka "github.com/knoci/roaming-world/user/internal/pkg"
 	"github.com/tencentyun/cos-go-sdk-v5"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -21,7 +22,7 @@ import (
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewUserRepo)
+var ProviderSet = wire.NewSet(NewData, NewUserRepo, NewNacosEngine)
 
 // Data .
 type Data struct {
@@ -48,14 +49,14 @@ type ErrorMsg struct {
 func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	log := log.NewHelper(logger)
 
-	cfg := nacos.GetConfig()
+	cfg := nc.GetConfig()
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
-		nacos.GetConfigString(cfg, "postgre.host"),
-		nacos.GetConfigString(cfg, "postgre.user"),
-		nacos.GetConfigString(cfg, "postgre.password"),
-		nacos.GetConfigString(cfg, "postgre.dbname"),
-		nacos.GetConfigInt(cfg, "postgre.port"),
-		nacos.GetConfigString(cfg, "postgre.sslmode"),
+		nc.GetConfigString(cfg, "postgre.host"),
+		nc.GetConfigString(cfg, "postgre.user"),
+		nc.GetConfigString(cfg, "postgre.password"),
+		nc.GetConfigString(cfg, "postgre.dbname"),
+		nc.GetConfigInt(cfg, "postgre.port"),
+		nc.GetConfigString(cfg, "postgre.sslmode"),
 	)
 
 	// 连接数据库
@@ -78,9 +79,9 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	// 获取etcd配置
-	endpoint := nacos.GetConfigString(cfg, "etcd.endpoints")
+	endpoint := nc.GetConfigString(cfg, "etcd.endpoints")
 	endpoints := []string{endpoint}
-	dialTimeout := nacos.GetConfigInt(cfg, "etcd.dialTimeout")
+	dialTimeout := nc.GetConfigInt(cfg, "etcd.dialTimeout")
 
 	// 创建etcd客户端
 	client, err := clientv3.New(clientv3.Config{
@@ -103,9 +104,9 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	bucketURL := nacos.GetConfigString(cfg, "cos.bucket_url")
-	secretID := nacos.GetConfigString(cfg, "cos.secret_id")
-	secretKey := nacos.GetConfigString(cfg, "cos.secret_key")
+	bucketURL := nc.GetConfigString(cfg, "cos.bucket_url")
+	secretID := nc.GetConfigString(cfg, "cos.secret_id")
+	secretKey := nc.GetConfigString(cfg, "cos.secret_key")
 
 	// 检查配置是否存在
 	if bucketURL == "" || secretID == "" || secretKey == "" {
@@ -129,15 +130,15 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		},
 	})
 
-	address1 := nacos.GetConfigString(cfg, "kafka.address.cdc")
-	topic1 := nacos.GetConfigString(cfg, "kafka.topic.cdc")
+	address1 := nc.GetConfigString(cfg, "kafka.address.cdc")
+	topic1 := nc.GetConfigString(cfg, "kafka.topic.cdc")
 	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
 	if err != nil {
 		panic(err)
 	}
 
-	address2 := nacos.GetConfigString(cfg, "kafka.address.log")
-	topic2 := nacos.GetConfigString(cfg, "kafka.topic.log")
+	address2 := nc.GetConfigString(cfg, "kafka.address.log")
+	topic2 := nc.GetConfigString(cfg, "kafka.topic.log")
 	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
 	if err != nil {
 		panic(err)
@@ -212,4 +213,33 @@ func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, erro
 		return err
 	}
 	return nil
+}
+
+func NewNacosEngine(c *conf.Data) *nacos.Registrar {
+    sc := []constant.ServerConfig{
+       *constant.NewServerConfig(c.Nacos.Addr, c.Nacos.Port),
+    }
+
+    cc := constant.ClientConfig{
+       NamespaceId:         c.Nacos.NamespaceId,
+       TimeoutMs:           5000,
+       NotLoadCacheAtStart: true,
+       LogDir:              "tmp/nacos/log",
+       CacheDir:            "tmp/nacos/cache",
+       LogLevel:            "debug",
+    }
+
+    client, err := clients.NewNamingClient(
+       vo.NacosClientParam{
+          ClientConfig:  &cc,
+          ServerConfigs: sc,
+       },
+    )
+
+    if err != nil {
+       panic(err)
+    }
+
+    return nacos.New(client)
+
 }

@@ -1,8 +1,8 @@
 package server
 
 import (
-	"comment/internal/conf"
-	"comment/internal/service"
+	"github.com/knoci/roaming-world/comment/internal/conf"
+	"github.com/knoci/roaming-world/comment/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -11,7 +11,7 @@ import (
 )
 
 // NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, comment *service.CommentService, logger log.Logger) *grpc.Server {
+func NewGRPCServer(c *conf.Server, comment *service.CommentService, logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),

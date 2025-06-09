@@ -3,21 +3,43 @@
 
 openapi: 3.0.3
 info:
-    title: Greeter API
-    description: The greeting service definition.
+    title: Comment API
+    description: CommentService 评论服务定义
     version: 0.0.1
 paths:
-    /helloworld/{name}:
-        get:
+    /v1/comment:
+        post:
             tags:
-                - Greeter
-                - subgroup
-            description: Sends a greeting
-            operationId: Greeter_SayHello
+                - Comment
+            description: CreateComment 发表评论
+            operationId: Comment_CreateComment
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateCommentRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateCommentReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        delete:
+            tags:
+                - Comment
+            description: DeleteComment 删除评论
+            operationId: Comment_DeleteComment
             parameters:
-                - name: name
-                  in: path
-                  required: true
+                - name: cid
+                  in: query
                   schema:
                     type: string
             responses:
@@ -26,14 +48,224 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/helloworld.v1.HelloReply'
+                                $ref: '#/components/schemas/DeleteCommentReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/comment/like:
+        post:
+            tags:
+                - Comment
+            description: LikeComment 点赞评论
+            operationId: Comment_LikeComment
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/LikeCommentRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/LikeCommentReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/comment/list:
+        get:
+            tags:
+                - Comment
+            description: GetCommentList 获取一级评论列表
+            operationId: Comment_GetCommentList
+            parameters:
+                - name: aid
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetCommentListReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/comment/list/replies:
+        get:
+            tags:
+                - Comment
+            description: GetCommentListWithReplies 获取一级评论列表及其前两条二级评论
+            operationId: Comment_GetCommentListWithReplies
+            parameters:
+                - name: aid
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetCommentListWithRepliesReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/comment/replies:
+        get:
+            tags:
+                - Comment
+            description: GetReplyList 获取二级评论列表
+            operationId: Comment_GetReplyList
+            parameters:
+                - name: cid
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetReplyListReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
     schemas:
-        helloworld.v1.HelloReply:
+        CommentMessage:
             type: object
             properties:
+                cid:
+                    type: string
+                target:
+                    type: string
+                content:
+                    type: string
+                likes:
+                    type: integer
+                    format: int32
+                uid:
+                    type: string
+                name:
+                    type: string
+                avatar:
+                    type: string
+                replycid:
+                    type: string
+                replyname:
+                    type: string
+                time:
+                    type: string
+                createdAt:
+                    type: string
+                updatedAt:
+                    type: string
+            description: CommentMessage 评论信息
+        CreateCommentReply:
+            type: object
+            properties:
+                comment:
+                    $ref: '#/components/schemas/CommentMessage'
+            description: CreateCommentReply 创建评论响应
+        CreateCommentRequest:
+            type: object
+            properties:
+                target:
+                    type: string
+                content:
+                    type: string
+                replycid:
+                    type: string
+                replyname:
+                    type: string
+            description: CreateCommentRequest 创建评论请求
+        DeleteCommentReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: DeleteCommentReply 删除评论响应
+        GetCommentListReply:
+            type: object
+            properties:
+                comments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CommentMessage'
+            description: GetCommentListReply 获取一级评论列表响应
+        GetCommentListWithRepliesReply:
+            type: object
+            properties:
+                comments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CommentMessage'
+            description: GetCommentListWithRepliesReply 获取一级评论列表及其前两条二级评论响应
+        GetReplyListReply:
+            type: object
+            properties:
+                comments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CommentMessage'
+            description: GetReplyListReply 获取二级评论列表响应
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        LikeCommentReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: LikeCommentReply 点赞评论响应
+        LikeCommentRequest:
+            type: object
+            properties:
+                cid:
+                    type: string
+            description: LikeCommentRequest 点赞评论请求
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
                 message:
                     type: string
-            description: The response message containing the greetings
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
 tags:
-    - name: Greeter
+    - name: Comment
