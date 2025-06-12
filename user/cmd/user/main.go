@@ -6,6 +6,7 @@ import (
 
 	"github.com/knoci/roaming-world/user/internal/conf"
 
+	"github.com/go-kratos/kratos/contrib/registry/nacos/v2"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/config/file"
@@ -31,6 +32,7 @@ var (
 
 func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
+	Name = "user"
 }
 
 func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, rg *nacos.Registry) *kratos.App {

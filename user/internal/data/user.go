@@ -149,7 +149,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*biz.User, er
 // FindByKeyword 根据关键词查找用户
 func (r *userRepo) FindByKeyword(ctx context.Context, keyword string) (*biz.User, error) {
 	var u User
-	result := r.data.db.WithContext(ctx).Where("name = ? OR email = ?", keyword, keyword).First(&u)
+	result := r.data.db.WithContext(ctx).Where("name = ? OR email = ? OR uid = ?", keyword, keyword).First(&u)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			r.log.WithContext(ctx).Warnf("userRepo: user not found by keyword: %s", keyword)

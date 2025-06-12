@@ -8,12 +8,15 @@ import (
 	"net/url"
 	"time"
 
+	nacos "github.com/go-kratos/kratos/contrib/registry/nacos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
 	nc "github.com/knoci/roaming-world/user/internal/conf/nacos"
-	nacos "github.com/go-kratos/kratos/contrib/config/nacos/v2"
 	kafka "github.com/knoci/roaming-world/user/internal/pkg"
+	"github.com/nacos-group/nacos-sdk-go/clients"
+	"github.com/nacos-group/nacos-sdk-go/common/constant"
+	"github.com/nacos-group/nacos-sdk-go/vo"
 	"github.com/tencentyun/cos-go-sdk-v5"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"gorm.io/driver/postgres"
@@ -215,31 +218,31 @@ func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, erro
 	return nil
 }
 
-func NewNacosEngine(c *conf.Data) *nacos.Registrar {
-    sc := []constant.ServerConfig{
-       *constant.NewServerConfig(c.Nacos.Addr, c.Nacos.Port),
-    }
+func NewNacosEngine(c *conf.Data) *nacos.Registry {
+	sc := []constant.ServerConfig{
+		*constant.NewServerConfig(c.Nacos.Addr, c.Nacos.Port),
+	}
 
-    cc := constant.ClientConfig{
-       NamespaceId:         c.Nacos.NamespaceId,
-       TimeoutMs:           5000,
-       NotLoadCacheAtStart: true,
-       LogDir:              "tmp/nacos/log",
-       CacheDir:            "tmp/nacos/cache",
-       LogLevel:            "debug",
-    }
+	cc := constant.ClientConfig{
+		NamespaceId:         c.Nacos.NamespaceId,
+		TimeoutMs:           5000,
+		NotLoadCacheAtStart: true,
+		LogDir:              "tmp/nacos/log",
+		CacheDir:            "tmp/nacos/cache",
+		LogLevel:            "debug",
+	}
 
-    client, err := clients.NewNamingClient(
-       vo.NacosClientParam{
-          ClientConfig:  &cc,
-          ServerConfigs: sc,
-       },
-    )
+	client, err := clients.NewNamingClient(
+		vo.NacosClientParam{
+			ClientConfig:  &cc,
+			ServerConfigs: sc,
+		},
+	)
 
-    if err != nil {
-       panic(err)
-    }
+	if err != nil {
+		panic(err)
+	}
 
-    return nacos.New(client)
+	return nacos.New(client)
 
 }

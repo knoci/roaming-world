@@ -26,28 +26,10 @@ message Server {
 }
 
 message Data {
-  message Database {
-    string driver = 1;
-    string source = 2;
-    string host = 3;
-    string username = 4;
-    string password = 5;
-    string dbname = 6;
-    int32 port = 7;
-    string sslmode = 8;
-  }
-  message Redis {
-    string network = 1;
-    string addr = 2;
-    google.protobuf.Duration read_timeout = 3;
-    google.protobuf.Duration write_timeout = 4;
-  }
   message Nacos{
     string addr = 1;
     uint64 port = 2;
     string namespaceId = 3;
   }
-  Database database = 1;
-  Redis redis = 2;
-  Nacos nacos = 3;
+  Nacos nacos = 1;
 }

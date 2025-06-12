@@ -43,6 +43,8 @@ github.com/go-kratos/aegis v0.2.0 h1:dObzCDWn3XVjUkgxyBp6ZeWtx/do0DPZ7LY3yNSJLUQ
 github.com/go-kratos/aegis v0.2.0/go.mod h1:v0R2m73WgEEYB3XYu6aE2WcMwsZkJ/Rzuf5eVccm7bI=
 github.com/go-kratos/kratos/contrib/config/nacos/v2 v2.0.0-20250429074618-c82f7957223f h1:wqsXvScoL0iUDbH4QiVi5DKNoWhwrBozFe0PAqmQVTg=
 github.com/go-kratos/kratos/contrib/config/nacos/v2 v2.0.0-20250429074618-c82f7957223f/go.mod h1:RS9yjNwq3hK1B/9VOw+0dE8B4oM1L9C4ObrLejHjMCI=
+github.com/go-kratos/kratos/contrib/registry/nacos/v2 v2.0.0-20250527152916-d6f5f00cf562 h1:cFpU7said2WWV57GjfGoXnypVaLUrrvHdfSZ7sj4cUE=
+github.com/go-kratos/kratos/contrib/registry/nacos/v2 v2.0.0-20250527152916-d6f5f00cf562/go.mod h1:Rcf6MF5ZITDFmDqo981rw2v8kMog5gbZu8FW3yc6rpc=
 github.com/go-kratos/kratos/v2 v2.8.4 h1:eIJLE9Qq9WSoKx+Buy2uPyrahtF/lPh+Xf4MTpxhmjs=
 github.com/go-kratos/kratos/v2 v2.8.4/go.mod h1:mq62W2101a5uYyRxe+7IdWubu7gZCGYqSNKwGFiiRcw=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
