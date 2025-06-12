@@ -3,69 +3,40 @@
 
 openapi: 3.0.3
 info:
-    title: Comment API
-    description: CommentService 评论服务定义
+    title: User API
+    description: 用户服务接口定义
     version: 0.0.1
 paths:
-    /v1/comment:
-        post:
-            tags:
-                - Comment
-            description: CreateComment 发表评论
-            operationId: Comment_CreateComment
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/CreateCommentRequest'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/CreateCommentReply'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
+    /v1/user:
         delete:
             tags:
-                - Comment
-            description: DeleteComment 删除评论
-            operationId: Comment_DeleteComment
-            parameters:
-                - name: cid
-                  in: query
-                  schema:
-                    type: string
+                - User
+            description: 删除用户
+            operationId: User_DeleteUser
             responses:
                 "200":
                     description: OK
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/DeleteCommentReply'
+                                $ref: '#/components/schemas/DeleteUserReply'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/comment/like:
+    /v1/user/avatar:
         post:
             tags:
-                - Comment
-            description: LikeComment 点赞评论
-            operationId: Comment_LikeComment
+                - User
+            description: 验证邮箱
+            operationId: User_ConfirmEmail
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/LikeCommentRequest'
+                            $ref: '#/components/schemas/ConfirmEmailRequest'
                 required: true
             responses:
                 "200":
@@ -73,21 +44,21 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/LikeCommentReply'
+                                $ref: '#/components/schemas/ConfirmEmailReply'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/comment/list:
+    /v1/user/find:
         get:
             tags:
-                - Comment
-            description: GetCommentList 获取一级评论列表
-            operationId: Comment_GetCommentList
+                - User
+            description: 查找用户
+            operationId: User_FindUser
             parameters:
-                - name: aid
+                - name: keyword
                   in: query
                   schema:
                     type: string
@@ -97,21 +68,121 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/GetCommentListReply'
+                                $ref: '#/components/schemas/FindUserReply'
                 default:
                     description: Default error response
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/comment/list/replies:
+    /v1/user/info:
+        put:
+            tags:
+                - User
+            description: 更新用户信息
+            operationId: User_UpdateUserInfo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateUserInfoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateUserInfoReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/user/login:
+        post:
+            tags:
+                - User
+            description: 用户登录
+            operationId: User_Login
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/LoginRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/LoginReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/user/register:
+        post:
+            tags:
+                - User
+            description: 用户注册
+            operationId: User_Register
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RegisterRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RegisterReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/user/reset:
+        post:
+            tags:
+                - User
+            description: 重置密码
+            operationId: User_ResetPassword
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ResetPasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ResetPasswordReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/user/verify:
         get:
             tags:
-                - Comment
-            description: GetCommentListWithReplies 获取一级评论列表及其前两条二级评论
-            operationId: Comment_GetCommentListWithReplies
+                - User
+            description: 发送验证码
+            operationId: User_SendVerificationCode
             parameters:
-                - name: aid
+                - name: email
                   in: query
                   schema:
                     type: string
@@ -121,31 +192,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/GetCommentListWithRepliesReply'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/comment/replies:
-        get:
-            tags:
-                - Comment
-            description: GetReplyList 获取二级评论列表
-            operationId: Comment_GetReplyList
-            parameters:
-                - name: cid
-                  in: query
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/GetReplyListReply'
+                                $ref: '#/components/schemas/SendVerificationCodeReply'
                 default:
                     description: Default error response
                     content:
@@ -154,83 +201,52 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
-        CommentMessage:
+        ConfirmEmailReply:
             type: object
             properties:
-                cid:
+                status:
                     type: string
-                target:
+            description: 邮箱确认响应
+        ConfirmEmailRequest:
+            type: object
+            properties:
+                email:
                     type: string
-                content:
+                code:
                     type: string
-                likes:
-                    type: integer
-                    format: int32
+            description: 邮箱确认请求
+        ConfirmUserReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: 用户确认响应
+        ConfirmUserRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                email:
+                    type: string
+            description: 用户确认请求
+        DeleteUserReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: 删除用户响应
+        FindUserReply:
+            type: object
+            properties:
                 uid:
                     type: string
                 name:
                     type: string
                 avatar:
                     type: string
-                replycid:
+                email:
                     type: string
-                replyname:
-                    type: string
-                time:
-                    type: string
-                createdAt:
-                    type: string
-                updatedAt:
-                    type: string
-            description: CommentMessage 评论信息
-        CreateCommentReply:
-            type: object
-            properties:
-                comment:
-                    $ref: '#/components/schemas/CommentMessage'
-            description: CreateCommentReply 创建评论响应
-        CreateCommentRequest:
-            type: object
-            properties:
-                target:
-                    type: string
-                content:
-                    type: string
-                replycid:
-                    type: string
-                replyname:
-                    type: string
-            description: CreateCommentRequest 创建评论请求
-        DeleteCommentReply:
-            type: object
-            properties:
-                status:
-                    type: string
-            description: DeleteCommentReply 删除评论响应
-        GetCommentListReply:
-            type: object
-            properties:
-                comments:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/CommentMessage'
-            description: GetCommentListReply 获取一级评论列表响应
-        GetCommentListWithRepliesReply:
-            type: object
-            properties:
-                comments:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/CommentMessage'
-            description: GetCommentListWithRepliesReply 获取一级评论列表及其前两条二级评论响应
-        GetReplyListReply:
-            type: object
-            properties:
-                comments:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/CommentMessage'
-            description: GetReplyListReply 获取二级评论列表响应
+            description: 查找用户响应
         GoogleProtobufAny:
             type: object
             properties:
@@ -239,18 +255,76 @@ components:
                     description: The type of the serialized message.
             additionalProperties: true
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
-        LikeCommentReply:
+        LoginReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                token:
+                    type: string
+                avatar:
+                    type: string
+            description: 登录响应
+        LoginRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                password:
+                    type: string
+            description: 登录请求
+        RegisterReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                token:
+                    type: string
+                avatar:
+                    type: string
+            description: 注册响应
+        RegisterRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                email:
+                    type: string
+                password:
+                    type: string
+                code:
+                    type: string
+                avatar:
+                    type: string
+            description: 注册请求
+        ResetPasswordReply:
             type: object
             properties:
                 status:
                     type: string
-            description: LikeCommentReply 点赞评论响应
-        LikeCommentRequest:
+            description: 重置密码响应
+        ResetPasswordRequest:
             type: object
             properties:
-                cid:
+                name:
                     type: string
-            description: LikeCommentRequest 点赞评论请求
+                email:
+                    type: string
+                code:
+                    type: string
+                newPassword:
+                    type: string
+            description: 重置密码请求
+        SendVerificationCodeReply:
+            type: object
+            properties:
+                code:
+                    type: string
+            description: 发送验证码响应
         Status:
             type: object
             properties:
@@ -267,5 +341,39 @@ components:
                         $ref: '#/components/schemas/GoogleProtobufAny'
                     description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        UpdateUserInfoReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                email:
+                    type: string
+            description: 更新用户信息响应
+        UpdateUserInfoRequest:
+            type: object
+            properties:
+                newName:
+                    type: string
+                newEmail:
+                    type: string
+                code:
+                    type: string
+            description: 更新用户信息请求
+        UploadAvatarReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                avatar:
+                    type: string
+            description: 上传头像响应
+        UploadAvatarRequest:
+            type: object
+            properties: {}
+            description: 上传头像请求
 tags:
-    - name: Comment
+    - name: User

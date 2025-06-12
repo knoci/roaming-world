@@ -1,0 +1,210 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+option go_package = "user/api/user/v1;v1";
+
+// 用户服务接口定义
+service User {
+  // 用户注册
+  rpc Register(RegisterRequest) returns (RegisterReply) {
+    option (google.api.http) = {
+      post: "/v1/user/register"
+      body: "*"
+    };
+  }
+
+  // 发送验证码
+  rpc SendVerificationCode(SendVerificationCodeRequest) returns (SendVerificationCodeReply) {
+    option (google.api.http) = {
+      get: "/v1/user/verify"
+    };
+  }
+
+  // 用户登录
+  rpc Login(LoginRequest) returns (LoginReply) {
+    option (google.api.http) = {
+      post: "/v1/user/login"
+      body: "*"
+    };
+  }
+
+  // 查找用户
+  rpc FindUser(FindUserRequest) returns (FindUserReply) {
+    option (google.api.http) = {
+      get: "/v1/user/find"
+    };
+  }
+
+  // 删除用户
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserReply) {
+    option (google.api.http) = {
+      delete: "/v1/user"
+    };
+  }
+
+  // 更新用户信息
+  rpc UpdateUserInfo(UpdateUserInfoRequest) returns (UpdateUserInfoReply) {
+    option (google.api.http) = {
+      put: "/v1/user/info"
+      body: "*"
+    };
+  }
+
+  // 重置密码
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordReply) {
+    option (google.api.http) = {
+      post: "/v1/user/reset"
+      body: "*"
+    };
+  }
+
+  // 上传头像
+  rpc UploadAvatar(UploadAvatarRequest) returns (UploadAvatarReply) {
+    option (google.api.http) = {
+      post: "/v1/user/avatar"
+      body: "*"
+    };
+  }
+
+  // 用户确认
+  rpc ConfirmUser(ConfirmUserRequest) returns (ConfirmUserReply) {
+    option (google.api.http) = {
+      post: "/v1/user/avatar"
+      body: "*"
+    };
+  }
+
+  // 验证邮箱
+  rpc ConfirmEmail(ConfirmEmailRequest) returns (ConfirmEmailReply) {
+    option (google.api.http) = {
+      post: "/v1/user/avatar"
+      body: "*"
+    };
+  }
+}
+
+// 注册请求
+message RegisterRequest {
+  string name = 1 [(validate.rules).string = {min_len: 2, max_len: 12}];
+  string email = 2 [(validate.rules).string.email = true];
+  string password = 3 [(validate.rules).string = {min_len: 6, max_len: 20}];
+  string code = 4 [(validate.rules).string.len = 6];
+  string avatar = 5;
+}
+
+// 注册响应
+message RegisterReply {
+  string uid = 1;
+  string name = 2;
+  string token = 3;
+  string avatar = 4;
+}
+
+// 发送验证码请求
+message SendVerificationCodeRequest {
+  string email = 1 [(validate.rules).string.email = true];
+}
+
+// 发送验证码响应
+message SendVerificationCodeReply {
+  string code = 1;
+}
+
+// 登录请求
+message LoginRequest {
+  string email = 1 [(validate.rules).string.email = true];
+  string password = 2 [(validate.rules).string = {min_len: 6, max_len: 18}];
+}
+
+// 登录响应
+message LoginReply {
+  string uid = 1;
+  string name = 2;
+  string token = 3;
+  string avatar = 4;
+}
+
+
+// 查找用户请求
+message FindUserRequest {
+  string keyword = 1;
+}
+
+// 查找用户响应
+message FindUserReply {
+  string uid = 1;
+  string name = 2;
+  string avatar = 3;
+  string email = 4;
+}
+
+// 删除用户请求
+message DeleteUserRequest {}
+
+// 删除用户响应
+message DeleteUserReply {
+  string status = 1;
+}
+
+// 更新用户信息请求
+message UpdateUserInfoRequest {
+  string new_name = 1 [(validate.rules).string = {min_len: 2, max_len: 20}];
+  string new_email = 2 [(validate.rules).string.email = true];
+  string code = 3 [(validate.rules).string.len = 6];
+}
+
+// 更新用户信息响应
+message UpdateUserInfoReply {
+  string uid = 1;
+  string name = 2;
+  string email = 3;
+}
+
+// 重置密码请求
+message ResetPasswordRequest {
+  string name = 1 [(validate.rules).string = {min_len: 2, max_len: 20}];
+  string email = 2 [(validate.rules).string.email = true];
+  string code = 3 [(validate.rules).string.len = 6];
+  string new_password = 4 [(validate.rules).string = {min_len: 6, max_len: 20}];
+}
+
+// 重置密码响应
+message ResetPasswordReply {
+  string status = 1;
+}
+
+// 上传头像请求
+message UploadAvatarRequest {}
+
+// 上传头像响应
+message UploadAvatarReply {
+  string uid = 1;
+  string name = 2;
+  string avatar = 3;
+}
+
+// 用户确认请求
+message ConfirmUserRequest {
+  string name = 1;
+  string email = 2;
+}
+
+// 用户确认响应
+message ConfirmUserReply {
+  string status = 1;
+}
+
+// 邮箱确认请求
+message ConfirmEmailRequest {
+  string email = 1;
+  string code = 2;
+}
+
+// 邮箱确认响应
+message ConfirmEmailReply {
+  string status = 1;
+}

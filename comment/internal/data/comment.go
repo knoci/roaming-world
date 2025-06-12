@@ -2,13 +2,14 @@ package data
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/transport/grpc"
 	"github.com/google/uuid"
 	"github.com/knoci/roaming-world/comment/internal/biz"
+	pd "github.com/knoci/roaming-world/comment/api/user/v1"
 	"gorm.io/gorm"
 )
 
@@ -404,19 +405,29 @@ func (r *commentRepo) FindUser(ctx context.Context, uid string) (*biz.User, erro
 	}
 
 	var user User
-	result := r.data.db.WithContext(ctx).Table("users").Where("uid = ?", uid).First(&user)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, biz.ErrUserNotFound
-		}
-		return nil, result.Error
+	grpcConn, err := grpc.DialInsecure(
+		context.Background(),
+		grpc.WithEndpoint("discovery:///user.grpc"),
+		grpc.WithDiscovery(r.data.nacos),
+		grpc.WithTimeout(time.Second*2),
+		grpc.WithMiddleware(
+		   recovery.Recovery()),
+	)
+ 
+	client := pd.NewUserClient(grpcConn)
+	rsp, err := client.FindUser(context.Background(), &pb.FindUserRequest{
+		Keyword: uid,
+	})
+	if err != nil {
+		return nil, err
 	}
+	
 
 	return &biz.User{
-		UID:    user.UID,
-		Name:   user.Name,
-		Avatar: user.Avatar,
-		Email:  user.Email,
+		UID:    rsp.UID,
+		Name:   rsp.Name,
+		Avatar: rsp.Avatar,
+		Email:  rsp.Email,
 	}, nil
 }
 

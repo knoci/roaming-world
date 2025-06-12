@@ -6,9 +6,14 @@ import (
 	"fmt"
 
 	"github.com/go-kratos/kratos/v2/log"
+	nacos "github.com/go-kratos/kratos/contrib/registry/nacos/v2"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/comment/internal/conf"
-	nacos "github.com/knoci/roaming-world/comment/internal/conf/nacos"
+	"github.com/spf13/viper"
+	nc "github.com/knoci/roaming-world/comment/internal/conf/nacos"
+	"github.com/nacos-group/nacos-sdk-go/clients"
+	"github.com/nacos-group/nacos-sdk-go/common/constant"
+	"github.com/nacos-group/nacos-sdk-go/vo"
 	"github.com/knoci/roaming-world/comment/internal/pkg"
 	kafka "github.com/knoci/roaming-world/comment/internal/pkg"
 	"github.com/redis/go-redis/v9"
@@ -27,6 +32,7 @@ type Data struct {
 	cdc       *pkg.KafkaSender
 	logsender *pkg.KafkaSender
 	log       *log.Helper
+	nacos     *nacos.Registry
 }
 
 type SqlMsg struct {
@@ -44,14 +50,14 @@ type ErrorMsg struct {
 func NewData(c *conf.Bootstrap, logger log.Logger) (*Data, func(), error) {
 	log := log.NewHelper(logger)
 
-	cfg := nacos.GetConfig()
+	cfg := nc.GetConfig()
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
-		nacos.GetConfigString(cfg, "postgre.host"),
-		nacos.GetConfigString(cfg, "postgre.user"),
-		nacos.GetConfigString(cfg, "postgre.password"),
-		nacos.GetConfigString(cfg, "postgre.dbname"),
-		nacos.GetConfigInt(cfg, "postgre.port"),
-		nacos.GetConfigString(cfg, "postgre.sslmode"),
+		nc.GetConfigString(cfg, "postgre.host"),
+		nc.GetConfigString(cfg, "postgre.user"),
+		nc.GetConfigString(cfg, "postgre.password"),
+		nc.GetConfigString(cfg, "postgre.dbname"),
+		nc.GetConfigInt(cfg, "postgre.port"),
+		nc.GetConfigString(cfg, "postgre.sslmode"),
 	)
 
 	// 连接数据库
@@ -73,27 +79,27 @@ func NewData(c *conf.Bootstrap, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	address1 := nacos.GetConfigString(cfg, "kafka.address.cdc")
-	topic1 := nacos.GetConfigString(cfg, "kafka.topic.cdc")
+	address1 := nc.GetConfigString(cfg, "kafka.address.cdc")
+	topic1 := nc.GetConfigString(cfg, "kafka.topic.cdc")
 	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
 	if err != nil {
 		panic(err)
 	}
 
-	address2 := nacos.GetConfigString(cfg, "kafka.address.log")
-	topic2 := nacos.GetConfigString(cfg, "kafka.topic.log")
+	address2 := nc.GetConfigString(cfg, "kafka.address.log")
+	topic2 := nc.GetConfigString(cfg, "kafka.topic.log")
 	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
 	if err != nil {
 		panic(err)
 	}
 
-	redisHost := nacos.GetConfigString(cfg, "redis.host")
-	redisPort := nacos.GetConfigInt(cfg, "redis.port")
+	redisHost := nc.GetConfigString(cfg, "redis.host")
+	redisPort := nc.GetConfigInt(cfg, "redis.port")
 	redisAddr := fmt.Sprintf("%s:%d", redisHost, redisPort)
 	client := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
-		Password: nacos.GetConfigString(cfg, "redis.password"),
-		DB:       nacos.GetConfigInt(cfg, "redis.db"),
+		Password: nc.GetConfigString(cfg, "redis.password"),
+		DB:       nc.GetConfigInt(cfg, "redis.db"),
 	})
 	// 测试连接
 	ctx := context.Background()
@@ -102,12 +108,47 @@ func NewData(c *conf.Bootstrap, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
+	localConfig := viper.New()                                
+	localConfig.SetConfigFile("..\\..\\configs\\config.yaml") 
+	if err := localConfig.ReadInConfig(); err != nil {
+		panic(err)
+	}
+	nacosIp := localConfig.GetString("data.nacos.addr")
+	nacosPort := localConfig.GetUint64("data.nacos.port")
+	nacosNameSpaceId := localConfig.GetString("data.nacos.namespaceId")
+	sc := []constant.ServerConfig{
+		*constant.NewServerConfig(nacosIp, nacosPort),
+	}
+
+	cc := constant.ClientConfig{
+		NamespaceId:         nacosNameSpaceId,
+		TimeoutMs:           5000,
+		NotLoadCacheAtStart: true,
+		LogDir:              "tmp/nacos/log",
+		CacheDir:            "tmp/nacos/cache",
+		LogLevel:            "debug",
+	}
+
+	clientn, err := clients.NewNamingClient(
+		vo.NacosClientParam{
+			ClientConfig:  &cc,
+			ServerConfigs: sc,
+		},
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	nacos := nacos.New(clientn)
+
 	d := &Data{
 		db:        db,
 		log:       log,
 		redis:     client,
 		cdc:       cdc,
 		logsender: logsender,
+		nacos:     nacos,
 	}
 
 	cleanup := func() {
