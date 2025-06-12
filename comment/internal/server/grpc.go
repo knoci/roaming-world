@@ -29,7 +29,7 @@ func NewGRPCServer(c *conf.Server, comment *service.CommentService, logger log.L
 	srv := grpc.NewServer(opts...)
 
 	// 注册Comment服务
-	v1.RegisterCommentServiceServer(srv, comment)
+	v1.RegisterCommentServer(srv, comment)
 
 	return srv
 }

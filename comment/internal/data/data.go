@@ -47,7 +47,7 @@ type ErrorMsg struct {
 }
 
 // NewData 初始化数据层资源
-func NewData(c *conf.Bootstrap, logger log.Logger) (*Data, func(), error) {
+func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	log := log.NewHelper(logger)
 
 	cfg := nc.GetConfig()
@@ -68,14 +68,14 @@ func NewData(c *conf.Bootstrap, logger log.Logger) (*Data, func(), error) {
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		log.Errorf("userData: failed to connect database: %v", err)
+		log.Errorf("commentData: failed to connect database: %v", err)
 		return nil, nil, err
 	}
 
 	// 自动迁移表结构
 	err = db.AutoMigrate(&Comment{}, &Commentlike{})
 	if err != nil {
-		log.Errorf("userData: failed to auto migrate: %v", err)
+		log.Errorf("commentData: failed to auto migrate: %v", err)
 		return nil, nil, err
 	}
 
@@ -103,8 +103,8 @@ func NewData(c *conf.Bootstrap, logger log.Logger) (*Data, func(), error) {
 	})
 	// 测试连接
 	ctx := context.Background()
-	if err := client.Ping(ctx).Err(); err != nil {
-		log.Error("foodData: failed to connect redis", err)
+	if err = client.Ping(ctx).Err(); err != nil {
+		log.Error("commentData: failed to connect redis", err)
 		return nil, nil, err
 	}
 
@@ -152,10 +152,10 @@ func NewData(c *conf.Bootstrap, logger log.Logger) (*Data, func(), error) {
 	}
 
 	cleanup := func() {
-		log.Info("userData: closing the data resources")
+		log.Info("commentData: closing the data resources")
 		sqlDB, err := d.db.DB()
 		if err != nil {
-			log.Errorf("user Data: failed to get sqlDB: %v", err)
+			log.Errorf("commentData: failed to get sqlDB: %v", err)
 			return
 		}
 		sqlDB.Close()

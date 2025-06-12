@@ -29,7 +29,7 @@ func NewHTTPServer(c *conf.Server, comment *service.CommentService, logger log.L
 	srv := http.NewServer(opts...)
 
 	// 注册Comment服务
-	v1.RegisterCommentServiceHTTPServer(srv, comment)
-
+	v1.RegisterCommentHTTPServer(srv, comment)
+	
 	return srv
 }

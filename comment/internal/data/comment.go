@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
+	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/google/uuid"
 	"github.com/knoci/roaming-world/comment/internal/biz"
 	pd "github.com/knoci/roaming-world/comment/api/user/v1"
@@ -154,8 +155,8 @@ func (r *commentRepo) Delete(ctx context.Context, uid, cid string) error {
 				return err
 			}
 			// 发送SQL日志到Kafka
-			sql := `DELETE FROM commentlikes WHERE cid = $1`
-			params := []any{reply.CID}
+			sql = `DELETE FROM commentlikes WHERE cid = $1`
+			params = []any{reply.CID}
 			if err := r.data.SendSqlLog(ctx, "comment", sql, params); err != nil {
 				r.log.WithContext(ctx).Errorf("commentRepo: kafka send sqllog error: %v", err)
 			}
@@ -256,7 +257,7 @@ func (r *commentRepo) Like(ctx context.Context, uid, cid string) error {
 			if err := tx.Model(&comment).UpdateColumn("likes", gorm.Expr("likes - ?", 1)).Error; err != nil {
 				return err
 			}
-			// 发送SQL日志到Kafka
+			// 发送SQL日志到Kafka 
 			sql = `UPDATE comments SET likes = likes - 1 WHERE cid = $1`
 			params = []any{cid}
 			if err := r.data.SendSqlLog(ctx, "comment", sql, params); err != nil {
@@ -396,39 +397,35 @@ func (r *commentRepo) GetCommentListWithReplies(ctx context.Context, aid string)
 
 // FindUser 查找用户
 func (r *commentRepo) FindUser(ctx context.Context, uid string) (*biz.User, error) {
-	// 这里应该调用user服务的gRPC接口获取用户信息
-	type User struct {
-		UID    string `gorm:"primaryKey;type:varchar(36);column:uid"`
-		Name   string `gorm:"type:varchar(50);not null"`
-		Avatar string `gorm:"type:varchar(100)"`
-		Email  string `gorm:"type:varchar(20);not null;unique"`
-	}
+    // 1. 应该使用传入的 ctx 而不是新建 context
+    grpcConn, err := grpc.DialInsecure(
+        ctx,  // 使用传入的 context
+        grpc.WithEndpoint("discovery:///user.grpc"),
+        grpc.WithDiscovery(r.data.nacos),
+        grpc.WithTimeout(time.Second*2),
+        grpc.WithMiddleware(
+            recovery.Recovery(),
+        ),
+    )
+    if err != nil {
+        return nil, biz.ErrInternalError
+    }
+    defer grpcConn.Close()  // 2. 记得关闭连接
 
-	var user User
-	grpcConn, err := grpc.DialInsecure(
-		context.Background(),
-		grpc.WithEndpoint("discovery:///user.grpc"),
-		grpc.WithDiscovery(r.data.nacos),
-		grpc.WithTimeout(time.Second*2),
-		grpc.WithMiddleware(
-		   recovery.Recovery()),
-	)
- 
-	client := pd.NewUserClient(grpcConn)
-	rsp, err := client.FindUser(context.Background(), &pb.FindUserRequest{
-		Keyword: uid,
-	})
-	if err != nil {
-		return nil, err
-	}
-	
+    client := pd.NewUserClient(grpcConn)
+    rsp, err := client.FindUser(ctx, &pd.FindUserRequest{  // 3. 需要传递指针 & 和正确的包前缀 pd
+        Keyword: uid,
+    })
+    if err != nil {
+        return nil, biz.ErrInternalError
+    }
 
-	return &biz.User{
-		UID:    rsp.UID,
-		Name:   rsp.Name,
-		Avatar: rsp.Avatar,
-		Email:  rsp.Email,
-	}, nil
+    return &biz.User{
+        UID:    rsp.Uid,  
+        Name:   rsp.Name,
+        Avatar: rsp.Avatar,
+        Email:  rsp.Email,
+    }, nil
 }
 
 // UpdateArticleCommentCount 更新文章评论数

@@ -11,8 +11,7 @@ import (
 var ProviderSet = wire.NewSet(NewCommentService)
 
 type CommentService struct {
-	pb.UnimplementedCommentServiceServer
-
+	pb.UnimplementedCommentServer
 	uc  *biz.CommentUsecase
 	log *log.Helper
 }

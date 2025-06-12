@@ -77,6 +77,7 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		Token:  token,
 	}, nil
 }
+
 func (s *UserService) FindUser(ctx context.Context, req *pb.FindUserRequest) (*pb.FindUserReply, error) {
 	s.log.WithContext(ctx).Infof("userService: FindUser received: Uid=%s", req.Keyword)
 	user, err := s.user.FindUser(ctx, req.Keyword)
