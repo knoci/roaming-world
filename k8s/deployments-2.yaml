@@ -1,0 +1,165 @@
+# Comment Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comment-service
+  namespace: roaming-world
+  labels:
+    app: comment-service
+    service: comment
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: comment-service
+  template:
+    metadata:
+      labels:
+        app: comment-service
+        service: comment
+    spec:
+      containers:
+      - name: comment-service
+        image: roaming-world/comment:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 9000
+          name: grpc
+        env:
+        - name: NACOS_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-host
+        - name: NACOS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-port
+        - name: NACOS_NAMESPACE_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-namespace-id
+        - name: NACOS_DATA_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-data-id
+        - name: NACOS_GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-group-id
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+
+# Audiobook Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audiobook-service
+  namespace: roaming-world
+  labels:
+    app: audiobook-service
+    service: audiobook
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: audiobook-service
+  template:
+    metadata:
+      labels:
+        app: audiobook-service
+        service: audiobook
+    spec:
+      containers:
+      - name: audiobook-service
+        image: roaming-world/audiobook:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 9000
+          name: grpc
+        env:
+        - name: NACOS_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-host
+        - name: NACOS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-port
+        - name: NACOS_NAMESPACE_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-namespace-id
+        - name: NACOS_DATA_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-data-id
+        - name: NACOS_GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-group-id
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"

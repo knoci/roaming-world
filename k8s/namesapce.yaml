@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: roaming-world
+  labels:
+    name: roaming-world
+    environment: production
+
+---
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: roaming-world-dev
+  labels:
+    name: roaming-world-dev
+    environment: development
+
+---
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: roaming-world-test
+  labels:
+    name: roaming-world-test
+    environment: test

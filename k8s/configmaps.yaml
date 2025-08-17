@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: roaming-world-config
+  namespace: roaming-world
+data:
+  # MySQL配置
+  mysql-host: "mysql-service"
+  mysql-port: "3306"
+  mysql-database: "roaming_world"
+  mysql-username: "root"
+  
+  # Redis配置
+  redis-host: "redis-service"
+  redis-port: "6379"
+  
+  # Nacos配置
+  nacos-host: "nacos-service"
+  nacos-port: "8848"
+  nacos-namespace-id: ""
+  nacos-data-id: "roaming-world.yaml"
+  nacos-group-id: "DEFAULT_GROUP"
+  
+  # 服务配置
+  http-timeout: "1s"
+  grpc-timeout: "1s"
+  redis-read-timeout: "0.2s"
+  redis-write-timeout: "0.2s"
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: roaming-world-config
+  namespace: roaming-world-dev
+data:
+  # MySQL配置
+  mysql-host: "mysql-service"
+  mysql-port: "3306"
+  mysql-database: "roaming_world_dev"
+  mysql-username: "root"
+  
+  # Redis配置
+  redis-host: "redis-service"
+  redis-port: "6379"
+  
+  # Nacos配置
+  nacos-host: "nacos-service"
+  nacos-port: "8848"
+  nacos-namespace-id: "dev"
+  nacos-data-id: "roaming-world.yaml"
+  nacos-group-id: "DEFAULT_GROUP"
+  
+  # 服务配置
+  http-timeout: "1s"
+  grpc-timeout: "1s"
+  redis-read-timeout: "0.2s"
+  redis-write-timeout: "0.2s"
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: roaming-world-config
+  namespace: roaming-world-test
+data:
+  # MySQL配置
+  mysql-host: "mysql-service"
+  mysql-port: "3306"
+  mysql-database: "roaming_world_test"
+  mysql-username: "root"
+  
+  # Redis配置
+  redis-host: "redis-service"
+  redis-port: "6379"
+  
+  # Nacos配置
+  nacos-host: "nacos-service"
+  nacos-port: "8848"
+  nacos-namespace-id: "test"
+  nacos-data-id: "roaming-world.yaml"
+  nacos-group-id: "DEFAULT_GROUP"
+  
+  # 服务配置
+  http-timeout: "1s"
+  grpc-timeout: "1s"
+  redis-read-timeout: "0.2s"
+  redis-write-timeout: "0.2s"

@@ -1,0 +1,61 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: roaming-world
+
+resources:
+  # 命名空间
+  - namesapce.yaml
+  
+  # 配置和密钥
+  - secrets.yaml
+  - configmaps.yaml
+  
+  # 基础设施服务
+  - infrastructure.yaml  # MySQL & Redis
+  - nacos.yaml          # Nacos配置中心
+  
+  # 微服务部署
+  - deployments.yaml    # User, Article, Food, Scene服务
+  - deployments-2.yaml  # Comment, Audiobook服务
+  
+  # 服务暴露
+  - service.yaml        # 所有微服务的Service
+
+commonLabels:
+  project: roaming-world
+  version: v1.0.0
+
+images:
+  - name: roaming-world/user
+    newTag: latest
+  - name: roaming-world/article
+    newTag: latest
+  - name: roaming-world/food
+    newTag: latest
+  - name: roaming-world/scene
+    newTag: latest
+  - name: roaming-world/comment
+    newTag: latest
+  - name: roaming-world/audiobook
+    newTag: latest
+
+replicas:
+  - name: user-service
+    count: 2
+  - name: article-service
+    count: 2
+  - name: food-service
+    count: 2
+  - name: scene-service
+    count: 2
+  - name: comment-service
+    count: 2
+  - name: audiobook-service
+    count: 2
+  - name: mysql
+    count: 1
+  - name: redis
+    count: 1
+  - name: nacos
+    count: 1

@@ -1,0 +1,42 @@
+# 此文件已被新的部署配置替代
+# 请使用以下文件进行部署：
+# - deployments.yaml: 主要微服务部署配置
+# - deployments-2.yaml: 其他微服务部署配置
+# - service.yaml: 服务配置
+# - infrastructure.yaml: 基础设施配置
+# - nacos.yaml: Nacos配置中心
+# 
+# 推荐使用 kustomization.yaml 进行一键部署：
+# kubectl apply -k .
+#
+# 详细说明请参考 README.md 文件
+
+# 以下是 roaming-world 项目的简化部署示例
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: roaming-world-microservices
+  namespace: roaming-world
+  labels:
+    project: roaming-world
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      project: roaming-world
+  template:
+    metadata:
+      labels:
+        project: roaming-world
+    spec:
+      containers:
+        - image: roaming-world/user:latest
+          name: user-service
+          ports:
+          - containerPort: 8000
+          - containerPort: 9000
+        - image: roaming-world/article:latest
+          name: article-service
+          ports:
+          - containerPort: 8000
+          - containerPort: 9000

@@ -1,0 +1,147 @@
+# User Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: roaming-world
+  labels:
+    app: user-service
+    service: user
+spec:
+  type: ClusterIP
+  selector:
+    app: user-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+
+---
+
+# Article Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: article-service
+  namespace: roaming-world
+  labels:
+    app: article-service
+    service: article
+spec:
+  type: ClusterIP
+  selector:
+    app: article-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+
+---
+
+# Food Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: food-service
+  namespace: roaming-world
+  labels:
+    app: food-service
+    service: food
+spec:
+  type: ClusterIP
+  selector:
+    app: food-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+
+---
+
+# Scene Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: scene-service
+  namespace: roaming-world
+  labels:
+    app: scene-service
+    service: scene
+spec:
+  type: ClusterIP
+  selector:
+    app: scene-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+
+---
+
+# Comment Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: comment-service
+  namespace: roaming-world
+  labels:
+    app: comment-service
+    service: comment
+spec:
+  type: ClusterIP
+  selector:
+    app: comment-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+
+---
+
+# Audiobook Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: audiobook-service
+  namespace: roaming-world
+  labels:
+    app: audiobook-service
+    service: audiobook
+spec:
+  type: ClusterIP
+  selector:
+    app: audiobook-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
