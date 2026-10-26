@@ -8,6 +8,7 @@ import (
 	"github.com/knoci/roaming-world/food/internal/biz"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/metadata"
 	"github.com/go-kratos/kratos/v2/transport/http"
 )
 
@@ -21,9 +22,7 @@ func NewFoodService(food *biz.FoodUsecase, logger log.Logger) *FoodService {
 func (s *FoodService) CreateFood(ctx context.Context, req *pb.CreateFoodRequest) (*pb.CreateFoodReply, error) {
 	s.log.WithContext(ctx).Infof("foodService: CreateFood: %v", req.Name)
 
-	httpReq, _ := http.RequestFromServerContext(ctx)
-	authHeader := httpReq.Header.Get("Authorization")
-	if len(authHeader) == 0 || authHeader != "knoci1337" {
+	if !checkPassword(ctx) {
 		return nil, biz.ErrUnauthorized
 	}
 
@@ -100,4 +99,13 @@ func (s *FoodService) GetRandomFood(ctx context.Context, req *pb.GetRandomFoodRe
 			UpdatedAt: food.UpdatedAt.Format(time.RFC3339),
 		},
 	}, nil
+}
+func checkPassword(ctx context.Context) bool {
+	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
+		return req.Header.Get("Authorization") == "knoci1337"
+	}
+	if md, ok := metadata.FromServerContext(ctx); ok {
+		return md.Get("authorization") == "knoci1337"
+	}
+	return false
 }

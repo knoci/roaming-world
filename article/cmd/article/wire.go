@@ -6,11 +6,11 @@
 package main
 
 import (
-	"article/internal/biz"
-	"article/internal/conf"
-	"article/internal/data"
-	"article/internal/server"
-	"article/internal/service"
+	"github.com/knoci/roaming-world/article/internal/biz"
+	"github.com/knoci/roaming-world/article/internal/conf"
+	"github.com/knoci/roaming-world/article/internal/data"
+	"github.com/knoci/roaming-world/article/internal/server"
+	"github.com/knoci/roaming-world/article/internal/service"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"

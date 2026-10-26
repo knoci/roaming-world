@@ -1,7 +1,6 @@
 package server
 
 import (
-	
 	v1 "github.com/knoci/roaming-world/scene/api/scene/v1"
 	"github.com/knoci/roaming-world/scene/internal/conf"
 	"github.com/knoci/roaming-world/scene/internal/service"

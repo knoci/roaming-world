@@ -31,6 +31,9 @@ func NewHTTPServer(c *conf.Server, user *service.UserService, logger log.Logger)
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
+	srv.Route("/").GET("/healthz", func(ctx http.Context) error {
+		return ctx.String(200, "ok")
+	})
 	v1.RegisterUserHTTPServer(srv, user)
 	return srv
 }

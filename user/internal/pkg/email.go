@@ -16,7 +16,6 @@ type EmailConfig struct {
 	From     string
 }
 
-
 // SendVerificationCode 发送验证码邮件
 func SendVerificationCode(to string, code string) error {
 	cfg := nacos.GetConfig()

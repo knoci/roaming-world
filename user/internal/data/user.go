@@ -20,10 +20,10 @@ import (
 // User 用户模型
 type User struct {
 	UID       string    `gorm:"primaryKey;type:varchar(36);column:uid" json:"uid"`
-	Name      string    `gorm:"type:varchar(50);not null" json:"name"`
-	Avatar    string    `gorm:"type:varchar(100)" json:"avatar"`
+	Name      string    `gorm:"type:varchar(50);not null;uniqueIndex:uk_users_name" json:"name"`
+	Avatar    string    `gorm:"type:varchar(255)" json:"avatar"`
 	Password  string    `gorm:"type:text;not null" json:"-"`
-	Email     string    `gorm:"type:varchar(20);not null;unique" json:"email"`
+	Email     string    `gorm:"type:varchar(100);not null;uniqueIndex:uk_users_email" json:"email"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -146,10 +146,33 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*biz.User, er
 	}, nil
 }
 
+// FindByName 根据用户名查找用户
+func (r *userRepo) FindByName(ctx context.Context, name string) (*biz.User, error) {
+	var u User
+	result := r.data.db.WithContext(ctx).Where("name = ?", name).First(&u)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			r.log.WithContext(ctx).Warnf("userRepo: user not found by name: %s", name)
+			return nil, result.Error
+		}
+		r.log.WithContext(ctx).Errorf("userRepo: db error finding user by name: %s, error: %v", name, result.Error)
+		_ = r.data.SendErrorLog(ctx, "user", result.Error.Error(), "db.Where('name = ?', name).First", name)
+		return nil, result.Error
+	}
+	return &biz.User{
+		UID:       u.UID,
+		Name:      u.Name,
+		Email:     u.Email,
+		Avatar:    u.Avatar,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+	}, nil
+}
+
 // FindByKeyword 根据关键词查找用户
 func (r *userRepo) FindByKeyword(ctx context.Context, keyword string) (*biz.User, error) {
 	var u User
-	result := r.data.db.WithContext(ctx).Where("name = ? OR email = ? OR uid = ?", keyword, keyword).First(&u)
+	result := r.data.db.WithContext(ctx).Where("name = ? OR email = ? OR uid = ?", keyword, keyword, keyword).First(&u)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			r.log.WithContext(ctx).Warnf("userRepo: user not found by keyword: %s", keyword)
@@ -191,16 +214,16 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 		return nil, findResult.Error
 	}
 
-	// 更新字段
+	// 更新字段。资料更新不会携带密码，避免把已有密码哈希覆盖为空。
 	existingUser.Name = user.Name
 	existingUser.Email = user.Email
-	existingUser.Password = user.Password
-	existingUser.Avatar = user.Avatar
-	existingUser.UpdatedAt = time.Now() // 确保更新时间被设置
+	if user.Password != "" {
+		existingUser.Password = user.Password
+	}
 	if user.Avatar != "" {
 		existingUser.Avatar = user.Avatar
 	}
-	existingUser.UpdatedAt = time.Now() // 确保更新时间被设置
+	existingUser.UpdatedAt = time.Now()
 
 	saveResult := r.data.db.WithContext(ctx).Save(&existingUser)
 	if saveResult.Error != nil {
@@ -208,12 +231,12 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 		return nil, biz.ErrInternalError
 	}
 
-	sql := "UPDATE users SET name = $1, email = $2, password = $3, avatar = $4, updated_at = NOW() WHERE id = $5"
+	sql := "UPDATE users SET name = $1, email = $2, password = $3, avatar = $4, updated_at = NOW() WHERE uid = $5"
 	params := []any{
-		user.Name,
-		user.Email,
-		user.Password,
-		user.Avatar,
+		existingUser.Name,
+		existingUser.Email,
+		existingUser.Password,
+		existingUser.Avatar,
 		existingUser.UID,
 	}
 	err := r.data.SendSqlLog(ctx, "user", sql, params)
@@ -271,7 +294,7 @@ func (r *userRepo) VerifyCode(ctx context.Context, email, code string) error {
 		return err
 	}
 	if len(resp.Kvs) == 0 {
-		return err
+		return errors.New("verification code not found")
 	}
 
 	// 验证成功后删除验证码

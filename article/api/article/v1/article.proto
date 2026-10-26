@@ -1,0 +1,207 @@
+syntax = "proto3";
+
+package article.v1;
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+option go_package = "github.com/knoci/roaming-world/article/api/article/v1;v1";
+
+// Article 文章服务：文章 CRUD、点赞、收藏、视频文章。
+service Article {
+  // 创建文章
+  rpc CreateArticle(CreateArticleRequest) returns (CreateArticleReply) {
+    option (google.api.http) = {
+      post: "/v1/article"
+      body: "*"
+    };
+  }
+
+  // 更新文章
+  rpc UpdateArticle(UpdateArticleRequest) returns (UpdateArticleReply) {
+    option (google.api.http) = {
+      put: "/v1/article"
+      body: "*"
+    };
+  }
+
+  // 删除文章
+  rpc DeleteArticle(DeleteArticleRequest) returns (DeleteArticleReply) {
+    option (google.api.http) = {
+      delete: "/v1/article/{aid}"
+    };
+  }
+
+  // 点赞/取消点赞
+  rpc LikeArticle(LikeArticleRequest) returns (LikeArticleReply) {
+    option (google.api.http) = {
+      post: "/v1/article/{aid}/like"
+      body: "*"
+    };
+  }
+
+  // 收藏/取消收藏
+  rpc FavoriteArticle(FavoriteArticleRequest) returns (FavoriteArticleReply) {
+    option (google.api.http) = {
+      post: "/v1/article/{aid}/favorite"
+      body: "*"
+    };
+  }
+
+  // 文章列表：支持按时间、点赞、评论、收藏排序
+  rpc ListArticles(ListArticlesRequest) returns (ListArticlesReply) {
+    option (google.api.http) = {
+      get: "/v1/article"
+    };
+  }
+
+  // 文章详情
+  rpc GetArticle(GetArticleRequest) returns (GetArticleReply) {
+    option (google.api.http) = {
+      get: "/v1/article/{aid}"
+    };
+  }
+
+  // 用户点赞列表
+  rpc GetUserLikeList(GetUserLikeListRequest) returns (GetUserLikeListReply) {
+    option (google.api.http) = {
+      get: "/v1/article/like/list"
+    };
+  }
+
+  // 用户收藏列表
+  rpc GetUserFavoriteList(GetUserFavoriteListRequest) returns (GetUserFavoriteListReply) {
+    option (google.api.http) = {
+      get: "/v1/article/favorite/list"
+    };
+  }
+
+  // 获取当前最大视频 ID
+  rpc GetMaxVideoID(GetMaxVideoIDRequest) returns (GetMaxVideoIDReply) {
+    option (google.api.http) = {
+      get: "/v1/article/video/count"
+    };
+  }
+
+  // 根据视频 ID 获取视频文章
+  rpc GetVideoArticle(GetVideoArticleRequest) returns (GetVideoArticleReply) {
+    option (google.api.http) = {
+      get: "/v1/article/video/{videoid}"
+    };
+  }
+}
+
+message ArticleMessage {
+  string aid = 1;
+  string uid = 2;
+  string name = 3;
+  string avatar = 4;
+  string title = 5;
+  repeated string view = 6;
+  string content = 7;
+  int32 likes = 8;
+  int32 comments = 9;
+  int32 favorite = 10;
+  bool video = 11;
+  int32 videoid = 12;
+  int32 height = 13;
+  string created_at = 14;
+  string updated_at = 15;
+}
+
+message CreateArticleRequest {
+  string title = 1 [(validate.rules).string = {min_len: 1, max_len: 100}];
+  repeated string view = 2 [(validate.rules).repeated = {min_items: 1, max_items: 10}];
+  string content = 3 [(validate.rules).string.min_len = 1];
+  bool video = 4;
+  int32 height = 5;
+}
+
+message CreateArticleReply {
+  ArticleMessage article = 1;
+}
+
+message UpdateArticleRequest {
+  string aid = 1 [(validate.rules).string.min_len = 1];
+  string title = 2 [(validate.rules).string = {min_len: 1, max_len: 100}];
+  repeated string view = 3 [(validate.rules).repeated = {min_items: 1, max_items: 10}];
+  string content = 4 [(validate.rules).string.min_len = 1];
+  bool video = 5;
+  int32 height = 6;
+}
+
+message UpdateArticleReply {
+  ArticleMessage article = 1;
+}
+
+message DeleteArticleRequest {
+  string aid = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteArticleReply {
+  string status = 1;
+}
+
+message LikeArticleRequest {
+  string aid = 1 [(validate.rules).string.min_len = 1];
+}
+
+message LikeArticleReply {
+  bool liked = 1;
+  int32 likes = 2;
+}
+
+message FavoriteArticleRequest {
+  string aid = 1 [(validate.rules).string.min_len = 1];
+}
+
+message FavoriteArticleReply {
+  bool favorited = 1;
+  int32 favorite = 2;
+}
+
+message ListArticlesRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string way = 3;
+  bool reverse = 4;
+}
+
+message ListArticlesReply {
+  repeated ArticleMessage articles = 1;
+  int64 total = 2;
+}
+
+message GetArticleRequest {
+  string aid = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetArticleReply {
+  ArticleMessage article = 1;
+}
+
+message GetUserLikeListRequest {}
+
+message GetUserLikeListReply {
+  repeated string aids = 1;
+}
+
+message GetUserFavoriteListRequest {}
+
+message GetUserFavoriteListReply {
+  repeated string aids = 1;
+}
+
+message GetVideoArticleRequest {
+  int32 videoid = 1 [(validate.rules).int32.gte = 1];
+}
+
+message GetVideoArticleReply {
+  ArticleMessage article = 1;
+}
+
+message GetMaxVideoIDRequest {}
+
+message GetMaxVideoIDReply {
+  int32 videoid = 1;
+}

@@ -1,7 +1,7 @@
 syntax = "proto3";
 package kratos.api;
 
-option go_package = "article/internal/conf;conf";
+option go_package = "github.com/knoci/roaming-world/article/internal/conf;conf";
 
 import "google/protobuf/duration.proto";
 
@@ -26,16 +26,10 @@ message Server {
 }
 
 message Data {
-  message Database {
-    string driver = 1;
-    string source = 2;
+  message Nacos {
+    string addr = 1;
+    uint64 port = 2;
+    string namespaceId = 3;
   }
-  message Redis {
-    string network = 1;
-    string addr = 2;
-    google.protobuf.Duration read_timeout = 3;
-    google.protobuf.Duration write_timeout = 4;
-  }
-  Database database = 1;
-  Redis redis = 2;
+  Nacos nacos = 1;
 }

@@ -6,27 +6,25 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/transport/grpc"
-	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/google/uuid"
-	"github.com/knoci/roaming-world/comment/internal/biz"
 	pd "github.com/knoci/roaming-world/comment/api/user/v1"
+	"github.com/knoci/roaming-world/comment/internal/biz"
 	"gorm.io/gorm"
 )
 
 // Comment 评论模型
 type Comment struct {
 	CID       string    `gorm:"primaryKey;type:varchar(36);column:cid" json:"cid"`
-	Target    string    `gorm:"type:varchar(36)" json:"target"`
+	Target    string    `gorm:"type:varchar(36);index:idx_comments_target_reply_time,priority:1" json:"target"`
 	Content   string    `gorm:"type:text;not null" json:"content"`
 	Likes     int       `gorm:"default:0" json:"likes"`
-	UID       string    `gorm:"type:varchar(36);column:uid" json:"uid"`
+	UID       string    `gorm:"type:varchar(36);column:uid;index:idx_comments_uid" json:"uid"`
 	Name      string    `gorm:"type:varchar(50);not null" json:"name"`
 	Avatar    string    `gorm:"type:varchar(100)" json:"avatar"`
-	Replycid  string    `gorm:"type:varchar(36)" json:"replycid"`
+	Replycid  string    `gorm:"type:varchar(36);index:idx_comments_target_reply_time,priority:2;index:idx_comments_reply_time,priority:1" json:"replycid"`
 	Replyname string    `gorm:"type:varchar(36)" json:"replyname"`
 	Time      string    `gorm:"type:varchar(36)" json:"time"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `gorm:"index:idx_comments_target_reply_time,priority:3;index:idx_comments_reply_time,priority:2" json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
@@ -40,8 +38,8 @@ func (c *Comment) BeforeCreate(tx *gorm.DB) error {
 // Commentlike 评论点赞模型
 type Commentlike struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
-	UID       string    `gorm:"type:varchar(36);column:uid" json:"uid"`
-	CID       string    `gorm:"type:varchar(36);column:cid" json:"cid"`
+	UID       string    `gorm:"type:varchar(36);column:uid;uniqueIndex:uk_commentlike_uid_cid,priority:1" json:"uid"`
+	CID       string    `gorm:"type:varchar(36);column:cid;uniqueIndex:uk_commentlike_uid_cid,priority:2" json:"cid"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -257,7 +255,7 @@ func (r *commentRepo) Like(ctx context.Context, uid, cid string) error {
 			if err := tx.Model(&comment).UpdateColumn("likes", gorm.Expr("likes - ?", 1)).Error; err != nil {
 				return err
 			}
-			// 发送SQL日志到Kafka 
+			// 发送SQL日志到Kafka
 			sql = `UPDATE comments SET likes = likes - 1 WHERE cid = $1`
 			params = []any{cid}
 			if err := r.data.SendSqlLog(ctx, "comment", sql, params); err != nil {
@@ -359,16 +357,33 @@ func (r *commentRepo) GetCommentListWithReplies(ctx context.Context, aid string)
 		})
 	}
 
-	// 获取每个一级评论的前两条二级评论并追加到result切片中
-	for _, comment := range comments {
-		var replies []Comment
-		if err := tx.Where("replycid = ?", comment.CID).Order("created_at desc").Limit(2).Find(&replies).Error; err != nil {
-			r.log.WithContext(ctx).Errorf("commentRepo: failed to get reply comments: %v", err)
+	// 一次查出所有一级评论的前两条二级评论，避免 N+1 查询。
+	if len(comments) == 0 {
+		if err := tx.Commit().Error; err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+	ids := make([]string, 0, len(comments))
+	for _, c := range comments {
+		ids = append(ids, c.CID)
+	}
+	var replies []Comment
+	if err := tx.Where("replycid IN ?", ids).Order("created_at desc").Find(&replies).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	replyGroup := make(map[string][]Comment)
+	for _, reply := range replies {
+		if len(replyGroup[reply.Replycid]) >= 2 {
 			continue
 		}
+		replyGroup[reply.Replycid] = append(replyGroup[reply.Replycid], reply)
+	}
 
-		// 将二级评论追加到result切片中
-		for _, reply := range replies {
+	// 按「一级评论 + 其前两条回复」的顺序拼装。
+	for _, comment := range comments {
+		for _, reply := range replyGroup[comment.CID] {
 			result = append(result, &biz.Comment{
 				CID:       reply.CID,
 				Target:    reply.Target,
@@ -397,35 +412,18 @@ func (r *commentRepo) GetCommentListWithReplies(ctx context.Context, aid string)
 
 // FindUser 查找用户
 func (r *commentRepo) FindUser(ctx context.Context, uid string) (*biz.User, error) {
-    // 1. 应该使用传入的 ctx 而不是新建 context
-    grpcConn, err := grpc.DialInsecure(
-        ctx,  // 使用传入的 context
-        grpc.WithEndpoint("discovery:///user.grpc"),
-        grpc.WithDiscovery(r.data.nacos),
-        grpc.WithTimeout(time.Second*2),
-        grpc.WithMiddleware(
-            recovery.Recovery(),
-        ),
-    )
-    if err != nil {
-        return nil, biz.ErrInternalError
-    }
-    defer grpcConn.Close()  // 2. 记得关闭连接
+	rsp, err := r.data.userClient.FindUser(ctx, &pd.FindUserRequest{Keyword: uid})
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("commentRepo: call user.FindUser failed: %v", err)
+		return nil, biz.ErrInternalError
+	}
 
-    client := pd.NewUserClient(grpcConn)
-    rsp, err := client.FindUser(ctx, &pd.FindUserRequest{  // 3. 需要传递指针 & 和正确的包前缀 pd
-        Keyword: uid,
-    })
-    if err != nil {
-        return nil, biz.ErrInternalError
-    }
-
-    return &biz.User{
-        UID:    rsp.Uid,  
-        Name:   rsp.Name,
-        Avatar: rsp.Avatar,
-        Email:  rsp.Email,
-    }, nil
+	return &biz.User{
+		UID:    rsp.Uid,
+		Name:   rsp.Name,
+		Avatar: rsp.Avatar,
+		Email:  rsp.Email,
+	}, nil
 }
 
 // UpdateArticleCommentCount 更新文章评论数
@@ -452,7 +450,7 @@ func (r *commentRepo) UpdateArticleCommentCount(ctx context.Context, aid string,
 
 // UpdateRedisArticleCommentCount 更新Redis中的文章评论数
 func (r *commentRepo) UpdateRedisArticleCommentCount(ctx context.Context, aid string, count float64) error {
-	err := r.data.redis.ZIncrBy(ctx, "article_comments", count, aid).Err()
+	err := r.data.redis.ZIncrBy(ctx, "article:comments", count, aid).Err()
 	if err != nil {
 		return err
 	}

@@ -27,6 +27,9 @@ func NewHTTPServer(c *conf.Server, scene *service.SceneService, logger log.Logge
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
+	srv.Route("/").GET("/healthz", func(ctx http.Context) error {
+		return ctx.String(200, "ok")
+	})
 	v1.RegisterSceneHTTPServer(srv, scene)
 	return srv
 }

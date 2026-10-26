@@ -19,7 +19,7 @@ import (
 type Scene struct {
 	SID       string    `gorm:"primaryKey;type:varchar(36);column:sid" json:"sid"`
 	Name      string    `gorm:"type:varchar(100);not null" json:"name"`
-	Describe  string    `gorm:"type:varchar(100);not null" json:"describe"`
+	Describe  string    `gorm:"type:varchar(400);not null" json:"describe"`
 	View      []string  `gorm:"type:text;not null;serializer:json" json:"view"`
 	Location  string    `gorm:"type:varchar(30);not null" json:"location"`
 	Article   string    `gorm:"type:text;not null" json:"article"`
@@ -114,6 +114,8 @@ func (r *sceneRepo) DeleteScene(ctx context.Context, sid string) error {
 
 	// 从MeiliSearch索引中删除
 	r.deleteMeiliSearchDocument(ctx, sid)
+	// 删除 Redis 中的详情和列表索引，避免缓存永久脏读
+	r.deleteSceneFromRedis(ctx, sid)
 
 	return nil
 }
@@ -171,6 +173,8 @@ func (r *sceneRepo) UpdateScene(ctx context.Context, s *biz.Scene) (*biz.Scene, 
 
 	// 更新MeiliSearch索引
 	r.updateMeiliSearchIndex(ctx, &existingScene)
+	// 刷新 Redis 详情缓存
+	r.saveSceneToRedis(ctx, &existingScene)
 
 	return &biz.Scene{
 		SID:       existingScene.SID,
@@ -441,6 +445,17 @@ func (r *sceneRepo) saveSceneToRedis(ctx context.Context, scene *Scene) {
 	r.updateSceneCountInRedis(ctx)
 
 	r.log.WithContext(ctx).Infof("sceneRepo: Successfully saved scene to Redis: %s", scene.SID)
+}
+
+// deleteSceneFromRedis 删除场景详情和列表索引。
+func (r *sceneRepo) deleteSceneFromRedis(ctx context.Context, sid string) {
+	pipe := r.data.redis.Pipeline()
+	pipe.Del(ctx, fmt.Sprintf("scene:%s", sid))
+	pipe.SRem(ctx, "scenes:list", sid)
+	if _, err := pipe.Exec(ctx); err != nil {
+		r.log.WithContext(ctx).Errorf("sceneRepo: delete scene cache failed: %v", err)
+	}
+	r.updateSceneCountInRedis(ctx)
 }
 
 // updateSceneCountInRedis 更新Redis中的场景总数

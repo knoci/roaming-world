@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/knoci/roaming-world/food/internal/conf"
+	nacosconf "github.com/knoci/roaming-world/food/internal/conf/nacos"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
@@ -20,7 +21,7 @@ import (
 // go build -ldflags "-X main.Version=x.y.z"
 var (
 	// Name is the name of the compiled software.
-	Name string = "food.service"
+	Name string = "food"
 	// Version is the version of the compiled software.
 	Version string
 	// flagconf is the config flag.
@@ -34,12 +35,14 @@ func init() {
 }
 
 func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
+	rg := nacosconf.NewRegistry()
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
 		kratos.Version(Version),
 		kratos.Metadata(map[string]string{}),
 		kratos.Logger(logger),
+		kratos.Registrar(rg),
 		kratos.Server(
 			gs,
 			hs,

@@ -73,7 +73,7 @@ service User {
   // 用户确认
   rpc ConfirmUser(ConfirmUserRequest) returns (ConfirmUserReply) {
     option (google.api.http) = {
-      post: "/v1/user/avatar"
+      post: "/v1/user/confirm"
       body: "*"
     };
   }
@@ -81,7 +81,7 @@ service User {
   // 验证邮箱
   rpc ConfirmEmail(ConfirmEmailRequest) returns (ConfirmEmailReply) {
     option (google.api.http) = {
-      post: "/v1/user/avatar"
+      post: "/v1/user/email/confirm"
       body: "*"
     };
   }

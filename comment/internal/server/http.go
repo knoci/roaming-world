@@ -27,9 +27,12 @@ func NewHTTPServer(c *conf.Server, comment *service.CommentService, logger log.L
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
+	srv.Route("/").GET("/healthz", func(ctx http.Context) error {
+		return ctx.String(200, "ok")
+	})
 
 	// 注册Comment服务
 	v1.RegisterCommentHTTPServer(srv, comment)
-	
+
 	return srv
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/knoci/roaming-world/comment/internal/conf"
+	nacosconf "github.com/knoci/roaming-world/comment/internal/conf/nacos"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
@@ -31,15 +32,18 @@ var (
 
 func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
+	Name = "comment"
 }
 
 func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
+	rg := nacosconf.NewRegistry()
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
 		kratos.Version(Version),
 		kratos.Metadata(map[string]string{}),
 		kratos.Logger(logger),
+		kratos.Registrar(rg),
 		kratos.Server(
 			gs,
 			hs,

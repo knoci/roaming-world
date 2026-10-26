@@ -51,7 +51,7 @@ func (uc *FoodUsecase) CreateFood(ctx context.Context, req *v1.CreateFoodRequest
 		Location: req.Location,
 	}
 	food, err := uc.repo.CreateFood(ctx, food)
-	if err != nil  {
+	if err != nil {
 		return nil, ErrInternalError
 	}
 	return food, nil
@@ -61,7 +61,7 @@ func (uc *FoodUsecase) CreateFood(ctx context.Context, req *v1.CreateFoodRequest
 func (uc *FoodUsecase) GetFoodList(ctx context.Context) ([]*Food, error) {
 	uc.log.WithContext(ctx).Info("foodUsecase: GetFoodList")
 	foods, err := uc.repo.GetFoodList(ctx)
-	if err != nil  {
+	if err != nil {
 		return nil, ErrInternalError
 	}
 	return foods, nil
@@ -71,7 +71,7 @@ func (uc *FoodUsecase) GetFoodList(ctx context.Context) ([]*Food, error) {
 func (uc *FoodUsecase) GetRandomFood(ctx context.Context) (*Food, error) {
 	uc.log.WithContext(ctx).Info("foodUsecase: GetRandomFood")
 	food, err := uc.repo.GetRandomFood(ctx)
-	if err != nil  {
+	if err != nil {
 		return nil, ErrInternalError
 	}
 	return food, nil

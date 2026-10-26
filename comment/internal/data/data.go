@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"github.com/go-kratos/kratos/v2/log"
 	nacos "github.com/go-kratos/kratos/contrib/registry/nacos/v2"
+	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/middleware/recovery"
+	"github.com/go-kratos/kratos/v2/transport/grpc"
 	"github.com/google/wire"
+	pd "github.com/knoci/roaming-world/comment/api/user/v1"
 	"github.com/knoci/roaming-world/comment/internal/conf"
-	"github.com/spf13/viper"
 	nc "github.com/knoci/roaming-world/comment/internal/conf/nacos"
-	"github.com/nacos-group/nacos-sdk-go/clients"
-	"github.com/nacos-group/nacos-sdk-go/common/constant"
-	"github.com/nacos-group/nacos-sdk-go/vo"
 	"github.com/knoci/roaming-world/comment/internal/pkg"
 	kafka "github.com/knoci/roaming-world/comment/internal/pkg"
 	"github.com/redis/go-redis/v9"
@@ -27,12 +27,13 @@ var ProviderSet = wire.NewSet(NewData, NewCommentRepo)
 
 // Data 数据层结构体
 type Data struct {
-	db        *gorm.DB
-	redis     *redis.Client
-	cdc       *pkg.KafkaSender
-	logsender *pkg.KafkaSender
-	log       *log.Helper
-	nacos     *nacos.Registry
+	db         *gorm.DB
+	redis      *redis.Client
+	cdc        *pkg.KafkaSender
+	logsender  *pkg.KafkaSender
+	log        *log.Helper
+	nacos      *nacos.Registry
+	userClient pd.UserClient
 }
 
 type SqlMsg struct {
@@ -108,47 +109,27 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	localConfig := viper.New()                                
-	localConfig.SetConfigFile("..\\..\\configs\\config.yaml") 
-	if err := localConfig.ReadInConfig(); err != nil {
-		panic(err)
-	}
-	nacosIp := localConfig.GetString("data.nacos.addr")
-	nacosPort := localConfig.GetUint64("data.nacos.port")
-	nacosNameSpaceId := localConfig.GetString("data.nacos.namespaceId")
-	sc := []constant.ServerConfig{
-		*constant.NewServerConfig(nacosIp, nacosPort),
-	}
+	nacosRegistry := nc.NewRegistry()
 
-	cc := constant.ClientConfig{
-		NamespaceId:         nacosNameSpaceId,
-		TimeoutMs:           5000,
-		NotLoadCacheAtStart: true,
-		LogDir:              "tmp/nacos/log",
-		CacheDir:            "tmp/nacos/cache",
-		LogLevel:            "debug",
-	}
-
-	clientn, err := clients.NewNamingClient(
-		vo.NacosClientParam{
-			ClientConfig:  &cc,
-			ServerConfigs: sc,
-		},
+	conn, err := grpc.DialInsecure(context.Background(),
+		grpc.WithEndpoint("discovery:///user.grpc"),
+		grpc.WithDiscovery(nacosRegistry),
+		grpc.WithTimeout(2*time.Second),
+		grpc.WithMiddleware(recovery.Recovery()),
 	)
-
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
-
-	nacos := nacos.New(clientn)
+	userClient := pd.NewUserClient(conn)
 
 	d := &Data{
-		db:        db,
-		log:       log,
-		redis:     client,
-		cdc:       cdc,
-		logsender: logsender,
-		nacos:     nacos,
+		db:         db,
+		log:        log,
+		redis:      client,
+		cdc:        cdc,
+		logsender:  logsender,
+		nacos:      nacosRegistry,
+		userClient: userClient,
 	}
 
 	cleanup := func() {
@@ -159,6 +140,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 			return
 		}
 		sqlDB.Close()
+		_ = conn.Close()
 	}
 
 	return d, cleanup, nil

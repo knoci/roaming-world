@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package article.v1;
+
+import "errors/errors.proto";
+
+option go_package = "github.com/knoci/roaming-world/article/api/article/v1;v1";
+
+enum ErrorReason {
+  option (errors.default_code) = 500;
+
+  ARTICLE_NOT_FOUND = 0 [(errors.code) = 404];
+  INVALID_ARGUMENT = 1 [(errors.code) = 400];
+  UNAUTHORIZED = 2 [(errors.code) = 401];
+  NO_PERMISSION = 3 [(errors.code) = 403];
+  INTERNAL_ERROR = 4 [(errors.code) = 500];
+  DATABASE_ERROR = 5 [(errors.code) = 500];
+  LIKE_FAILED = 6 [(errors.code) = 500];
+  FAVORITE_FAILED = 7 [(errors.code) = 500];
+}

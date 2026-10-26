@@ -7,13 +7,13 @@
 package main
 
 import (
+	"github.com/go-kratos/kratos/v2"
+	"github.com/go-kratos/kratos/v2/log"
 	"github.com/knoci/roaming-world/comment/internal/biz"
 	"github.com/knoci/roaming-world/comment/internal/conf"
 	"github.com/knoci/roaming-world/comment/internal/data"
 	"github.com/knoci/roaming-world/comment/internal/server"
 	"github.com/knoci/roaming-world/comment/internal/service"
-	"github.com/go-kratos/kratos/v2"
-	"github.com/go-kratos/kratos/v2/log"
 )
 
 import (

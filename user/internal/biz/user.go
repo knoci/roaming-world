@@ -31,6 +31,7 @@ type UserRepo interface {
 	Update(ctx context.Context, user *User) (*User, error)
 	FindByUID(ctx context.Context, uid string) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
+	FindByName(ctx context.Context, name string) (*User, error)
 	FindByKeyword(ctx context.Context, keyword string) (*User, error)
 	Delete(ctx context.Context, uid string) error
 	VerifyCode(ctx context.Context, email, code string) error
@@ -54,6 +55,11 @@ func (uc *UserUsecase) Register(ctx context.Context, req *v1.RegisterRequest) (*
 	// 验证验证码
 	if err := uc.repo.VerifyCode(ctx, req.Email, req.Code); err != nil {
 		return nil, ErrVerificationExpired
+	}
+
+	// 检查用户名是否已存在
+	if _, err := uc.repo.FindByName(ctx, req.Name); err == nil {
+		return nil, ErrUsernameAlreadyExists
 	}
 
 	// 检查邮箱是否已存在
@@ -102,7 +108,7 @@ func (uc *UserUsecase) SendVerificationCode(ctx context.Context, email string) (
 		return "", ErrInternalError
 	}
 
-	err = pkg.SendVerificationCode(email, key)
+	err = pkg.SendVerificationCode(email, code)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("userUsecase: failed to send code by email: %v", err)
 		return "", ErrInternalError
@@ -170,6 +176,21 @@ func (uc *UserUsecase) UpdateUserInfo(ctx context.Context, uid string, req *v1.U
 		return nil, ErrUserNotFound
 	}
 
+	// 校验新邮箱的验证码
+	if err := uc.repo.VerifyCode(ctx, req.NewEmail, req.Code); err != nil {
+		return nil, ErrVerificationExpired
+	}
+
+	// 用户名不能被其他用户占用
+	if other, err := uc.repo.FindByName(ctx, req.NewName); err == nil && other.UID != uid {
+		return nil, ErrUsernameAlreadyExists
+	}
+
+	// 邮箱不能被其他用户占用
+	if other, err := uc.repo.FindByEmail(ctx, req.NewEmail); err == nil && other.UID != uid {
+		return nil, ErrEmailAlreadyExists
+	}
+
 	// 更新用户信息
 	user.Name = req.NewName
 	user.Email = req.NewEmail
@@ -188,6 +209,18 @@ func (uc *UserUsecase) UpdateUserInfo(ctx context.Context, uid string, req *v1.U
 	}, nil
 }
 
+// CheckUserExist 注册前检查用户名和邮箱是否匹配（对应 gin 的 /user/confirm）。
+func (uc *UserUsecase) CheckUserExist(ctx context.Context, name, email string) error {
+	user, err := uc.repo.FindByEmail(ctx, email)
+	if err != nil {
+		return ErrUserNotFound
+	}
+	if user.Name != name {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
 // ResetPassword 重置密码
 func (uc *UserUsecase) ResetPassword(ctx context.Context, req *v1.ResetPasswordRequest) error {
 	// 验证验证码
@@ -198,6 +231,9 @@ func (uc *UserUsecase) ResetPassword(ctx context.Context, req *v1.ResetPasswordR
 	// 查找用户
 	user, err := uc.repo.FindByEmail(ctx, req.Email)
 	if err != nil {
+		return ErrUserNotFound
+	}
+	if req.Name != "" && user.Name != req.Name {
 		return ErrUserNotFound
 	}
 

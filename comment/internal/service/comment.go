@@ -5,17 +5,17 @@ import (
 	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/metadata"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	pb "github.com/knoci/roaming-world/comment/api/comment/v1"
 	"github.com/knoci/roaming-world/comment/internal/biz"
 	"github.com/knoci/roaming-world/comment/internal/pkg"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewCommentService(comment *biz.CommentUsecase, logger log.Logger) *CommentService {
 	return &CommentService{
-		uc : comment,
-		log:  log.NewHelper(logger),
+		uc:  comment,
+		log: log.NewHelper(logger),
 	}
 }
 
@@ -33,9 +33,8 @@ func (s *CommentService) CreateComment(ctx context.Context, req *pb.CreateCommen
 		return nil, err
 	}
 
-	
-	createdAt := timestamppb.New(comment.CreatedAt).String()
-	updatedAt := timestamppb.New(comment.UpdatedAt).String()
+	createdAt := comment.CreatedAt.Format("2006-01-02 15:04:05")
+	updatedAt := comment.UpdatedAt.Format("2006-01-02 15:04:05")
 
 	return &pb.CreateCommentReply{
 		Comment: &pb.CommentMessage{
@@ -101,8 +100,8 @@ func (s *CommentService) GetCommentList(ctx context.Context, req *pb.GetCommentL
 	// 转换为API响应
 	result := make([]*pb.CommentMessage, 0, len(comments))
 	for _, comment := range comments {
-		createdAt := timestamppb.New(comment.CreatedAt).String()
-		updatedAt := timestamppb.New(comment.UpdatedAt).String()
+		createdAt := comment.CreatedAt.Format("2006-01-02 15:04:05")
+		updatedAt := comment.UpdatedAt.Format("2006-01-02 15:04:05")
 
 		result = append(result, &pb.CommentMessage{
 			Cid:       comment.CID,
@@ -134,8 +133,8 @@ func (s *CommentService) GetCommentListWithReplies(ctx context.Context, req *pb.
 
 	result := make([]*pb.CommentMessage, 0, len(comments))
 	for _, comment := range comments {
-		createdAt := timestamppb.New(comment.CreatedAt).String()
-		updatedAt := timestamppb.New(comment.UpdatedAt).String()
+		createdAt := comment.CreatedAt.Format("2006-01-02 15:04:05")
+		updatedAt := comment.UpdatedAt.Format("2006-01-02 15:04:05")
 
 		result = append(result, &pb.CommentMessage{
 			Cid:       comment.CID,
@@ -168,8 +167,8 @@ func (s *CommentService) GetReplyList(ctx context.Context, req *pb.GetReplyListR
 	// 转换为API响应
 	result := make([]*pb.CommentMessage, 0, len(replies))
 	for _, reply := range replies {
-		createdAt := timestamppb.New(reply.CreatedAt).String()
-		updatedAt := timestamppb.New(reply.UpdatedAt).String()
+		createdAt := reply.CreatedAt.Format("2006-01-02 15:04:05")
+		updatedAt := reply.UpdatedAt.Format("2006-01-02 15:04:05")
 
 		result = append(result, &pb.CommentMessage{
 			Cid:       reply.CID,
@@ -193,8 +192,14 @@ func (s *CommentService) GetReplyList(ctx context.Context, req *pb.GetReplyListR
 }
 
 func GetJwtClaim(ctx context.Context) (*pkg.Claims, error) {
-	httpReq, _ := http.RequestFromServerContext(ctx)
-	authHeader := httpReq.Header.Get("Authorization")
+	var authHeader, ua string
+	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
+		authHeader = req.Header.Get("Authorization")
+		ua = req.Header.Get("User-Agent")
+	} else if md, ok := metadata.FromServerContext(ctx); ok {
+		authHeader = md.Get("authorization")
+		ua = md.Get("user-agent")
+	}
 
 	if len(authHeader) == 0 {
 		return nil, biz.ErrUnauthorized
@@ -204,7 +209,6 @@ func GetJwtClaim(ctx context.Context) (*pkg.Claims, error) {
 		return nil, biz.ErrUnauthorized
 	}
 
-	ua := httpReq.Header.Get("User-Agent")
 	claims, err := pkg.ParseToken(ua, parts[1])
 	if err != nil {
 		return nil, biz.ErrUnauthorized

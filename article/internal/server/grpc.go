@@ -1,20 +1,24 @@
 package server
 
 import (
-	v1 "article/api/helloworld/v1"
-	"article/internal/conf"
-	"article/internal/service"
+	v1 "github.com/knoci/roaming-world/article/api/article/v1"
+	"github.com/knoci/roaming-world/article/internal/conf"
+	"github.com/knoci/roaming-world/article/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
+	mmd "github.com/go-kratos/kratos/v2/middleware/metadata"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
+	"github.com/go-kratos/kratos/v2/middleware/validate"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 )
 
 // NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *grpc.Server {
+func NewGRPCServer(c *conf.Server, article *service.ArticleService, logger log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
+			mmd.Server(),
+			validate.Validator(),
 		),
 	}
 	if c.Grpc.Network != "" {
@@ -27,6 +31,6 @@ func NewGRPCServer(c *conf.Server, greeter *service.GreeterService, logger log.L
 		opts = append(opts, grpc.Timeout(c.Grpc.Timeout.AsDuration()))
 	}
 	srv := grpc.NewServer(opts...)
-	v1.RegisterGreeterServer(srv, greeter)
+	v1.RegisterArticleServer(srv, article)
 	return srv
 }

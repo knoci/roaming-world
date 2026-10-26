@@ -2,6 +2,7 @@ package conf
 
 import (
 	knacos "github.com/go-kratos/kratos/contrib/config/nacos/v2"
+	registry "github.com/go-kratos/kratos/contrib/registry/nacos/v2"
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/nacos-group/nacos-sdk-go/clients"
@@ -10,55 +11,45 @@ import (
 	"github.com/spf13/viper"
 )
 
-/*
-*
-声明nacos的一些变量
-*/
+// Nacos 连接信息。迁移期从本地 config.yaml 读取，再通过 Nacos 拉取业务配置。
 var (
-	nacosConfig      config.Config //远程配置中心实例
-	nacosIp          string        //nacosip地址
-	nacosPort        uint64        //nacos端口
-	nacosNameSpaceId string        //当前服务名称空间
-	nacosDataId      string        //nacos配置的DataID
-	nacosGroup       string        //nacos配置的group分组
+	nacosConfig      config.Config
+	nacosIp          string
+	nacosPort        uint64
+	nacosNameSpaceId string
+	nacosDataId      string
+	nacosGroup       string
 )
 
-/*
-*
-创建文件流，读取nacos的配置信息
-*/
 func readConfig() {
-	localConfig := viper.New()                                //新建本地配置中心实例
-	localConfig.SetConfigFile("..\\..\\configs\\config.yaml") //指定本地配置文件
-	//读取配置文件
-	if err := localConfig.ReadInConfig(); err != nil {
-		panic(err)
+	localConfig := viper.New()
+	// 兼容从 cmd/<service> 目录、模块根目录以及容器内 /app 启动。
+	for _, path := range []string{"../../configs/config.yaml", "./configs/config.yaml", "../configs/config.yaml", "/app/configs/config.yaml"} {
+		localConfig.SetConfigFile(path)
+		if err := localConfig.ReadInConfig(); err == nil {
+			nacosIp = localConfig.GetString("data.nacos.addr")
+			nacosPort = localConfig.GetUint64("data.nacos.port")
+			nacosNameSpaceId = localConfig.GetString("data.nacos.namespaceId")
+			nacosDataId = localConfig.GetString("data.nacos.dataId")
+			nacosGroup = localConfig.GetString("data.nacos.groupId")
+			return
+		}
 	}
-	nacosIp = localConfig.GetString("data.nacos.addr")
-	nacosPort = localConfig.GetUint64("data.nacos.port")
-	nacosNameSpaceId = localConfig.GetString("data.nacos.namespaceId")
-	nacosDataId = localConfig.GetString("data.nacos.dataId")
-	nacosGroup = localConfig.GetString("data.nacos.groupId")
+	panic("nacos: config.yaml not found")
 }
 
-/*
-* 创建nacos连接
- */
-func InitNacosConfig() (c config.Config) {
-
-	//初始化读取配置文件
+func InitNacosConfig() config.Config {
 	readConfig()
 
 	sc := []constant.ServerConfig{
 		*constant.NewServerConfig(nacosIp, nacosPort),
 	}
-
 	cc := &constant.ClientConfig{
 		NamespaceId:         nacosNameSpaceId,
 		TimeoutMs:           5000,
 		NotLoadCacheAtStart: true,
-		LogDir:              "./tmp/log",
-		CacheDir:            "./tmp/cache",
+		LogDir:              "./tmp/nacos/log",
+		CacheDir:            "./tmp/nacos/cache",
 		LogLevel:            "debug",
 	}
 
@@ -72,7 +63,7 @@ func InitNacosConfig() (c config.Config) {
 		panic(err)
 	}
 
-	c = config.New(
+	c := config.New(
 		config.WithSource(
 			knacos.NewConfigSource(client,
 				knacos.WithGroup(nacosGroup),
@@ -81,17 +72,12 @@ func InitNacosConfig() (c config.Config) {
 	if err := c.Load(); err != nil {
 		panic(err)
 	}
-
 	return c
 }
 
-/*
-其他文件获取nacos config读取流的公共方法
-*/
 func GetConfig() config.Config {
-
 	if nacosConfig == nil {
-		log.Info("准备初始化nacos读取配置")
+		log.Info("nacos: initializing remote config")
 		nacosConfig = InitNacosConfig()
 	}
 	return nacosConfig
@@ -100,7 +86,7 @@ func GetConfig() config.Config {
 func GetConfigString(cfg config.Config, key string) string {
 	value, err := cfg.Value(key).String()
 	if err != nil {
-		log.Fatalf("Failed to get config %s: %v", key, err)
+		log.Fatalf("nacos: failed to get config %s: %v", key, err)
 	}
 	return value
 }
@@ -108,7 +94,35 @@ func GetConfigString(cfg config.Config, key string) string {
 func GetConfigInt(cfg config.Config, key string) int {
 	value, err := cfg.Value(key).Int()
 	if err != nil {
-		log.Fatalf("Failed to get config %s: %v", key, err)
+		log.Fatalf("nacos: failed to get config %s: %v", key, err)
 	}
 	return int(value)
+}
+
+// NewRegistry 创建 Nacos 服务注册器，供 kratos.Registrar 使用。
+func NewRegistry() *registry.Registry {
+	if nacosIp == "" {
+		readConfig()
+	}
+	sc := []constant.ServerConfig{
+		*constant.NewServerConfig(nacosIp, nacosPort),
+	}
+	cc := constant.ClientConfig{
+		NamespaceId:         nacosNameSpaceId,
+		TimeoutMs:           5000,
+		NotLoadCacheAtStart: true,
+		LogDir:              "./tmp/nacos/log",
+		CacheDir:            "./tmp/nacos/cache",
+		LogLevel:            "debug",
+	}
+	client, err := clients.NewNamingClient(
+		vo.NacosClientParam{
+			ClientConfig:  &cc,
+			ServerConfigs: sc,
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return registry.New(client)
 }

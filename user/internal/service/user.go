@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/metadata"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	pb "github.com/knoci/roaming-world/user/api/user/v1"
 	"github.com/knoci/roaming-world/user/internal/biz"
@@ -105,7 +106,7 @@ func (s *UserService) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest)
 		s.log.WithContext(ctx).Errorf("userService: DeleteUser failed: %v", err)
 		return nil, err
 	}
-	return &pb.DeleteUserReply{}, nil
+	return &pb.DeleteUserReply{Status: "删除成功"}, nil
 }
 
 func (s *UserService) UpdateUserInfo(ctx context.Context, req *pb.UpdateUserInfoRequest) (*pb.UpdateUserInfoReply, error) {
@@ -127,13 +128,8 @@ func (s *UserService) UpdateUserInfo(ctx context.Context, req *pb.UpdateUserInfo
 	}, nil
 }
 func (s *UserService) ResetPassword(ctx context.Context, req *pb.ResetPasswordRequest) (*pb.ResetPasswordReply, error) {
-	claims, err := GetJwtClaim(ctx)
-	if err != nil {
-		return nil, biz.ErrUnauthorized
-	}
-
-	s.log.WithContext(ctx).Infof("userService: ResetPassword received: Uid=%s, Name=%s", claims.UID, claims.Name)
-	err = s.user.ResetPassword(ctx, req)
+	s.log.WithContext(ctx).Infof("userService: ResetPassword received: Email=%s", req.Email)
+	err := s.user.ResetPassword(ctx, req)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("userService: ResetPassword failed: %v", err)
 		return nil, err
@@ -147,8 +143,14 @@ func (s *UserService) UploadAvatar(ctx context.Context, req *pb.UploadAvatarRequ
 	}
 
 	s.log.WithContext(ctx).Infof("userService: UploadAvatar received: Uid=%s", claims.UID)
-	httpReq, _ := http.RequestFromServerContext(ctx)
+	httpReq, ok := http.RequestFromServerContext(ctx)
+	if !ok || httpReq == nil {
+		return nil, biz.ErrUnauthorized
+	}
 	_, file, err := httpReq.FormFile("avatar")
+	if err != nil || file == nil {
+		return nil, biz.ErrInvalidArgument
+	}
 	contentType := file.Header.Get("Content-Type")
 	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/gif" {
 		return nil, biz.ErrInvalidArgument
@@ -164,22 +166,10 @@ func (s *UserService) UploadAvatar(ctx context.Context, req *pb.UploadAvatarRequ
 	return rep, nil
 }
 func (s *UserService) ConfirmUser(ctx context.Context, req *pb.ConfirmUserRequest) (*pb.ConfirmUserReply, error) {
-	status := "验证成功"
-
-	claims, err := GetJwtClaim(ctx)
-	if err != nil {
-		return nil, biz.ErrUnauthorized
+	if err := s.user.CheckUserExist(ctx, req.Name, req.Email); err != nil {
+		return nil, err
 	}
-	if claims.Name != req.Name || claims.Email != req.Email {
-		status = "验证失败"
-		return &pb.ConfirmUserReply{
-			Status: status,
-		}, biz.ErrUnauthorized
-	}
-
-	return &pb.ConfirmUserReply{
-		Status: status,
-	}, nil
+	return &pb.ConfirmUserReply{Status: "验证成功"}, nil
 }
 func (s *UserService) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailRequest) (*pb.ConfirmEmailReply, error) {
 	s.log.WithContext(ctx).Infof("userService: VerifyCode received: Email=%s, Code=%s", req.Email, req.Code)
@@ -192,8 +182,14 @@ func (s *UserService) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailRequ
 }
 
 func GetJwtClaim(ctx context.Context) (*jwt.Claims, error) {
-	httpReq, _ := http.RequestFromServerContext(ctx)
-	authHeader := httpReq.Header.Get("Authorization")
+	var authHeader, ua string
+	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
+		authHeader = req.Header.Get("Authorization")
+		ua = req.Header.Get("User-Agent")
+	} else if md, ok := metadata.FromServerContext(ctx); ok {
+		authHeader = md.Get("authorization")
+		ua = md.Get("user-agent")
+	}
 
 	if len(authHeader) == 0 {
 		return nil, biz.ErrUnauthorized
@@ -203,7 +199,6 @@ func GetJwtClaim(ctx context.Context) (*jwt.Claims, error) {
 		return nil, biz.ErrUnauthorized
 	}
 
-	ua := httpReq.Header.Get("User-Agent")
 	claims, err := jwt.ParseToken(ua, parts[1])
 	if err != nil {
 		return nil, biz.ErrUnauthorized

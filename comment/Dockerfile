@@ -1,24 +1,24 @@
-FROM golang:1.19 AS builder
+FROM golang:1.24 AS builder
 
-COPY . /src
 WORKDIR /src
+COPY . .
+RUN GOPROXY=https://goproxy.cn make build VERSION=dev
 
-RUN GOPROXY=https://goproxy.cn make build
-
-FROM debian:stable-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-		ca-certificates  \
+        ca-certificates \
         netbase \
-        && rm -rf /var/lib/apt/lists/ \
+        tzdata \
+        && rm -rf /var/lib/apt/lists/* \
         && apt-get autoremove -y && apt-get autoclean -y
 
-COPY --from=builder /src/bin /app
-
 WORKDIR /app
+COPY --from=builder /src/bin/comment /app/comment
+COPY --from=builder /src/configs /app/configs
 
 EXPOSE 8000
 EXPOSE 9000
 VOLUME /data/conf
 
-CMD ["./server", "-conf", "/data/conf"]
+CMD ["/app/comment", "-conf", "/app/configs"]

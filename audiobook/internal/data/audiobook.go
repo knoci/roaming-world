@@ -37,8 +37,8 @@ func (b *Audiobook) BeforeCreate(tx *gorm.DB) error {
 // AudiobookDetail 有声书章节模型
 type AudiobookDetail struct {
 	DID       string    `gorm:"primaryKey;type:varchar(36);column:did;not null" json:"did"`
-	BID       string    `gorm:"type:varchar(36);column:bid;index" json:"bid"`
-	Chapter   int       `gorm:"default:1;not null" json:"chapter"`
+	BID       string    `gorm:"type:varchar(36);column:bid;index:idx_audiobook_details_bid_chapter,priority:1" json:"bid"`
+	Chapter   int       `gorm:"default:1;not null;index:idx_audiobook_details_bid_chapter,priority:2" json:"chapter"`
 	Audio     string    `gorm:"type:varchar(255);not null" json:"audio"`
 	Name      string    `gorm:"type:varchar(255);not null" json:"name"`
 	Duration  int       `gorm:"not null" json:"duration"`

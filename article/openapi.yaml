@@ -3,19 +3,145 @@
 
 openapi: 3.0.3
 info:
-    title: Greeter API
-    description: The greeting service definition.
+    title: Article API
+    description: Article 文章服务：文章 CRUD、点赞、收藏、视频文章。
     version: 0.0.1
 paths:
-    /helloworld/{name}:
+    /v1/article:
         get:
             tags:
-                - Greeter
-                - subgroup
-            description: Sends a greeting
-            operationId: Greeter_SayHello
+                - Article
+            description: 文章列表：支持按时间、点赞、评论、收藏排序
+            operationId: Article_ListArticles
             parameters:
-                - name: name
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: way
+                  in: query
+                  schema:
+                    type: string
+                - name: reverse
+                  in: query
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.ListArticlesReply'
+        put:
+            tags:
+                - Article
+            description: 更新文章
+            operationId: Article_UpdateArticle
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/article.v1.UpdateArticleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.UpdateArticleReply'
+        post:
+            tags:
+                - Article
+            description: 创建文章
+            operationId: Article_CreateArticle
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/article.v1.CreateArticleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.CreateArticleReply'
+    /v1/article/favorite/list:
+        get:
+            tags:
+                - Article
+            description: 用户收藏列表
+            operationId: Article_GetUserFavoriteList
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.GetUserFavoriteListReply'
+    /v1/article/like/list:
+        get:
+            tags:
+                - Article
+            description: 用户点赞列表
+            operationId: Article_GetUserLikeList
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.GetUserLikeListReply'
+    /v1/article/video/count:
+        get:
+            tags:
+                - Article
+            description: 获取当前最大视频 ID
+            operationId: Article_GetMaxVideoID
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.GetMaxVideoIDReply'
+    /v1/article/video/{videoid}:
+        get:
+            tags:
+                - Article
+            description: 根据视频 ID 获取视频文章
+            operationId: Article_GetVideoArticle
+            parameters:
+                - name: videoid
+                  in: path
+                  required: true
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.GetVideoArticleReply'
+    /v1/article/{aid}:
+        get:
+            tags:
+                - Article
+            description: 文章详情
+            operationId: Article_GetArticle
+            parameters:
+                - name: aid
                   in: path
                   required: true
                   schema:
@@ -26,14 +152,230 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/helloworld.v1.HelloReply'
+                                $ref: '#/components/schemas/article.v1.GetArticleReply'
+        delete:
+            tags:
+                - Article
+            description: 删除文章
+            operationId: Article_DeleteArticle
+            parameters:
+                - name: aid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.DeleteArticleReply'
+    /v1/article/{aid}/favorite:
+        post:
+            tags:
+                - Article
+            description: 收藏/取消收藏
+            operationId: Article_FavoriteArticle
+            parameters:
+                - name: aid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/article.v1.FavoriteArticleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.FavoriteArticleReply'
+    /v1/article/{aid}/like:
+        post:
+            tags:
+                - Article
+            description: 点赞/取消点赞
+            operationId: Article_LikeArticle
+            parameters:
+                - name: aid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/article.v1.LikeArticleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.LikeArticleReply'
 components:
     schemas:
-        helloworld.v1.HelloReply:
+        article.v1.ArticleMessage:
             type: object
             properties:
-                message:
+                aid:
                     type: string
-            description: The response message containing the greetings
+                uid:
+                    type: string
+                name:
+                    type: string
+                avatar:
+                    type: string
+                title:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                content:
+                    type: string
+                likes:
+                    type: integer
+                    format: int32
+                comments:
+                    type: integer
+                    format: int32
+                favorite:
+                    type: integer
+                    format: int32
+                video:
+                    type: boolean
+                videoid:
+                    type: integer
+                    format: int32
+                height:
+                    type: integer
+                    format: int32
+                createdAt:
+                    type: string
+                updatedAt:
+                    type: string
+        article.v1.CreateArticleReply:
+            type: object
+            properties:
+                article:
+                    $ref: '#/components/schemas/article.v1.ArticleMessage'
+        article.v1.CreateArticleRequest:
+            type: object
+            properties:
+                title:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                content:
+                    type: string
+                video:
+                    type: boolean
+                height:
+                    type: integer
+                    format: int32
+        article.v1.DeleteArticleReply:
+            type: object
+            properties:
+                status:
+                    type: string
+        article.v1.FavoriteArticleReply:
+            type: object
+            properties:
+                favorited:
+                    type: boolean
+                favorite:
+                    type: integer
+                    format: int32
+        article.v1.FavoriteArticleRequest:
+            type: object
+            properties:
+                aid:
+                    type: string
+        article.v1.GetArticleReply:
+            type: object
+            properties:
+                article:
+                    $ref: '#/components/schemas/article.v1.ArticleMessage'
+        article.v1.GetMaxVideoIDReply:
+            type: object
+            properties:
+                videoid:
+                    type: integer
+                    format: int32
+        article.v1.GetUserFavoriteListReply:
+            type: object
+            properties:
+                aids:
+                    type: array
+                    items:
+                        type: string
+        article.v1.GetUserLikeListReply:
+            type: object
+            properties:
+                aids:
+                    type: array
+                    items:
+                        type: string
+        article.v1.GetVideoArticleReply:
+            type: object
+            properties:
+                article:
+                    $ref: '#/components/schemas/article.v1.ArticleMessage'
+        article.v1.LikeArticleReply:
+            type: object
+            properties:
+                liked:
+                    type: boolean
+                likes:
+                    type: integer
+                    format: int32
+        article.v1.LikeArticleRequest:
+            type: object
+            properties:
+                aid:
+                    type: string
+        article.v1.ListArticlesReply:
+            type: object
+            properties:
+                articles:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/article.v1.ArticleMessage'
+                total:
+                    type: string
+        article.v1.UpdateArticleReply:
+            type: object
+            properties:
+                article:
+                    $ref: '#/components/schemas/article.v1.ArticleMessage'
+        article.v1.UpdateArticleRequest:
+            type: object
+            properties:
+                aid:
+                    type: string
+                title:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                content:
+                    type: string
+                video:
+                    type: boolean
+                height:
+                    type: integer
+                    format: int32
 tags:
-    - name: Greeter
+    - name: Article

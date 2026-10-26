@@ -27,6 +27,9 @@ func NewHTTPServer(c *conf.Server, audiobook *service.AudiobookService, logger l
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
+	srv.Route("/").GET("/healthz", func(ctx http.Context) error {
+		return ctx.String(200, "ok")
+	})
 	v1.RegisterAudiobookHTTPServer(srv, audiobook)
 	return srv
 }

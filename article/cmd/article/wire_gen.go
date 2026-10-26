@@ -7,11 +7,12 @@
 package main
 
 import (
-	"article/internal/biz"
-	"article/internal/conf"
-	"article/internal/data"
-	"article/internal/server"
-	"article/internal/service"
+	"github.com/knoci/roaming-world/article/internal/biz"
+	"github.com/knoci/roaming-world/article/internal/conf"
+	"github.com/knoci/roaming-world/article/internal/data"
+	"github.com/knoci/roaming-world/article/internal/server"
+	"github.com/knoci/roaming-world/article/internal/service"
+
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 )
@@ -28,12 +29,13 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	greeterRepo := data.NewGreeterRepo(dataData, logger)
-	greeterUsecase := biz.NewGreeterUsecase(greeterRepo, logger)
-	greeterService := service.NewGreeterService(greeterUsecase)
-	grpcServer := server.NewGRPCServer(confServer, greeterService, logger)
-	httpServer := server.NewHTTPServer(confServer, greeterService, logger)
-	app := newApp(logger, grpcServer, httpServer)
+	articleRepo := data.NewArticleRepo(dataData, logger)
+	articleUsecase := biz.NewArticleUsecase(articleRepo, logger)
+	articleService := service.NewArticleService(articleUsecase, logger)
+	grpcServer := server.NewGRPCServer(confServer, articleService, logger)
+	httpServer := server.NewHTTPServer(confServer, articleService, logger)
+	nacosRegistry := data.NewNacosEngine(confData)
+	app := newApp(logger, grpcServer, httpServer, nacosRegistry)
 	return app, func() {
 		cleanup()
 	}, nil

@@ -39,7 +39,6 @@ type foodRepo struct {
 	log  *log.Helper
 }
 
-
 // NewFoodRepo .
 func NewFoodRepo(data *Data, logger log.Logger) biz.FoodRepo {
 	return &foodRepo{
