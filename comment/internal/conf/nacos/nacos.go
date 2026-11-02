@@ -1,6 +1,9 @@
 package conf
 
 import (
+	"os"
+	"strconv"
+
 	knacos "github.com/go-kratos/kratos/contrib/config/nacos/v2"
 	registry "github.com/go-kratos/kratos/contrib/registry/nacos/v2"
 	"github.com/go-kratos/kratos/v2/config"
@@ -11,7 +14,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Nacos 连接信息。迁移期从本地 config.yaml 读取，再通过 Nacos 拉取业务配置。
+// Nacos 连接信息：先从本地 config.yaml 读取，再通过 Nacos 拉取业务配置。
 var (
 	nacosConfig      config.Config
 	nacosIp          string
@@ -32,10 +35,44 @@ func readConfig() {
 			nacosNameSpaceId = localConfig.GetString("data.nacos.namespaceId")
 			nacosDataId = localConfig.GetString("data.nacos.dataId")
 			nacosGroup = localConfig.GetString("data.nacos.groupId")
+			applyEnv()
 			return
 		}
 	}
-	panic("nacos: config.yaml not found")
+	// 容器/CI 可以只给环境变量，不挂 config.yaml。
+	if os.Getenv("NACOS_ADDR") == "" {
+		panic("nacos: config.yaml not found and NACOS_ADDR is empty")
+	}
+	applyEnv()
+}
+
+func applyEnv() {
+	if v := os.Getenv("NACOS_ADDR"); v != "" {
+		nacosIp = v
+	}
+	if v := os.Getenv("NACOS_PORT"); v != "" {
+		if p, err := strconv.ParseUint(v, 10, 64); err == nil {
+			nacosPort = p
+		}
+	}
+	if v, ok := os.LookupEnv("NACOS_NAMESPACE_ID"); ok {
+		nacosNameSpaceId = v
+	}
+	if v := os.Getenv("NACOS_DATA_ID"); v != "" {
+		nacosDataId = v
+	}
+	if v := os.Getenv("NACOS_GROUP_ID"); v != "" {
+		nacosGroup = v
+	}
+	if nacosPort == 0 {
+		nacosPort = 8848
+	}
+	if nacosDataId == "" {
+		nacosDataId = "roaming-world.yaml"
+	}
+	if nacosGroup == "" {
+		nacosGroup = "DEFAULT_GROUP"
+	}
 }
 
 func InitNacosConfig() config.Config {

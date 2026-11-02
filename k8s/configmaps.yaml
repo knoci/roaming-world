@@ -4,10 +4,18 @@ metadata:
   name: roaming-world-config
   namespace: roaming-world
 data:
+  # PostgreSQL（业务库）
+  postgre-host: "postgres-service"
+  postgre-port: "5432"
+  postgre-database: "roaming_world"
+  postgre-username: "roaming"
+  postgre-sslmode: "disable"
+
+  # MySQL（仅 Nacos 配置存储使用）
   # MySQL配置
   mysql-host: "mysql-service"
   mysql-port: "3306"
-  mysql-database: "roaming_world"
+  mysql-database: "nacos_config"
   mysql-username: "root"
   
   # Redis配置
@@ -35,10 +43,18 @@ metadata:
   name: roaming-world-config
   namespace: roaming-world-dev
 data:
+  # PostgreSQL（业务库）
+  postgre-host: "postgres-service"
+  postgre-port: "5432"
+  postgre-database: "roaming_world"
+  postgre-username: "roaming"
+  postgre-sslmode: "disable"
+
+  # MySQL（仅 Nacos 配置存储使用）
   # MySQL配置
   mysql-host: "mysql-service"
   mysql-port: "3306"
-  mysql-database: "roaming_world_dev"
+  mysql-database: "nacos_config"
   mysql-username: "root"
   
   # Redis配置
@@ -66,10 +82,18 @@ metadata:
   name: roaming-world-config
   namespace: roaming-world-test
 data:
+  # PostgreSQL（业务库）
+  postgre-host: "postgres-service"
+  postgre-port: "5432"
+  postgre-database: "roaming_world"
+  postgre-username: "roaming"
+  postgre-sslmode: "disable"
+
+  # MySQL（仅 Nacos 配置存储使用）
   # MySQL配置
   mysql-host: "mysql-service"
   mysql-port: "3306"
-  mysql-database: "roaming_world_test"
+  mysql-database: "nacos_config"
   mysql-username: "root"
   
   # Redis配置
@@ -88,3 +112,27 @@ data:
   grpc-timeout: "1s"
   redis-read-timeout: "0.2s"
   redis-write-timeout: "0.2s"
+---
+
+# 业务服务启动配置：只保存 Nacos 地址，业务配置从 Nacos 拉取。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: roaming-world-service-config
+  namespace: roaming-world
+data:
+  config.yaml: |
+    server:
+      http:
+        addr: 0.0.0.0:8000
+        timeout: 1s
+      grpc:
+        addr: 0.0.0.0:9000
+        timeout: 1s
+    data:
+      nacos:
+        addr: nacos-service
+        port: 8848
+        namespaceId: ""
+        dataId: roaming-world.yaml
+        groupId: DEFAULT_GROUP

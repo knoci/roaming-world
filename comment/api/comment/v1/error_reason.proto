@@ -1,8 +1,7 @@
 syntax = "proto3";
 
-package user.v1;
+package comment.v1;
 
-import "errors/errors.proto";
 
 option go_package = "comment/api/comment/v1;v1";
 

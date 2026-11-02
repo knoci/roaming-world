@@ -1,211 +1,264 @@
 # Roaming World Kubernetes 部署配置
 
-本目录包含了基于 Kratos 框架的 Roaming World 微服务项目的完整 Kubernetes 部署配置。
+> 这是一套开发/演示用的 K8s 编排：8 个 Kratos 业务服务 + AI Engine + MCP + PostgreSQL + MySQL（仅 Nacos 使用）+ Redis + Nacos
+> + Kafka + Meilisearch + etcd。生产环境请把数据库/中间件换成托管服务或 Operator，不要直接照搬。
 
-## 项目架构
+## 单机 minikube
 
-### 微服务列表
-- **user-service**: 用户服务 (HTTP: 8000, gRPC: 9000)
-- **article-service**: 文章服务 (HTTP: 8000, gRPC: 9000)
-- **food-service**: 美食服务 (HTTP: 8000, gRPC: 9000)
-- **scene-service**: 场景服务 (HTTP: 8000, gRPC: 9000)
-- **comment-service**: 评论服务 (HTTP: 8000, gRPC: 9000)
-- **audiobook-service**: 有声书服务 (HTTP: 8000, gRPC: 9000)
-
-### 基础设施服务
-- **MySQL**: 数据库服务 (端口: 3306)
-- **Redis**: 缓存服务 (端口: 6379)
-- **Nacos**: 配置中心 (HTTP: 8848, gRPC: 9848/9849)
-
-## 文件说明
-
-| 文件名 | 描述 |
-|--------|------|
-| `namesapce.yaml` | 命名空间配置 (生产、开发、测试环境) |
-| `secrets.yaml` | 敏感信息配置 (数据库密码、JWT密钥等) |
-| `configmaps.yaml` | 应用配置信息 |
-| `deployments.yaml` | 主要微服务部署配置 |
-| `deployments-2.yaml` | 其他微服务部署配置 |
-| `service.yaml` | 所有微服务的 Service 配置 |
-| `infrastructure.yaml` | MySQL 和 Redis 部署配置 |
-| `nacos.yaml` | Nacos 配置中心部署配置 |
-| `kustomization.yaml` | Kustomize 统一管理配置 |
-
-## 部署步骤
-
-### 1. 准备工作
-
-确保你的 Kubernetes 集群已经准备就绪，并且 kubectl 已正确配置。
-
-### 2. 创建命名空间
-
-```bash
-kubectl apply -f namesapce.yaml
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\k8s-up.ps1
 ```
 
-### 3. 部署基础设施
+使用 [k8s-single-node](../k8s-single-node/kustomization.yaml) overlay：
+
+- 所有业务和基础设施 1 副本；
+- MySQL 0 副本，Nacos 用 embedded storage；
+- 业务镜像 `IfNotPresent`，由脚本构建并 `minikube image load`；
+- 单节点 Kafka 的 controller quorum 用 `localhost:9093`，避免 ClusterIP hairpin；
+- PostgreSQL 迁移 Job + Nacos 配置导入 Job。
+
+这是单节点验证，不是生产高可用。
+
+## 1. 包含什么
+
+### 业务服务
+
+| Deployment | Service | 端口 |
+|---|---|---|
+| user-service | user-service | 8000 HTTP / 9000 gRPC |
+| article-service | article-service | 8000 / 9000 |
+| food-service | food-service | 8000 / 9000 |
+| scene-service | scene-service | 8000 / 9000 |
+| comment-service | comment-service | 8000 / 9000 |
+| audiobook-service | audiobook-service | 8000 / 9000 |
+| plan-service | plan-service | 8000 / 9000 |
+| ai-service | ai-service | 8000 |
+| mcp-service | mcp-service | 8000 |
+| gateway-service | gateway-service | 8000 / 9000 |
+
+每个 Deployment：
+
+- 2 副本；
+- RollingUpdate：maxSurge=1，maxUnavailable=0；
+- liveness/readiness 探针：GET /healthz:8000；
+- requests：128Mi / 100m，limits：256Mi / 200m；
+- 挂载 ConfigMap roaming-world-service-config 到 /app/configs/config.yaml。
+
+### 基础设施
+
+| 组件 | 用途 | 说明 |
+|---|---|---|
+| PostgreSQL | 业务数据库 | postgres-service:5432，PVC 10Gi |
+| MySQL | Nacos 配置存储 | 仅 Nacos 使用，不是业务库 |
+| Redis | 缓存/排行榜 | redis-service:6379，PVC 5Gi |
+| Nacos | 注册/配置中心 | nacos-service:8848，NodePort 30848 |
+| Kafka | 评论计数事件 comment-events（不接日志） | kafka-service:9092，单节点 KRaft |
+| Meilisearch | 场景搜索 | meilisearch-service:7700 |
+| etcd | 验证码 | etcd-service:2379 |
+
+## 2. 文件说明
+
+| 文件 | 作用 |
+|---|---|
+| namespace.yaml | 三个 Namespace：roaming-world / dev / test |
+| secrets.yaml | MySQL/PostgreSQL/Meili/JWT 密钥（示例值） |
+| configmaps.yaml | Nacos/MySQL/PostgreSQL 配置 + 服务启动 config.yaml |
+| postgres.yaml | 业务 PostgreSQL |
+| postgres-migration-job.yaml | 一次性 schema 迁移 Job |
+| postgres-migrations/ | K8s 侧 SQL 副本（与 deploy/postgres 保持同步） |
+| infrastructure.yaml | MySQL（Nacos）+ Redis |
+| nacos.yaml | Nacos + NodePort |
+| messaging.yaml | Kafka + Meilisearch |
+| etcd.yaml | etcd |
+| deployments.yaml | user/article/food/scene |
+| deployments-2.yaml | comment/audiobook |
+| plan.yaml | plan-service |
+| ai.yaml | ai-service（Python RAG） |
+| mcp.yaml | mcp-service |
+| gateway.yaml | gateway-service |
+| service.yaml | 6 个 ClusterIP Service（plan 在 plan.yaml） |
+| ingress.yaml | 可选七层入口，按 /v1/* 前缀路由，需要 ingress-nginx |
+| kustomization.yaml | 统一编排、镜像 tag、副本数、配置挂载 patch |
+| roaming-world.yaml.example | 导入 Nacos 的业务配置示例 |
+
+## 3. 部署步骤
+
+### 3.1 前置条件
+
+- 一个可用的 K8s 集群；
+- kubectl 已配置；
+- 集群有默认 StorageClass（PVC 能绑定）；
+- 镜像已推送到仓库，或本地 kind/minikube 能加载。
+
+### 3.2 渲染/检查
 
 ```bash
-# 部署配置和密钥
-kubectl apply -f secrets.yaml
-kubectl apply -f configmaps.yaml
+# 只渲染，不连集群
+kubectl kustomize k8s > /tmp/roaming.yaml
 
-# 部署基础设施服务
-kubectl apply -f infrastructure.yaml
-kubectl apply -f nacos.yaml
+# 有集群时
+kubectl apply -k k8s
 ```
 
-### 4. 等待基础设施就绪
+### 3.2.1 初始化 PostgreSQL
+
+本地 Compose 会自动执行 `deploy/postgres/migrations/001_init.sql`；K8s 由 `postgres-migrate` Job 执行 `k8s/postgres-migrations/001_init.sql`，服务里的 AutoMigrate 只作为兜底。
+
+迁移 SQL 改动后，Job 的 ConfigMap hash 会变化，而 Job template 不可变；需要先 `kubectl delete job postgres-migrate -n roaming-world` 再重新 `kubectl apply -k k8s`。
+
+### 3.3 初始化 Nacos 数据库
+
+MySQL 只给 Nacos 用，首次启动前要确保 `nacos_config` 库存在并导入 Nacos 的 schema；
+如果使用云数据库，直接在控制台初始化即可。业务库是 PostgreSQL，不要混用。
+
+### 3.4 导入 Nacos 配置
+
+业务服务启动时会从 Nacos 拉 roaming-world.yaml，所以要先在 Nacos 建配置：
+
+1. 访问 Nacos 控制台：
+   - kubectl get nodes -o wide
+   - http://<NODE_IP>:30848/nacos
+   - 演示清单关闭了 Nacos 鉴权；生产要开启并配置独立 token
+2. 新建配置：
+   - Data ID：roaming-world.yaml
+   - Group：DEFAULT_GROUP
+   - 内容：参考 k8s/roaming-world.yaml.example，把密码/COS/邮箱替换成真实值。
+3. 如果服务已经因为拉不到配置 CrashLoop，导入后重启：
 
 ```bash
-# 检查 MySQL 状态
-kubectl get pods -n roaming-world -l app=mysql
-
-# 检查 Redis 状态
-kubectl get pods -n roaming-world -l app=redis
-
-# 检查 Nacos 状态
-kubectl get pods -n roaming-world -l app=nacos
+kubectl rollout restart deployment -n roaming-world
 ```
 
-### 5. 部署微服务
+### 3.5 检查
 
 ```bash
-# 部署微服务
-kubectl apply -f deployments.yaml
-kubectl apply -f deployments-2.yaml
-kubectl apply -f service.yaml
-```
-
-### 6. 使用 Kustomize 一键部署 (推荐)
-
-```bash
-# 使用 kustomize 一键部署所有资源
-kubectl apply -k .
-```
-
-## 访问服务
-
-### Nacos 控制台
-
-Nacos 通过 NodePort 暴露，可以通过以下方式访问：
-
-```bash
-# 获取节点 IP
-kubectl get nodes -o wide
-
-# 访问 Nacos 控制台
-# http://<NODE_IP>:30848/nacos
-# 默认用户名/密码: nacos/nacos
-```
-
-### 微服务健康检查
-
-```bash
-# 检查所有服务状态
 kubectl get pods -n roaming-world
-
-# 查看特定服务日志
+kubectl get svc -n roaming-world
+kubectl get endpoints -n roaming-world
 kubectl logs -n roaming-world deployment/user-service
 ```
 
-## 配置说明
+## 4. 服务配置怎么注入
 
-### 环境变量
+没有让代码读一堆环境变量，而是用 ConfigMap 挂文件：
 
-所有微服务都通过 ConfigMap 和 Secret 获取配置：
-
-- **数据库配置**: 通过 ConfigMap 获取主机、端口等信息
-- **敏感信息**: 通过 Secret 获取密码、密钥等
-- **服务发现**: 通过 Nacos 进行服务注册和发现
-
-### 资源限制
-
-每个服务都配置了合理的资源请求和限制：
-
-- **微服务**: 128Mi-256Mi 内存, 100m-200m CPU
-- **MySQL**: 512Mi-1Gi 内存, 250m-500m CPU
-- **Redis**: 256Mi-512Mi 内存, 100m-200m CPU
-- **Nacos**: 512Mi-1Gi 内存, 250m-500m CPU
-
-### 持久化存储
-
-以下服务使用 PVC 进行数据持久化：
-
-- **MySQL**: 10Gi 存储
-- **Redis**: 5Gi 存储
-- **Nacos**: 5Gi 存储
-
-## 扩容和更新
-
-### 扩容服务
-
-```bash
-# 扩容用户服务到 3 个副本
-kubectl scale deployment user-service -n roaming-world --replicas=3
+```yaml
+volumeMounts:
+- name: service-config
+  mountPath: /app/configs/config.yaml
+  subPath: config.yaml
+  readOnly: true
+volumes:
+- name: service-config
+  configMap:
+    name: roaming-world-service-config
 ```
 
-### 更新镜像
+roaming-world-service-config 里只有：
+
+- HTTP/gRPC 监听地址；
+- Nacos 地址 nacos-service:8848；
+- Data ID / Group。
+
+业务数据库、Redis、Kafka、JWT 等仍在 Nacos 的 roaming-world.yaml 里，符合“配置中心统一管理”的设计。
+
+## 5. 请求怎么走
+
+### 集群内 HTTP
+
+```
+Client -> Service ClusterIP -> kube-proxy -> 某个 Pod:8000
+```
+
+### gRPC
+
+```
+comment -> Nacos discovery(discovery:///user.grpc) -> Kratos selector(wrr) -> user Pod:9000
+```
+
+K8s Service 是四层负载均衡；Nacos 是应用层服务发现。两者不是重复。
+
+## 6. 常用运维命令
 
 ```bash
-# 更新用户服务镜像
+# 滚动更新
 kubectl set image deployment/user-service user-service=roaming-world/user:v2.0.0 -n roaming-world
+kubectl rollout status deployment/user-service -n roaming-world
+kubectl rollout undo deployment/user-service -n roaming-world
+
+# 扩容
+kubectl scale deployment/user-service -n roaming-world --replicas=3
+
+# 排查
+kubectl describe pod <pod> -n roaming-world
+kubectl logs <pod> -n roaming-world --previous
+kubectl get endpoints user-service -n roaming-world
 ```
 
-### 使用 Kustomize 管理
+## 7. 探针和资源
 
-修改 `kustomization.yaml` 中的镜像标签或副本数，然后重新应用：
+- readiness 失败：Pod 从 EndpointSlice 移除，不再接流量；
+- liveness 失败：容器重启；
+- 当前没有 startupProbe，启动慢可以加；
+- requests/limits 是演示值，生产按 P95 压测调整；
+- 所有业务服务是 Burstable QoS。
+
+## 8. 部署边界
+
+已做：
+
+- Deployment/Service/ConfigMap/Secret/Kustomize；
+- 多副本 + 滚动更新；
+- readiness/liveness；
+- requests/limits；
+- PostgreSQL/Redis/Nacos/Kafka/Meili/etcd 单节点编排；
+- PostgreSQL schema 迁移 Job；
+- ConfigMap 挂载 Nacos 启动配置。
+
+没做：
+
+- HPA（没有 metrics-server/HPA）；
+- 生产级网关/Ingress Controller 未安装；ingress.yaml 只是可选清单，业务 Service 仍只有 ClusterIP；
+- NetworkPolicy/RBAC/非 root/PodSecurity；
+- Prometheus/Grafana/ELK；
+- MySQL/Redis/Nacos/Kafka 的高可用集群；
+- 生产级备份/恢复；
+- 多环境 Kustomize overlay（目前只有 ConfigMap/Namespace）。
+
+## 9. 常见故障
+
+### Pod Pending
+
+- 资源不够；
+- PVC 没绑定/没有 StorageClass；
+- 节点污点/亲和性。
+
+### ImagePullBackOff
+
+- 镜像名/tag 错；
+- 私有仓库没配 imagePullSecret。
+
+### CrashLoopBackOff
+
+- 配置缺失（Nacos/COS/etcd）；
+- 依赖没起来；
+- 看 kubectl logs --previous。
+
+### Service 503 / 没有 Endpoints
+
+- selector 和 Pod label 不匹配；
+- readiness 没通过；
+- 端口名/目标端口错；
+- NetworkPolicy 拦截。
+
+### Nacos 配置拉不到
+
+- Data ID/Group/Namespace 不一致；
+- Nacos 没就绪；
+- 服务挂载的 config.yaml 里地址不是 nacos-service。
+
+## 10. 清理
 
 ```bash
-kubectl apply -k .
-```
-
-## 故障排查
-
-### 查看日志
-
-```bash
-# 查看 Pod 日志
-kubectl logs -n roaming-world <pod-name>
-
-# 实时查看日志
-kubectl logs -n roaming-world <pod-name> -f
-```
-
-### 检查服务状态
-
-```bash
-# 查看所有资源状态
-kubectl get all -n roaming-world
-
-# 查看 Pod 详细信息
-kubectl describe pod -n roaming-world <pod-name>
-```
-
-### 网络连接测试
-
-```bash
-# 进入 Pod 进行网络测试
-kubectl exec -it -n roaming-world <pod-name> -- /bin/sh
-
-# 测试数据库连接
-kubectl exec -it -n roaming-world <pod-name> -- nc -zv mysql-service 3306
-```
-
-## 注意事项
-
-1. **镜像准备**: 确保所有微服务的 Docker 镜像已构建并推送到镜像仓库
-2. **存储类**: 根据你的 K8s 集群配置，可能需要指定 StorageClass
-3. **网络策略**: 根据安全需求，可能需要配置网络策略
-4. **监控告警**: 建议配置 Prometheus + Grafana 进行监控
-5. **日志收集**: 建议配置 ELK 或 EFK 进行日志收集
-
-## 清理资源
-
-```bash
-# 删除所有资源
-kubectl delete -k .
-
-# 或者逐个删除
-kubectl delete namespace roaming-world roaming-world-dev roaming-world-test
+kubectl delete -k k8s
 ```

@@ -37,17 +37,9 @@ spec:
             secretKeyRef:
               name: roaming-world-secrets
               key: mysql-password
+        # 演示环境关闭鉴权；生产打开并配置独立的 NACOS_AUTH_TOKEN/身份密钥
         - name: NACOS_AUTH_ENABLE
-          value: "true"
-        - name: NACOS_AUTH_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: roaming-world-secrets
-              key: jwt-secret
-        - name: NACOS_AUTH_IDENTITY_KEY
-          value: "serverIdentity"
-        - name: NACOS_AUTH_IDENTITY_VALUE
-          value: "security"
+          value: "false"
         ports:
         - containerPort: 8848
           name: http

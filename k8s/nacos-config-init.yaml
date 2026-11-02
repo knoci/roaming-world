@@ -1,0 +1,48 @@
+# 一次性：把 k8s/roaming-world.yaml.example 导入 Nacos（embedded 模式）。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nacos-config-init
+  namespace: roaming-world
+spec:
+  backoffLimit: 8
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: import
+          image: curlimages/curl:8.8.0
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              until curl -fsS "http://nacos-service:8848/nacos/actuator/health" >/dev/null 2>&1; do
+                echo "waiting for nacos..."
+                sleep 2
+              done
+              for i in 1 2 3 4 5; do
+                if curl -fsS -X POST "http://nacos-service:8848/nacos/v1/cs/configs" \
+                  -H "Content-Type: application/x-www-form-urlencoded" \
+                  -d "dataId=roaming-world.yaml" \
+                  -d "group=DEFAULT_GROUP" \
+                  -d "type=yaml" \
+                  --data-urlencode "content@/config/roaming-world.yaml" \
+                  -o /tmp/import.out; then
+                  echo "import response: $(cat /tmp/import.out)"
+                  break
+                fi
+                echo "import failed, retry..."
+                sleep 2
+              done
+              curl -fsS "http://nacos-service:8848/nacos/v1/cs/configs?dataId=roaming-world.yaml&group=DEFAULT_GROUP&tenant=" -o /tmp/imported.yaml
+              test -s /tmp/imported.yaml
+              echo "nacos config imported"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: nacos-config

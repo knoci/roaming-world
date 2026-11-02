@@ -1,0 +1,90 @@
+# etcd：用户验证码存储（开发/演示单节点）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etcd
+  namespace: roaming-world
+  labels:
+    app: etcd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etcd
+  template:
+    metadata:
+      labels:
+        app: etcd
+    spec:
+      containers:
+      - name: etcd
+        image: quay.io/coreos/etcd:v3.5.15
+        command:
+        - /usr/local/bin/etcd
+        - --name=etcd
+        - --data-dir=/etcd-data
+        - --listen-client-urls=http://0.0.0.0:2379
+        - --advertise-client-urls=http://etcd-service:2379
+        - --listen-peer-urls=http://0.0.0.0:2380
+        - --initial-advertise-peer-urls=http://etcd-service:2380
+        - --initial-cluster=etcd=http://etcd-service:2380
+        - --initial-cluster-state=new
+        ports:
+        - containerPort: 2379
+          name: client
+        - containerPort: 2380
+          name: peer
+        volumeMounts:
+        - name: etcd-storage
+          mountPath: /etcd-data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        readinessProbe:
+          tcpSocket:
+            port: 2379
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: etcd-storage
+        persistentVolumeClaim:
+          claimName: etcd-pvc
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd-service
+  namespace: roaming-world
+  labels:
+    app: etcd
+spec:
+  type: ClusterIP
+  selector:
+    app: etcd
+  ports:
+  - name: client
+    port: 2379
+    targetPort: 2379
+  - name: peer
+    port: 2380
+    targetPort: 2380
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: etcd-pvc
+  namespace: roaming-world
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

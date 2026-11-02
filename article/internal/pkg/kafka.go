@@ -15,64 +15,24 @@ type Message struct {
 	value []byte
 }
 
-func (m *Message) Key() string {
-	return m.key
-}
-
-func (m *Message) Value() []byte {
-	return m.value
-}
-
-func NewMessage(key string, value []byte) *Message {
-	return &Message{
-		key:   key,
-		value: value,
-	}
-}
-
-type KafkaSender struct {
-	writer *kafka.Writer
-	topic  string
-}
+func (m *Message) Key() string   { return m.key }
+func (m *Message) Value() []byte { return m.value }
 
 type KafkaReceiver struct {
 	reader *kafka.Reader
 	topic  string
 }
 
-func (s *KafkaSender) Send(ctx context.Context, message *Message) error {
-	return s.writer.WriteMessages(ctx, kafka.Message{
-		Key:   []byte(message.Key()),
-		Value: message.Value(),
+func NewKafkaReceiver(address []string, topic, groupID string) (*KafkaReceiver, error) {
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:  address,
+		Topic:    topic,
+		GroupID:  groupID,
+		MinBytes: 10e3,
+		MaxBytes: 10e6,
+		MaxWait:  time.Second,
 	})
-}
-
-func (s *KafkaSender) SendBatch(ctx context.Context, messages []*Message) error {
-	kafkaMessages := make([]kafka.Message, len(messages))
-	for i, msg := range messages {
-		kafkaMessages[i] = kafka.Message{
-			Key:   []byte(msg.Key()),
-			Value: msg.Value(),
-		}
-	}
-	return s.writer.WriteMessages(ctx, kafkaMessages...)
-}
-
-func (s *KafkaSender) Close() error {
-	return s.writer.Close()
-}
-
-func NewKafkaSender(address []string, topic string) (*KafkaSender, error) {
-	w := &kafka.Writer{
-		Topic:        topic,
-		Addr:         kafka.TCP(address...),
-		Balancer:     &kafka.LeastBytes{},
-		BatchSize:    100,
-		BatchTimeout: 80 * time.Millisecond,
-		Async:        true,
-		Compression:  kafka.Snappy,
-	}
-	return &KafkaSender{writer: w, topic: topic}, nil
+	return &KafkaReceiver{reader: r, topic: topic}, nil
 }
 
 func (k *KafkaReceiver) Receive(ctx context.Context, handler Handler) error {
@@ -82,21 +42,16 @@ func (k *KafkaReceiver) Receive(ctx context.Context, handler Handler) error {
 			if err != nil {
 				break
 			}
-			err = handler(context.Background(), &Message{
-				key:   string(m.Key),
-				value: m.Value,
-			})
-			if err != nil {
-				log.Fatal("message handling exception:", err)
+			if err := handler(context.Background(), &Message{key: string(m.Key), value: m.Value}); err != nil {
+				log.Printf("message handling exception: %v", err)
+				continue
 			}
 			if err := k.reader.CommitMessages(ctx, m); err != nil {
-				log.Fatal("failed to commit messages:", err)
+				log.Printf("failed to commit messages: %v", err)
 			}
 		}
 	}()
 	return nil
 }
 
-func (k *KafkaReceiver) Close() error {
-	return k.reader.Close()
-}
+func (k *KafkaReceiver) Close() error { return k.reader.Close() }

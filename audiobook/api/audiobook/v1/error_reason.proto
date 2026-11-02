@@ -4,7 +4,7 @@ package audiobook.v1;
 
 option go_package = "audiobook/api/audiobook/v1;v1";
 
-import "third_party/errors/errors.proto";
+import "errors/errors.proto";
 
 enum ErrorReason {
   option (errors.default_code) = 500;

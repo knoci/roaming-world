@@ -29,6 +29,11 @@ const OperationArticleGetUserLikeList = "/article.v1.Article/GetUserLikeList"
 const OperationArticleGetVideoArticle = "/article.v1.Article/GetVideoArticle"
 const OperationArticleLikeArticle = "/article.v1.Article/LikeArticle"
 const OperationArticleListArticles = "/article.v1.Article/ListArticles"
+const OperationArticleListFeed = "/article.v1.Article/ListFeed"
+const OperationArticleReviewArticle = "/article.v1.Article/ReviewArticle"
+const OperationArticleSubmitArticle = "/article.v1.Article/SubmitArticle"
+const OperationArticleUnfavoriteArticle = "/article.v1.Article/UnfavoriteArticle"
+const OperationArticleUnlikeArticle = "/article.v1.Article/UnlikeArticle"
 const OperationArticleUpdateArticle = "/article.v1.Article/UpdateArticle"
 
 type ArticleHTTPServer interface {
@@ -36,7 +41,7 @@ type ArticleHTTPServer interface {
 	CreateArticle(context.Context, *CreateArticleRequest) (*CreateArticleReply, error)
 	// DeleteArticle 删除文章
 	DeleteArticle(context.Context, *DeleteArticleRequest) (*DeleteArticleReply, error)
-	// FavoriteArticle 收藏/取消收藏
+	// FavoriteArticle 收藏
 	FavoriteArticle(context.Context, *FavoriteArticleRequest) (*FavoriteArticleReply, error)
 	// GetArticle 文章详情
 	GetArticle(context.Context, *GetArticleRequest) (*GetArticleReply, error)
@@ -52,6 +57,16 @@ type ArticleHTTPServer interface {
 	LikeArticle(context.Context, *LikeArticleRequest) (*LikeArticleReply, error)
 	// ListArticles 文章列表：支持按时间、点赞、评论、收藏排序
 	ListArticles(context.Context, *ListArticlesRequest) (*ListArticlesReply, error)
+	// ListFeed 关注作者的已发布文章 Feed
+	ListFeed(context.Context, *ListFeedRequest) (*ListFeedReply, error)
+	// ReviewArticle 管理员审核：pending -> published/rejected；published -> offline
+	ReviewArticle(context.Context, *ReviewArticleRequest) (*ReviewArticleReply, error)
+	// SubmitArticle 作者提交审核：draft/rejected -> pending
+	SubmitArticle(context.Context, *SubmitArticleRequest) (*SubmitArticleReply, error)
+	// UnfavoriteArticle 取消收藏
+	UnfavoriteArticle(context.Context, *UnfavoriteArticleRequest) (*UnfavoriteArticleReply, error)
+	// UnlikeArticle 取消点赞
+	UnlikeArticle(context.Context, *UnlikeArticleRequest) (*UnlikeArticleReply, error)
 	// UpdateArticle 更新文章
 	UpdateArticle(context.Context, *UpdateArticleRequest) (*UpdateArticleReply, error)
 }
@@ -60,10 +75,15 @@ func RegisterArticleHTTPServer(s *http.Server, srv ArticleHTTPServer) {
 	r := s.Route("/")
 	r.POST("/v1/article", _Article_CreateArticle0_HTTP_Handler(srv))
 	r.PUT("/v1/article", _Article_UpdateArticle0_HTTP_Handler(srv))
+	r.POST("/v1/article/{aid}/submit", _Article_SubmitArticle0_HTTP_Handler(srv))
+	r.POST("/v1/article/{aid}/review", _Article_ReviewArticle0_HTTP_Handler(srv))
 	r.DELETE("/v1/article/{aid}", _Article_DeleteArticle0_HTTP_Handler(srv))
 	r.POST("/v1/article/{aid}/like", _Article_LikeArticle0_HTTP_Handler(srv))
+	r.DELETE("/v1/article/{aid}/like", _Article_UnlikeArticle0_HTTP_Handler(srv))
 	r.POST("/v1/article/{aid}/favorite", _Article_FavoriteArticle0_HTTP_Handler(srv))
+	r.DELETE("/v1/article/{aid}/favorite", _Article_UnfavoriteArticle0_HTTP_Handler(srv))
 	r.GET("/v1/article", _Article_ListArticles0_HTTP_Handler(srv))
+	r.GET("/v1/article/feed", _Article_ListFeed0_HTTP_Handler(srv))
 	r.GET("/v1/article/{aid}", _Article_GetArticle0_HTTP_Handler(srv))
 	r.GET("/v1/article/like/list", _Article_GetUserLikeList0_HTTP_Handler(srv))
 	r.GET("/v1/article/favorite/list", _Article_GetUserFavoriteList0_HTTP_Handler(srv))
@@ -115,6 +135,56 @@ func _Article_UpdateArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.C
 	}
 }
 
+func _Article_SubmitArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in SubmitArticleRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationArticleSubmitArticle)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.SubmitArticle(ctx, req.(*SubmitArticleRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*SubmitArticleReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _Article_ReviewArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ReviewArticleRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationArticleReviewArticle)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ReviewArticle(ctx, req.(*ReviewArticleRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ReviewArticleReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _Article_DeleteArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in DeleteArticleRequest
@@ -162,6 +232,28 @@ func _Article_LikeArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Con
 	}
 }
 
+func _Article_UnlikeArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UnlikeArticleRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationArticleUnlikeArticle)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UnlikeArticle(ctx, req.(*UnlikeArticleRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*UnlikeArticleReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _Article_FavoriteArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in FavoriteArticleRequest
@@ -187,6 +279,28 @@ func _Article_FavoriteArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http
 	}
 }
 
+func _Article_UnfavoriteArticle0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UnfavoriteArticleRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationArticleUnfavoriteArticle)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UnfavoriteArticle(ctx, req.(*UnfavoriteArticleRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*UnfavoriteArticleReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _Article_ListArticles0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in ListArticlesRequest
@@ -202,6 +316,25 @@ func _Article_ListArticles0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Co
 			return err
 		}
 		reply := out.(*ListArticlesReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _Article_ListFeed0_HTTP_Handler(srv ArticleHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListFeedRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationArticleListFeed)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListFeed(ctx, req.(*ListFeedRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListFeedReply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -318,6 +451,11 @@ type ArticleHTTPClient interface {
 	GetVideoArticle(ctx context.Context, req *GetVideoArticleRequest, opts ...http.CallOption) (rsp *GetVideoArticleReply, err error)
 	LikeArticle(ctx context.Context, req *LikeArticleRequest, opts ...http.CallOption) (rsp *LikeArticleReply, err error)
 	ListArticles(ctx context.Context, req *ListArticlesRequest, opts ...http.CallOption) (rsp *ListArticlesReply, err error)
+	ListFeed(ctx context.Context, req *ListFeedRequest, opts ...http.CallOption) (rsp *ListFeedReply, err error)
+	ReviewArticle(ctx context.Context, req *ReviewArticleRequest, opts ...http.CallOption) (rsp *ReviewArticleReply, err error)
+	SubmitArticle(ctx context.Context, req *SubmitArticleRequest, opts ...http.CallOption) (rsp *SubmitArticleReply, err error)
+	UnfavoriteArticle(ctx context.Context, req *UnfavoriteArticleRequest, opts ...http.CallOption) (rsp *UnfavoriteArticleReply, err error)
+	UnlikeArticle(ctx context.Context, req *UnlikeArticleRequest, opts ...http.CallOption) (rsp *UnlikeArticleReply, err error)
 	UpdateArticle(ctx context.Context, req *UpdateArticleRequest, opts ...http.CallOption) (rsp *UpdateArticleReply, err error)
 }
 
@@ -453,6 +591,71 @@ func (c *ArticleHTTPClientImpl) ListArticles(ctx context.Context, in *ListArticl
 	opts = append(opts, http.Operation(OperationArticleListArticles))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ArticleHTTPClientImpl) ListFeed(ctx context.Context, in *ListFeedRequest, opts ...http.CallOption) (*ListFeedReply, error) {
+	var out ListFeedReply
+	pattern := "/v1/article/feed"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationArticleListFeed))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ArticleHTTPClientImpl) ReviewArticle(ctx context.Context, in *ReviewArticleRequest, opts ...http.CallOption) (*ReviewArticleReply, error) {
+	var out ReviewArticleReply
+	pattern := "/v1/article/{aid}/review"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationArticleReviewArticle))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ArticleHTTPClientImpl) SubmitArticle(ctx context.Context, in *SubmitArticleRequest, opts ...http.CallOption) (*SubmitArticleReply, error) {
+	var out SubmitArticleReply
+	pattern := "/v1/article/{aid}/submit"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationArticleSubmitArticle))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ArticleHTTPClientImpl) UnfavoriteArticle(ctx context.Context, in *UnfavoriteArticleRequest, opts ...http.CallOption) (*UnfavoriteArticleReply, error) {
+	var out UnfavoriteArticleReply
+	pattern := "/v1/article/{aid}/favorite"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationArticleUnfavoriteArticle))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ArticleHTTPClientImpl) UnlikeArticle(ctx context.Context, in *UnlikeArticleRequest, opts ...http.CallOption) (*UnlikeArticleReply, error) {
+	var out UnlikeArticleReply
+	pattern := "/v1/article/{aid}/like"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationArticleUnlikeArticle))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

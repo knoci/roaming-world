@@ -7,8 +7,6 @@ import (
 	"github.com/knoci/roaming-world/scene/internal/biz"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/metadata"
-	"github.com/go-kratos/kratos/v2/transport/http"
 )
 
 func NewSceneService(scene *biz.SceneUsecase, logger log.Logger) *SceneService {
@@ -19,7 +17,7 @@ func NewSceneService(scene *biz.SceneUsecase, logger log.Logger) *SceneService {
 }
 
 func (s *SceneService) CreateScene(ctx context.Context, req *pb.CreateSceneRequest) (*pb.CreateSceneReply, error) {
-	if !checkPassword(ctx) {
+	if !isAdmin(ctx) {
 		return nil, biz.ErrUnauthorized
 	}
 
@@ -33,7 +31,7 @@ func (s *SceneService) CreateScene(ctx context.Context, req *pb.CreateSceneReque
 }
 
 func (s *SceneService) DeleteScene(ctx context.Context, req *pb.DeleteSceneRequest) (*pb.DeleteSceneReply, error) {
-	if !checkPassword(ctx) {
+	if !isAdmin(ctx) {
 		return nil, biz.ErrUnauthorized
 	}
 
@@ -46,7 +44,7 @@ func (s *SceneService) DeleteScene(ctx context.Context, req *pb.DeleteSceneReque
 }
 
 func (s *SceneService) UpdateScene(ctx context.Context, req *pb.UpdateSceneRequest) (*pb.UpdateSceneReply, error) {
-	if !checkPassword(ctx) {
+	if !isAdmin(ctx) {
 		return nil, biz.ErrUnauthorized
 	}
 
@@ -107,14 +105,4 @@ func (s *SceneService) GetSceneByID(ctx context.Context, req *pb.GetSceneByIDReq
 		return nil, err
 	}
 	return &pb.GetSceneByIDReply{Scene: scene}, nil
-}
-
-func checkPassword(ctx context.Context) bool {
-	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
-		return req.Header.Get("Authorization") == "knoci1337"
-	}
-	if md, ok := metadata.FromServerContext(ctx); ok {
-		return md.Get("authorization") == "knoci1337"
-	}
-	return false
 }

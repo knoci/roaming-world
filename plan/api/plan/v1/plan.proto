@@ -1,0 +1,181 @@
+syntax = "proto3";
+
+package plan.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/knoci/roaming-world/plan/api/plan/v1;v1";
+
+// Plan 行程聚合：一个用户的一次旅行，包含按天组织的行程项。
+service Plan {
+  rpc CreatePlan(CreatePlanRequest) returns (CreatePlanReply) {
+    option (google.api.http) = {
+      post: "/v1/plan"
+      body: "*"
+    };
+  }
+
+  rpc UpdatePlan(UpdatePlanRequest) returns (UpdatePlanReply) {
+    option (google.api.http) = {
+      put: "/v1/plan/{id}"
+      body: "*"
+    };
+  }
+
+  rpc GetPlan(GetPlanRequest) returns (GetPlanReply) {
+    option (google.api.http) = {
+      get: "/v1/plan/{id}"
+    };
+  }
+
+  // scope=mine 看自己的全部；scope=public 只看已发布公开行程。
+  rpc ListPlans(ListPlansRequest) returns (ListPlansReply) {
+    option (google.api.http) = {
+      get: "/v1/plan"
+    };
+  }
+
+  rpc PublishPlan(PublishPlanRequest) returns (PublishPlanReply) {
+    option (google.api.http) = {
+      post: "/v1/plan/{id}/publish"
+      body: "*"
+    };
+  }
+
+  rpc AddPlanItem(AddPlanItemRequest) returns (AddPlanItemReply) {
+    option (google.api.http) = {
+      post: "/v1/plan/{id}/items"
+      body: "*"
+    };
+  }
+
+  rpc DeletePlanItem(DeletePlanItemRequest) returns (DeletePlanItemReply) {
+    option (google.api.http) = {
+      delete: "/v1/plan/{id}/items/{item_id}"
+    };
+  }
+
+  rpc DeletePlan(DeletePlanRequest) returns (DeletePlanReply) {
+    option (google.api.http) = {
+      delete: "/v1/plan/{id}"
+    };
+  }
+}
+
+message PlanItemMessage {
+  string id = 1;
+  int32 day_no = 2;
+  string item_type = 3;
+  string item_id = 4;
+  string start_time = 5;
+  string end_time = 6;
+  string note = 7;
+}
+
+message PlanDayMessage {
+  int32 day_no = 1;
+  string date = 2;
+  string title = 3;
+  repeated PlanItemMessage items = 4;
+}
+
+message PlanMessage {
+  string id = 1;
+  string uid = 2;
+  string title = 3;
+  string city = 4;
+  string start_date = 5;
+  string end_date = 6;
+  int32 budget = 7;
+  string visibility = 8;
+  string status = 9;
+  string cover = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  repeated PlanDayMessage days = 13;
+}
+
+message CreatePlanRequest {
+  string title = 1;
+  string city = 2;
+  string start_date = 3;
+  string end_date = 4;
+  int32 budget = 5;
+  string visibility = 6;
+  string cover = 7;
+}
+
+message CreatePlanReply {
+  PlanMessage plan = 1;
+}
+
+message UpdatePlanRequest {
+  string id = 1;
+  string title = 2;
+  string city = 3;
+  int32 budget = 4;
+  string visibility = 5;
+  string cover = 6;
+}
+
+message UpdatePlanReply {
+  PlanMessage plan = 1;
+}
+
+message GetPlanRequest {
+  string id = 1;
+}
+
+message GetPlanReply {
+  PlanMessage plan = 1;
+}
+
+message ListPlansRequest {
+  string scope = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message ListPlansReply {
+  repeated PlanMessage plans = 1;
+  int64 total = 2;
+}
+
+message PublishPlanRequest {
+  string id = 1;
+}
+
+message PublishPlanReply {
+  string status = 1;
+}
+
+message AddPlanItemRequest {
+  string id = 1;
+  int32 day_no = 2;
+  string item_type = 3;
+  string item_id = 4;
+  string start_time = 5;
+  string end_time = 6;
+  string note = 7;
+}
+
+message AddPlanItemReply {
+  PlanMessage plan = 1;
+}
+
+message DeletePlanItemRequest {
+  string id = 1;
+  string item_id = 2;
+}
+
+message DeletePlanItemReply {
+  string status = 1;
+}
+
+message DeletePlanRequest {
+  string id = 1;
+}
+
+message DeletePlanReply {
+  string status = 1;
+}

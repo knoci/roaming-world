@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: roaming-world
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - user:8000
+          - scene:8000
+          - food:8000
+          - comment:8000
+          - article:8000
+          - audiobook:8000
+          - plan:8000
+          - ai:8000
+          - gateway:8000

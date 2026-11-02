@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-http v2.8.4
 // - protoc             v4.25.8
-// source: api/audiobook/v1/audiobook.proto
+// source: audiobook/v1/audiobook.proto
 
 package v1
 
@@ -38,9 +38,9 @@ type AudiobookHTTPServer interface {
 func RegisterAudiobookHTTPServer(s *http.Server, srv AudiobookHTTPServer) {
 	r := s.Route("/")
 	r.POST("/v1/audiobook", _Audiobook_CreateAudiobook0_HTTP_Handler(srv))
-	r.POST("/v1/audiobook/detail", _Audiobook_CreateAudiobookDetail0_HTTP_Handler(srv))
+	r.POST("/v1/audiobook/{bid}/details", _Audiobook_CreateAudiobookDetail0_HTTP_Handler(srv))
 	r.GET("/v1/audiobook", _Audiobook_GetAudiobooks0_HTTP_Handler(srv))
-	r.GET("/v1/audiobook/detail", _Audiobook_GetAudiobookDetails0_HTTP_Handler(srv))
+	r.GET("/v1/audiobook/{bid}/details", _Audiobook_GetAudiobookDetails0_HTTP_Handler(srv))
 }
 
 func _Audiobook_CreateAudiobook0_HTTP_Handler(srv AudiobookHTTPServer) func(ctx http.Context) error {
@@ -72,6 +72,9 @@ func _Audiobook_CreateAudiobookDetail0_HTTP_Handler(srv AudiobookHTTPServer) fun
 			return err
 		}
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationAudiobookCreateAudiobookDetail)
@@ -110,6 +113,9 @@ func _Audiobook_GetAudiobookDetails0_HTTP_Handler(srv AudiobookHTTPServer) func(
 	return func(ctx http.Context) error {
 		var in GetAudiobookDetailsRequest
 		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationAudiobookGetAudiobookDetails)
@@ -155,7 +161,7 @@ func (c *AudiobookHTTPClientImpl) CreateAudiobook(ctx context.Context, in *Creat
 
 func (c *AudiobookHTTPClientImpl) CreateAudiobookDetail(ctx context.Context, in *CreateAudiobookDetailRequest, opts ...http.CallOption) (*CreateAudiobookDetailReply, error) {
 	var out CreateAudiobookDetailReply
-	pattern := "/v1/audiobook/detail"
+	pattern := "/v1/audiobook/{bid}/details"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationAudiobookCreateAudiobookDetail))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -168,7 +174,7 @@ func (c *AudiobookHTTPClientImpl) CreateAudiobookDetail(ctx context.Context, in 
 
 func (c *AudiobookHTTPClientImpl) GetAudiobookDetails(ctx context.Context, in *GetAudiobookDetailsRequest, opts ...http.CallOption) (*GetAudiobookDetailsReply, error) {
 	var out GetAudiobookDetailsReply
-	pattern := "/v1/audiobook/detail"
+	pattern := "/v1/audiobook/{bid}/details"
 	path := binding.EncodeURL(pattern, in, true)
 	opts = append(opts, http.Operation(OperationAudiobookGetAudiobookDetails))
 	opts = append(opts, http.PathTemplate(pattern))

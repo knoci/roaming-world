@@ -11,21 +11,25 @@ import (
 
 // Article 文章实体。文章表保留作者名和头像快照，避免列表页逐条调用用户服务。
 type Article struct {
-	AID       string
-	UID       string
-	Name      string
-	Avatar    string
-	Title     string
-	View      []string
-	Content   string
-	Likes     int
-	Comments  int
-	Favorite  int
-	Video     bool
-	Videoid   int
-	Height    int
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	AID          string
+	UID          string
+	Name         string
+	Avatar       string
+	Title        string
+	View         []string
+	Content      string
+	Likes        int
+	Comments     int
+	Favorite     int
+	Video        bool
+	Videoid      int
+	Height       int
+	Status       string
+	PublishedAt  *time.Time
+	ReviewedBy   string
+	ReviewReason string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // ArticleRepo 文章仓库接口。
@@ -34,9 +38,13 @@ type ArticleRepo interface {
 	Update(ctx context.Context, article *Article) (*Article, error)
 	Delete(ctx context.Context, aid string) error
 	FindByID(ctx context.Context, aid string) (*Article, error)
-	List(ctx context.Context, page, limit int, way string, reverse bool) ([]*Article, int64, error)
+	List(ctx context.Context, page, limit int, way string, reverse bool, status, ownerID string) ([]*Article, int64, error)
+	ListFeed(ctx context.Context, uid string, page, limit int) ([]*Article, int64, error)
+	UpdateStatus(ctx context.Context, aid, status, reviewedBy, reason string) error
 	Like(ctx context.Context, uid, aid string) (bool, int, error)
+	Unlike(ctx context.Context, uid, aid string) (int, error)
 	Favorite(ctx context.Context, uid, aid string) (bool, int, error)
+	Unfavorite(ctx context.Context, uid, aid string) (int, error)
 	GetUserLikeList(ctx context.Context, uid string) ([]string, error)
 	GetUserFavoriteList(ctx context.Context, uid string) ([]string, error)
 	GetVideoArticle(ctx context.Context, videoid int) (*Article, error)
@@ -63,6 +71,7 @@ func (uc *ArticleUsecase) Create(ctx context.Context, uid, name, avatar string, 
 		Content: req.Content,
 		Video:   req.Video,
 		Height:  int(req.Height),
+		Status:  "draft",
 	}
 	created, err := uc.repo.Create(ctx, article)
 	if err != nil {
@@ -79,6 +88,9 @@ func (uc *ArticleUsecase) Update(ctx context.Context, uid, avatar string, req *v
 	}
 	if article.UID != uid {
 		return nil, ErrNoPermission
+	}
+	if article.Status != "draft" && article.Status != "rejected" {
+		return nil, ErrInvalidStatus
 	}
 
 	article.Avatar = avatar
@@ -112,27 +124,115 @@ func (uc *ArticleUsecase) Delete(ctx context.Context, uid, aid string) error {
 }
 
 func (uc *ArticleUsecase) Like(ctx context.Context, uid, aid string) (bool, int, error) {
-	if _, err := uc.repo.FindByID(ctx, aid); err != nil {
+	article, err := uc.repo.FindByID(ctx, aid)
+	if err != nil || article.Status != "published" {
 		return false, 0, ErrArticleNotFound
 	}
 	return uc.repo.Like(ctx, uid, aid)
 }
 
 func (uc *ArticleUsecase) Favorite(ctx context.Context, uid, aid string) (bool, int, error) {
-	if _, err := uc.repo.FindByID(ctx, aid); err != nil {
+	article, err := uc.repo.FindByID(ctx, aid)
+	if err != nil || article.Status != "published" {
 		return false, 0, ErrArticleNotFound
 	}
 	return uc.repo.Favorite(ctx, uid, aid)
 }
 
-func (uc *ArticleUsecase) List(ctx context.Context, page, limit int, way string, reverse bool) ([]*Article, int64, error) {
+func (uc *ArticleUsecase) Unlike(ctx context.Context, uid, aid string) (int, error) {
+	article, err := uc.repo.FindByID(ctx, aid)
+	if err != nil || article.Status != "published" {
+		return 0, ErrArticleNotFound
+	}
+	return uc.repo.Unlike(ctx, uid, aid)
+}
+
+func (uc *ArticleUsecase) Unfavorite(ctx context.Context, uid, aid string) (int, error) {
+	article, err := uc.repo.FindByID(ctx, aid)
+	if err != nil || article.Status != "published" {
+		return 0, ErrArticleNotFound
+	}
+	return uc.repo.Unfavorite(ctx, uid, aid)
+}
+
+func (uc *ArticleUsecase) List(ctx context.Context, page, limit int, way string, reverse bool, status, ownerID string) ([]*Article, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if limit < 0 {
 		limit = 0
 	}
-	return uc.repo.List(ctx, page, limit, way, reverse)
+	return uc.repo.List(ctx, page, limit, way, reverse, status, ownerID)
+}
+
+// Submit 作者提交审核，只允许 draft/rejected。
+func (uc *ArticleUsecase) Submit(ctx context.Context, uid, aid string) (string, error) {
+	article, err := uc.repo.FindByID(ctx, aid)
+	if err != nil {
+		return "", ErrArticleNotFound
+	}
+	if article.UID != uid {
+		return "", ErrNoPermission
+	}
+	if article.Status != "draft" && article.Status != "rejected" {
+		return "", ErrInvalidStatus
+	}
+	if err := uc.repo.UpdateStatus(ctx, aid, "pending", "", ""); err != nil {
+		uc.log.WithContext(ctx).Errorf("articleUsecase: submit article failed: %v", err)
+		return "", ErrUpdateArticleFailed
+	}
+	return "pending", nil
+}
+
+// Review 管理员审核/下架。
+func (uc *ArticleUsecase) Review(ctx context.Context, adminID, aid, action, reason string) (string, error) {
+	article, err := uc.repo.FindByID(ctx, aid)
+	if err != nil {
+		return "", ErrArticleNotFound
+	}
+	to, err := reviewTransition(article.Status, action)
+	if err != nil {
+		return "", err
+	}
+	if err := uc.repo.UpdateStatus(ctx, aid, to, adminID, reason); err != nil {
+		uc.log.WithContext(ctx).Errorf("articleUsecase: review article failed: %v", err)
+		return "", ErrUpdateArticleFailed
+	}
+	return to, nil
+}
+
+// reviewTransition 是审核状态机的唯一入口，便于单测。
+func reviewTransition(from, action string) (string, error) {
+	switch action {
+	case "approve":
+		if from == "pending" {
+			return "published", nil
+		}
+	case "reject":
+		if from == "pending" {
+			return "rejected", nil
+		}
+	case "offline":
+		if from == "published" {
+			return "offline", nil
+		}
+	default:
+		return "", ErrInvalidArgument
+	}
+	return "", ErrInvalidStatus
+}
+
+func (uc *ArticleUsecase) Feed(ctx context.Context, uid string, page, limit int) ([]*Article, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	return uc.repo.ListFeed(ctx, uid, page, limit)
 }
 
 func (uc *ArticleUsecase) FindByID(ctx context.Context, aid string) (*Article, error) {
@@ -145,7 +245,7 @@ func (uc *ArticleUsecase) FindByID(ctx context.Context, aid string) (*Article, e
 
 func (uc *ArticleUsecase) GetVideoArticle(ctx context.Context, videoid int) (*Article, error) {
 	article, err := uc.repo.GetVideoArticle(ctx, videoid)
-	if err != nil {
+	if err != nil || article.Status != "published" {
 		return nil, ErrArticleNotFound
 	}
 	return article, nil

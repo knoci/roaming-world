@@ -20,7 +20,7 @@ service Audiobook {
   // CreateAudiobookDetail 创建有声书章节
   rpc CreateAudiobookDetail(CreateAudiobookDetailRequest) returns (CreateAudiobookDetailReply) {
     option (google.api.http) = {
-      post: "/v1/audiobook/detail"
+      post: "/v1/audiobook/{bid}/details"
       body: "*"
     };
   }
@@ -35,7 +35,7 @@ service Audiobook {
   // GetAudiobookDetails 获取指定有声书的所有章节
   rpc GetAudiobookDetails(GetAudiobookDetailsRequest) returns (GetAudiobookDetailsReply) {
     option (google.api.http) = {
-      get: "/v1/audiobook/detail"
+      get: "/v1/audiobook/{bid}/details"
     };
   }
 }

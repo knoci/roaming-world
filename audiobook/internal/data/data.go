@@ -2,12 +2,10 @@ package data
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/knoci/roaming-world/audiobook/internal/conf"
 	nacos "github.com/knoci/roaming-world/audiobook/internal/conf/nacos"
-	kafka "github.com/knoci/roaming-world/audiobook/internal/pkg"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
@@ -22,22 +20,9 @@ var ProviderSet = wire.NewSet(NewData, NewAudiobookRepo)
 
 // Data .
 type Data struct {
-	db        *gorm.DB
-	log       *log.Helper
-	redis     *redis.Client
-	cdc       *kafka.KafkaSender
-	logsender *kafka.KafkaSender
-}
-
-type SqlMsg struct {
-	Query  string        `json:"query"`
-	Params []interface{} `json:"params"`
-}
-
-type ErrorMsg struct {
-	ErrorMsg  string `json:"error_msg"`
-	ErrorOp   string `json:"error_op"`
-	ErrorData any    `json:"error_data"`
+	db    *gorm.DB
+	log   *log.Helper
+	redis *redis.Client
 }
 
 // NewData .
@@ -73,20 +58,6 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	address1 := nacos.GetConfigString(cfg, "kafka.address.cdc")
-	topic1 := nacos.GetConfigString(cfg, "kafka.topic.cdc")
-	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
-	if err != nil {
-		panic(err)
-	}
-
-	address2 := nacos.GetConfigString(cfg, "kafka.address.log")
-	topic2 := nacos.GetConfigString(cfg, "kafka.topic.log")
-	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
-	if err != nil {
-		panic(err)
-	}
-
 	redisHost := nacos.GetConfigString(cfg, "redis.host")
 	redisPort := nacos.GetConfigInt(cfg, "redis.port")
 	redisAddr := fmt.Sprintf("%s:%d", redisHost, redisPort)
@@ -103,11 +74,9 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	d := &Data{
-		db:        db,
-		log:       log,
-		redis:     client,
-		cdc:       cdc,
-		logsender: logsender,
+		db:    db,
+		log:   log,
+		redis: client,
 	}
 
 	cleanup := func() {
@@ -123,37 +92,12 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	return d, cleanup, nil
 }
 
-func (d *Data) SendSqlLog(ctx context.Context, key string, sql string, params []interface{}) error {
-	msg := SqlMsg{
-		Query:  sql,
-		Params: params,
-	}
-	sqlbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	sqllog := kafka.NewMessage(key, sqlbyte)
-	err = d.cdc.Send(ctx, sqllog)
-	if err != nil {
-		return err
-	}
+func (d *Data) LogSQLAudit(ctx context.Context, key string, sql string, params []interface{}) error {
+	d.log.WithContext(ctx).Debugf("sql audit: %s", sql)
 	return nil
 }
 
-func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
-	msg := ErrorMsg{
-		ErrorMsg:  errmsg,
-		ErrorOp:   errop,
-		ErrorData: errdata,
-	}
-	errbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	errorlog := kafka.NewMessage(key, errbyte)
-	err = d.logsender.Send(ctx, errorlog)
-	if err != nil {
-		return err
-	}
+func (d *Data) LogError(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
+	d.log.WithContext(ctx).Errorf("module=%s op=%s error=%s data=%v", key, errop, errmsg, errdata)
 	return nil
 }

@@ -21,10 +21,15 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Article_CreateArticle_FullMethodName       = "/article.v1.Article/CreateArticle"
 	Article_UpdateArticle_FullMethodName       = "/article.v1.Article/UpdateArticle"
+	Article_SubmitArticle_FullMethodName       = "/article.v1.Article/SubmitArticle"
+	Article_ReviewArticle_FullMethodName       = "/article.v1.Article/ReviewArticle"
 	Article_DeleteArticle_FullMethodName       = "/article.v1.Article/DeleteArticle"
 	Article_LikeArticle_FullMethodName         = "/article.v1.Article/LikeArticle"
+	Article_UnlikeArticle_FullMethodName       = "/article.v1.Article/UnlikeArticle"
 	Article_FavoriteArticle_FullMethodName     = "/article.v1.Article/FavoriteArticle"
+	Article_UnfavoriteArticle_FullMethodName   = "/article.v1.Article/UnfavoriteArticle"
 	Article_ListArticles_FullMethodName        = "/article.v1.Article/ListArticles"
+	Article_ListFeed_FullMethodName            = "/article.v1.Article/ListFeed"
 	Article_GetArticle_FullMethodName          = "/article.v1.Article/GetArticle"
 	Article_GetUserLikeList_FullMethodName     = "/article.v1.Article/GetUserLikeList"
 	Article_GetUserFavoriteList_FullMethodName = "/article.v1.Article/GetUserFavoriteList"
@@ -42,14 +47,24 @@ type ArticleClient interface {
 	CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*CreateArticleReply, error)
 	// 更新文章
 	UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*UpdateArticleReply, error)
+	// 作者提交审核：draft/rejected -> pending
+	SubmitArticle(ctx context.Context, in *SubmitArticleRequest, opts ...grpc.CallOption) (*SubmitArticleReply, error)
+	// 管理员审核：pending -> published/rejected；published -> offline
+	ReviewArticle(ctx context.Context, in *ReviewArticleRequest, opts ...grpc.CallOption) (*ReviewArticleReply, error)
 	// 删除文章
 	DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*DeleteArticleReply, error)
 	// 点赞/取消点赞
 	LikeArticle(ctx context.Context, in *LikeArticleRequest, opts ...grpc.CallOption) (*LikeArticleReply, error)
-	// 收藏/取消收藏
+	// 取消点赞
+	UnlikeArticle(ctx context.Context, in *UnlikeArticleRequest, opts ...grpc.CallOption) (*UnlikeArticleReply, error)
+	// 收藏
 	FavoriteArticle(ctx context.Context, in *FavoriteArticleRequest, opts ...grpc.CallOption) (*FavoriteArticleReply, error)
+	// 取消收藏
+	UnfavoriteArticle(ctx context.Context, in *UnfavoriteArticleRequest, opts ...grpc.CallOption) (*UnfavoriteArticleReply, error)
 	// 文章列表：支持按时间、点赞、评论、收藏排序
 	ListArticles(ctx context.Context, in *ListArticlesRequest, opts ...grpc.CallOption) (*ListArticlesReply, error)
+	// 关注作者的已发布文章 Feed
+	ListFeed(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*ListFeedReply, error)
 	// 文章详情
 	GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*GetArticleReply, error)
 	// 用户点赞列表
@@ -90,6 +105,26 @@ func (c *articleClient) UpdateArticle(ctx context.Context, in *UpdateArticleRequ
 	return out, nil
 }
 
+func (c *articleClient) SubmitArticle(ctx context.Context, in *SubmitArticleRequest, opts ...grpc.CallOption) (*SubmitArticleReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitArticleReply)
+	err := c.cc.Invoke(ctx, Article_SubmitArticle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *articleClient) ReviewArticle(ctx context.Context, in *ReviewArticleRequest, opts ...grpc.CallOption) (*ReviewArticleReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReviewArticleReply)
+	err := c.cc.Invoke(ctx, Article_ReviewArticle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *articleClient) DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*DeleteArticleReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteArticleReply)
@@ -110,6 +145,16 @@ func (c *articleClient) LikeArticle(ctx context.Context, in *LikeArticleRequest,
 	return out, nil
 }
 
+func (c *articleClient) UnlikeArticle(ctx context.Context, in *UnlikeArticleRequest, opts ...grpc.CallOption) (*UnlikeArticleReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnlikeArticleReply)
+	err := c.cc.Invoke(ctx, Article_UnlikeArticle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *articleClient) FavoriteArticle(ctx context.Context, in *FavoriteArticleRequest, opts ...grpc.CallOption) (*FavoriteArticleReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(FavoriteArticleReply)
@@ -120,10 +165,30 @@ func (c *articleClient) FavoriteArticle(ctx context.Context, in *FavoriteArticle
 	return out, nil
 }
 
+func (c *articleClient) UnfavoriteArticle(ctx context.Context, in *UnfavoriteArticleRequest, opts ...grpc.CallOption) (*UnfavoriteArticleReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnfavoriteArticleReply)
+	err := c.cc.Invoke(ctx, Article_UnfavoriteArticle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *articleClient) ListArticles(ctx context.Context, in *ListArticlesRequest, opts ...grpc.CallOption) (*ListArticlesReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListArticlesReply)
 	err := c.cc.Invoke(ctx, Article_ListArticles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *articleClient) ListFeed(ctx context.Context, in *ListFeedRequest, opts ...grpc.CallOption) (*ListFeedReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFeedReply)
+	err := c.cc.Invoke(ctx, Article_ListFeed_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -190,14 +255,24 @@ type ArticleServer interface {
 	CreateArticle(context.Context, *CreateArticleRequest) (*CreateArticleReply, error)
 	// 更新文章
 	UpdateArticle(context.Context, *UpdateArticleRequest) (*UpdateArticleReply, error)
+	// 作者提交审核：draft/rejected -> pending
+	SubmitArticle(context.Context, *SubmitArticleRequest) (*SubmitArticleReply, error)
+	// 管理员审核：pending -> published/rejected；published -> offline
+	ReviewArticle(context.Context, *ReviewArticleRequest) (*ReviewArticleReply, error)
 	// 删除文章
 	DeleteArticle(context.Context, *DeleteArticleRequest) (*DeleteArticleReply, error)
 	// 点赞/取消点赞
 	LikeArticle(context.Context, *LikeArticleRequest) (*LikeArticleReply, error)
-	// 收藏/取消收藏
+	// 取消点赞
+	UnlikeArticle(context.Context, *UnlikeArticleRequest) (*UnlikeArticleReply, error)
+	// 收藏
 	FavoriteArticle(context.Context, *FavoriteArticleRequest) (*FavoriteArticleReply, error)
+	// 取消收藏
+	UnfavoriteArticle(context.Context, *UnfavoriteArticleRequest) (*UnfavoriteArticleReply, error)
 	// 文章列表：支持按时间、点赞、评论、收藏排序
 	ListArticles(context.Context, *ListArticlesRequest) (*ListArticlesReply, error)
+	// 关注作者的已发布文章 Feed
+	ListFeed(context.Context, *ListFeedRequest) (*ListFeedReply, error)
 	// 文章详情
 	GetArticle(context.Context, *GetArticleRequest) (*GetArticleReply, error)
 	// 用户点赞列表
@@ -224,17 +299,32 @@ func (UnimplementedArticleServer) CreateArticle(context.Context, *CreateArticleR
 func (UnimplementedArticleServer) UpdateArticle(context.Context, *UpdateArticleRequest) (*UpdateArticleReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateArticle not implemented")
 }
+func (UnimplementedArticleServer) SubmitArticle(context.Context, *SubmitArticleRequest) (*SubmitArticleReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SubmitArticle not implemented")
+}
+func (UnimplementedArticleServer) ReviewArticle(context.Context, *ReviewArticleRequest) (*ReviewArticleReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReviewArticle not implemented")
+}
 func (UnimplementedArticleServer) DeleteArticle(context.Context, *DeleteArticleRequest) (*DeleteArticleReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteArticle not implemented")
 }
 func (UnimplementedArticleServer) LikeArticle(context.Context, *LikeArticleRequest) (*LikeArticleReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LikeArticle not implemented")
 }
+func (UnimplementedArticleServer) UnlikeArticle(context.Context, *UnlikeArticleRequest) (*UnlikeArticleReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlikeArticle not implemented")
+}
 func (UnimplementedArticleServer) FavoriteArticle(context.Context, *FavoriteArticleRequest) (*FavoriteArticleReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FavoriteArticle not implemented")
 }
+func (UnimplementedArticleServer) UnfavoriteArticle(context.Context, *UnfavoriteArticleRequest) (*UnfavoriteArticleReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnfavoriteArticle not implemented")
+}
 func (UnimplementedArticleServer) ListArticles(context.Context, *ListArticlesRequest) (*ListArticlesReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListArticles not implemented")
+}
+func (UnimplementedArticleServer) ListFeed(context.Context, *ListFeedRequest) (*ListFeedReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFeed not implemented")
 }
 func (UnimplementedArticleServer) GetArticle(context.Context, *GetArticleRequest) (*GetArticleReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetArticle not implemented")
@@ -308,6 +398,42 @@ func _Article_UpdateArticle_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Article_SubmitArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitArticleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArticleServer).SubmitArticle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Article_SubmitArticle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArticleServer).SubmitArticle(ctx, req.(*SubmitArticleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Article_ReviewArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviewArticleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArticleServer).ReviewArticle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Article_ReviewArticle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArticleServer).ReviewArticle(ctx, req.(*ReviewArticleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Article_DeleteArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteArticleRequest)
 	if err := dec(in); err != nil {
@@ -344,6 +470,24 @@ func _Article_LikeArticle_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Article_UnlikeArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlikeArticleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArticleServer).UnlikeArticle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Article_UnlikeArticle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArticleServer).UnlikeArticle(ctx, req.(*UnlikeArticleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Article_FavoriteArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FavoriteArticleRequest)
 	if err := dec(in); err != nil {
@@ -362,6 +506,24 @@ func _Article_FavoriteArticle_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Article_UnfavoriteArticle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnfavoriteArticleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArticleServer).UnfavoriteArticle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Article_UnfavoriteArticle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArticleServer).UnfavoriteArticle(ctx, req.(*UnfavoriteArticleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Article_ListArticles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListArticlesRequest)
 	if err := dec(in); err != nil {
@@ -376,6 +538,24 @@ func _Article_ListArticles_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ArticleServer).ListArticles(ctx, req.(*ListArticlesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Article_ListFeed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFeedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArticleServer).ListFeed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Article_ListFeed_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArticleServer).ListFeed(ctx, req.(*ListFeedRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -486,6 +666,14 @@ var Article_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Article_UpdateArticle_Handler,
 		},
 		{
+			MethodName: "SubmitArticle",
+			Handler:    _Article_SubmitArticle_Handler,
+		},
+		{
+			MethodName: "ReviewArticle",
+			Handler:    _Article_ReviewArticle_Handler,
+		},
+		{
 			MethodName: "DeleteArticle",
 			Handler:    _Article_DeleteArticle_Handler,
 		},
@@ -494,12 +682,24 @@ var Article_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Article_LikeArticle_Handler,
 		},
 		{
+			MethodName: "UnlikeArticle",
+			Handler:    _Article_UnlikeArticle_Handler,
+		},
+		{
 			MethodName: "FavoriteArticle",
 			Handler:    _Article_FavoriteArticle_Handler,
 		},
 		{
+			MethodName: "UnfavoriteArticle",
+			Handler:    _Article_UnfavoriteArticle_Handler,
+		},
+		{
 			MethodName: "ListArticles",
 			Handler:    _Article_ListArticles_Handler,
+		},
+		{
+			MethodName: "ListFeed",
+			Handler:    _Article_ListFeed_Handler,
 		},
 		{
 			MethodName: "GetArticle",

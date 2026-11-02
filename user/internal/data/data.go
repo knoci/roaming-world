@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,10 +12,6 @@ import (
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/user/internal/conf"
 	nc "github.com/knoci/roaming-world/user/internal/conf/nacos"
-	kafka "github.com/knoci/roaming-world/user/internal/pkg"
-	"github.com/nacos-group/nacos-sdk-go/clients"
-	"github.com/nacos-group/nacos-sdk-go/common/constant"
-	"github.com/nacos-group/nacos-sdk-go/vo"
 	"github.com/tencentyun/cos-go-sdk-v5"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"gorm.io/driver/postgres"
@@ -29,23 +24,10 @@ var ProviderSet = wire.NewSet(NewData, NewUserRepo, NewNacosEngine)
 
 // Data .
 type Data struct {
-	db        *gorm.DB
-	etcd      *clientv3.Client
-	log       *log.Helper
-	cos       *cos.Client
-	cdc       *kafka.KafkaSender
-	logsender *kafka.KafkaSender
-}
-
-type SqlMsg struct {
-	Query  string        `json:"query"`
-	Params []interface{} `json:"params"`
-}
-
-type ErrorMsg struct {
-	ErrorMsg  string `json:"error_msg"`
-	ErrorOp   string `json:"error_op"`
-	ErrorData any    `json:"error_data"`
+	db   *gorm.DB
+	etcd *clientv3.Client
+	log  *log.Helper
+	cos  *cos.Client
 }
 
 // NewData .
@@ -75,7 +57,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	}
 
 	// 自动迁移表结构
-	err = db.AutoMigrate(&User{})
+	err = db.AutoMigrate(&User{}, &Follow{}, &Notification{})
 	if err != nil {
 		log.Errorf("userData: failed to auto migrate: %v", err)
 		return nil, nil, err
@@ -133,27 +115,11 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		},
 	})
 
-	address1 := nc.GetConfigString(cfg, "kafka.address.cdc")
-	topic1 := nc.GetConfigString(cfg, "kafka.topic.cdc")
-	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
-	if err != nil {
-		panic(err)
-	}
-
-	address2 := nc.GetConfigString(cfg, "kafka.address.log")
-	topic2 := nc.GetConfigString(cfg, "kafka.topic.log")
-	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
-	if err != nil {
-		panic(err)
-	}
-
 	d := &Data{
-		db:        db,
-		log:       log,
-		etcd:      client,
-		cos:       cos,
-		cdc:       cdc,
-		logsender: logsender,
+		db:   db,
+		log:  log,
+		etcd: client,
+		cos:  cos,
 	}
 
 	cleanup := func() {
@@ -183,66 +149,16 @@ func (d *Data) SetEtcd(ctx context.Context, key string, time int64) error {
 	return nil
 }
 
-func (d *Data) SendSqlLog(ctx context.Context, key string, sql string, params []interface{}) error {
-	msg := SqlMsg{
-		Query:  sql,
-		Params: params,
-	}
-	sqlbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	sqllog := kafka.NewMessage(key, sqlbyte)
-	err = d.cdc.Send(ctx, sqllog)
-	if err != nil {
-		return err
-	}
+func (d *Data) LogSQLAudit(ctx context.Context, key string, sql string, params []interface{}) error {
+	d.log.WithContext(ctx).Debugf("sql audit: %s", sql)
 	return nil
 }
 
-func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
-	msg := ErrorMsg{
-		ErrorMsg:  errmsg,
-		ErrorOp:   errop,
-		ErrorData: errdata,
-	}
-	errbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	errorlog := kafka.NewMessage(key, errbyte)
-	err = d.logsender.Send(ctx, errorlog)
-	if err != nil {
-		return err
-	}
+func (d *Data) LogError(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
+	d.log.WithContext(ctx).Errorf("module=%s op=%s error=%s data=%v", key, errop, errmsg, errdata)
 	return nil
 }
 
 func NewNacosEngine(c *conf.Data) *nacos.Registry {
-	sc := []constant.ServerConfig{
-		*constant.NewServerConfig(c.Nacos.Addr, c.Nacos.Port),
-	}
-
-	cc := constant.ClientConfig{
-		NamespaceId:         c.Nacos.NamespaceId,
-		TimeoutMs:           5000,
-		NotLoadCacheAtStart: true,
-		LogDir:              "tmp/nacos/log",
-		CacheDir:            "tmp/nacos/cache",
-		LogLevel:            "debug",
-	}
-
-	client, err := clients.NewNamingClient(
-		vo.NacosClientParam{
-			ClientConfig:  &cc,
-			ServerConfigs: sc,
-		},
-	)
-
-	if err != nil {
-		panic(err)
-	}
-
-	return nacos.New(client)
-
+	return nc.NewRegistry()
 }

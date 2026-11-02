@@ -1,0 +1,101 @@
+# Plan Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plan-service
+  namespace: roaming-world
+  labels:
+    app: plan-service
+    service: plan
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: plan-service
+  template:
+    metadata:
+      labels:
+        app: plan-service
+        service: plan
+    spec:
+      containers:
+      - name: plan-service
+        image: roaming-world/plan:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 9000
+          name: grpc
+        env:
+        - name: NACOS_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-host
+        - name: NACOS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-port
+        - name: NACOS_NAMESPACE_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-namespace-id
+        - name: NACOS_DATA_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-data-id
+        - name: NACOS_GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: roaming-world-config
+              key: nacos-group-id
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plan-service
+  namespace: roaming-world
+  labels:
+    app: plan-service
+spec:
+  type: ClusterIP
+  selector:
+    app: plan-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  - name: grpc
+    port: 9000
+    targetPort: 9000

@@ -12,6 +12,7 @@ var ProviderSet = wire.NewSet(NewUserService)
 
 type UserService struct {
 	pb.UnimplementedUserServer
-	log  *log.Helper
-	user *biz.UserUsecase
+	log    *log.Helper
+	user   *biz.UserUsecase
+	social *biz.SocialUsecase
 }

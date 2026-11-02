@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/metadata"
-	"github.com/go-kratos/kratos/v2/transport/http"
 	pb "github.com/knoci/roaming-world/audiobook/api/audiobook/v1"
 	"github.com/knoci/roaming-world/audiobook/internal/biz"
 )
@@ -20,7 +18,7 @@ func NewAudiobookService(audiobook *biz.AudiobookUsecase, logger log.Logger) *Au
 func (s *AudiobookService) CreateAudiobook(ctx context.Context, req *pb.CreateAudiobookRequest) (*pb.CreateAudiobookReply, error) {
 	s.log.WithContext(ctx).Infof("audiobookService: CreateAudiobook received: Name=%s, Author=%s", req.Name, req.Author)
 
-	if !checkPassword(ctx) {
+	if !isAdmin(ctx) {
 		return nil, biz.ErrUnauthorized
 	}
 
@@ -35,7 +33,7 @@ func (s *AudiobookService) CreateAudiobook(ctx context.Context, req *pb.CreateAu
 func (s *AudiobookService) CreateAudiobookDetail(ctx context.Context, req *pb.CreateAudiobookDetailRequest) (*pb.CreateAudiobookDetailReply, error) {
 	s.log.WithContext(ctx).Infof("audiobookService: CreateAudiobookDetail received: BID=%s, Chapter=%d", req.Bid, req.Chapter)
 
-	if !checkPassword(ctx) {
+	if !isAdmin(ctx) {
 		return nil, biz.ErrUnauthorized
 	}
 
@@ -67,15 +65,4 @@ func (s *AudiobookService) GetAudiobookDetails(ctx context.Context, req *pb.GetA
 		return nil, err
 	}
 	return &pb.GetAudiobookDetailsReply{Details: details}, nil
-}
-
-// checkPassword 兼容 HTTP 和 gRPC：管理接口使用固定密码头。
-func checkPassword(ctx context.Context) bool {
-	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
-		return req.Header.Get("Authorization") == "knoci1337"
-	}
-	if md, ok := metadata.FromServerContext(ctx); ok {
-		return md.Get("authorization") == "knoci1337"
-	}
-	return false
 }

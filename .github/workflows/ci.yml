@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [user, scene, food, comment, article, audiobook, plan, gateway]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.3"
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        run: go build ./...
+      - name: Vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+      - name: Compose config
+        run: docker compose -f docker-compose.yml config -q
+      - name: Kustomize render
+        run: |
+          kubectl kustomize k8s > /tmp/roaming-rendered.yaml
+          kubectl kustomize k8s-single-node --load-restrictor LoadRestrictionsNone > /tmp/roaming-single.yaml
+      - name: Whitespace
+        run: git diff --check

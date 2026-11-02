@@ -1,0 +1,46 @@
+# 定时修正文章/评论的冗余计数，防止事件丢失导致长期偏差。
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reconcile-counts
+  namespace: roaming-world
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: reconcile
+              image: postgres:15-alpine
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: roaming-world-secrets
+                      key: postgre-password
+              command:
+                - psql
+                - -h
+                - postgres-service
+                - -U
+                - roaming
+                - -d
+                - roaming_world
+                - -v
+                - ON_ERROR_STOP=1
+                - -f
+                - /sql/reconcile_counts.sql
+              volumeMounts:
+                - name: sql
+                  mountPath: /sql
+                  readOnly: true
+          volumes:
+            - name: sql
+              configMap:
+                name: reconcile-sql

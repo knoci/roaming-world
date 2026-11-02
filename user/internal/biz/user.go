@@ -21,6 +21,8 @@ type User struct {
 	Email     string
 	Password  string
 	Avatar    string
+	Role      string
+	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -129,6 +131,10 @@ func (uc *UserUsecase) Login(ctx context.Context, req *v1.LoginRequest) (*v1.Log
 		}
 		uc.log.WithContext(ctx).Errorf("userUsecase: error finding user by email during login: %v", err)
 		return nil, ErrInternalError
+	}
+
+	if user.Status == "banned" {
+		return nil, ErrUserBanned
 	}
 
 	// 验证密码
@@ -289,4 +295,16 @@ func (uc *UserUsecase) ConfirmEmail(ctx context.Context, req *v1.ConfirmEmailReq
 // generateVerificationCode 生成6位随机数字验证码
 func generateVerificationCode() string {
 	return fmt.Sprintf("%06v", rand.New(rand.NewSource(time.Now().UnixNano())).Int31n(1000000))
+}
+
+// GetRole 查询用户角色，登录时写入 JWT。
+func (uc *UserUsecase) GetRole(ctx context.Context, uid string) (string, error) {
+	user, err := uc.repo.FindByUID(ctx, uid)
+	if err != nil {
+		return "", err
+	}
+	if user.Role == "" {
+		return "user", nil
+	}
+	return user.Role, nil
 }

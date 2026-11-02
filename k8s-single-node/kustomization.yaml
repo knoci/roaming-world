@@ -1,0 +1,77 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 单节点演示：所有业务和基础设施各 1 副本。
+# 这个 overlay 需要 kustomize 的 load-restrictor=LoadRestrictionsNone，
+# 因为 base 在上一级目录。
+resources:
+  - ../k8s
+
+replicas:
+  - name: user-service
+    count: 1
+  - name: scene-service
+    count: 1
+  - name: food-service
+    count: 1
+  - name: comment-service
+    count: 1
+  - name: article-service
+    count: 1
+  - name: audiobook-service
+    count: 1
+  - name: plan-service
+    count: 1
+  - name: ai-service
+    count: 1
+  - name: mcp-service
+    count: 1
+  - name: gateway-service
+    count: 1
+  - name: postgres
+    count: 1
+  - name: mysql
+    count: 0          # 单机演示用 Nacos embedded，不再启动 MySQL
+  - name: redis
+    count: 1
+  - name: nacos
+    count: 1
+  - name: kafka
+    count: 1
+  - name: meilisearch
+    count: 1
+  - name: etcd
+    count: 1
+
+patches:
+  # 本地镜像用 IfNotPresent，避免 minikube 去 Docker Hub 拉 latest。
+  - target:
+      kind: Deployment
+      labelSelector: "service"
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+
+  # 单机不跑 MySQL，Nacos 用 embedded storage。
+  - target:
+      kind: Deployment
+      name: nacos
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: MODE
+            value: "standalone"
+          - name: NACOS_AUTH_ENABLE
+            value: "false"
+
+  # 单节点 Kafka：controller 和 broker 在同一 Pod，直接用 localhost 避免
+  # ClusterIP hairpin 导致 controller 注册超时。
+  - target:
+      kind: Deployment
+      name: kafka
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: 1@localhost:9093

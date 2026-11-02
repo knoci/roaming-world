@@ -14,5 +14,8 @@ var (
 	ErrVerificationExpired   = errors.BadRequest(v1.ErrorReason_VERIFICATION_CODE_EXPIRED.String(), "verification code expired")
 	ErrIncorrectPassword     = errors.Unauthorized(v1.ErrorReason_INCORRECT_PASSWORD.String(), "incorrect password")
 	ErrUnauthorized          = errors.Unauthorized(v1.ErrorReason_UNAUTHORIZED.String(), "unauthorized")
+	ErrUserBanned            = errors.Forbidden("USER_BANNED", "user is banned")
+	ErrCannotFollowSelf      = errors.BadRequest("CANNOT_FOLLOW_SELF", "cannot follow yourself")
+	ErrNotificationNotFound  = errors.NotFound("NOTIFICATION_NOT_FOUND", "notification not found")
 	ErrInternalError         = errors.InternalServer(v1.ErrorReason_INTERNAL_ERROR.String(), "internal error")
 )

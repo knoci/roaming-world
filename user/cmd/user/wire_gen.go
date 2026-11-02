@@ -30,7 +30,9 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	}
 	userRepo := data.NewUserRepo(dataData, logger)
 	userUsecase := biz.NewUserUsecase(userRepo, logger)
-	userService := service.NewUserService(userUsecase, logger)
+	socialRepo := data.NewSocialRepo(dataData, logger)
+	socialUsecase := biz.NewSocialUsecase(socialRepo, userRepo, logger)
+	userService := service.NewUserService(userUsecase, socialUsecase, logger)
 	grpcServer := server.NewGRPCServer(confServer, userService, logger)
 	httpServer := server.NewHTTPServer(confServer, userService, logger)
 	nacosRegistry := data.NewNacosEngine(confData)

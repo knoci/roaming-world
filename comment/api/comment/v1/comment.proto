@@ -21,36 +21,66 @@ service Comment {
   // DeleteComment 删除评论
   rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentReply) {
     option (google.api.http) = {
-      delete: "/v1/comment"
+      delete: "/v1/comment/{cid}"
     };
   }
 
   // LikeComment 点赞评论
   rpc LikeComment(LikeCommentRequest) returns (LikeCommentReply) {
     option (google.api.http) = {
-      post: "/v1/comment/like"
+      post: "/v1/comment/{cid}/like"
       body: "*"
+    };
+  }
+
+  // 取消点赞
+  rpc UnlikeComment(UnlikeCommentRequest) returns (UnlikeCommentReply) {
+    option (google.api.http) = {
+      delete: "/v1/comment/{cid}/like"
     };
   }
 
   // GetCommentList 获取一级评论列表
   rpc GetCommentList(GetCommentListRequest) returns (GetCommentListReply) {
     option (google.api.http) = {
-      get: "/v1/comment/list"
+      get: "/v1/comment"
     };
   }
 
   // GetCommentListWithReplies 获取一级评论列表及其前两条二级评论
   rpc GetCommentListWithReplies(GetCommentListWithRepliesRequest) returns (GetCommentListWithRepliesReply) {
     option (google.api.http) = {
-      get: "/v1/comment/list/replies"
+      get: "/v1/comment/with-replies"
     };
   }
 
   // GetReplyList 获取二级评论列表
   rpc GetReplyList(GetReplyListRequest) returns (GetReplyListReply) {
     option (google.api.http) = {
-      get: "/v1/comment/replies"
+      get: "/v1/comment/{cid}/replies"
+    };
+  }
+
+  // 举报评论
+  rpc ReportComment(ReportCommentRequest) returns (ReportCommentReply) {
+    option (google.api.http) = {
+      post: "/v1/comment/{cid}/report"
+      body: "*"
+    };
+  }
+
+  // 管理员查看举报队列
+  rpc ListCommentReports(ListCommentReportsRequest) returns (ListCommentReportsReply) {
+    option (google.api.http) = {
+      get: "/v1/comment/reports"
+    };
+  }
+
+  // 管理员处理举报
+  rpc ResolveCommentReport(ResolveCommentReportRequest) returns (ResolveCommentReportReply) {
+    option (google.api.http) = {
+      post: "/v1/comment/reports/{id}/resolve"
+      body: "*"
     };
   }
 }
@@ -107,29 +137,88 @@ message LikeCommentReply {
 // GetCommentListRequest 获取一级评论列表请求
 message GetCommentListRequest {
   string aid = 1 [(validate.rules).string.min_len = 1];
+  int32 page = 2;
+  int32 limit = 3;
 }
 
 // GetCommentListReply 获取一级评论列表响应
 message GetCommentListReply {
   repeated CommentMessage comments = 1;
+  int64 total = 2;
 }
 
 // GetCommentListWithRepliesRequest 获取一级评论列表及其前两条二级评论请求
 message GetCommentListWithRepliesRequest {
   string aid = 1 [(validate.rules).string.min_len = 1];
+  int32 page = 2;
+  int32 limit = 3;
 }
 
 // GetCommentListWithRepliesReply 获取一级评论列表及其前两条二级评论响应
 message GetCommentListWithRepliesReply {
   repeated CommentMessage comments = 1;
+  int64 total = 2;
 }
 
 // GetReplyListRequest 获取二级评论列表请求
 message GetReplyListRequest {
   string cid = 1 [(validate.rules).string.min_len = 1];
+  int32 page = 2;
+  int32 limit = 3;
 }
 
 // GetReplyListReply 获取二级评论列表响应
 message GetReplyListReply {
   repeated CommentMessage comments = 1;
+  int64 total = 2;
+}
+
+message ReportCommentRequest {
+  string cid = 1;
+  string reason = 2;
+}
+
+message ReportCommentReply {
+  string status = 1;
+  string report_id = 2;
+}
+
+message CommentReportMessage {
+  string id = 1;
+  string cid = 2;
+  string reporter_uid = 3;
+  string reason = 4;
+  string status = 5;
+  string review_note = 6;
+  string created_at = 7;
+}
+
+message ListCommentReportsRequest {
+  string status = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message ListCommentReportsReply {
+  repeated CommentReportMessage reports = 1;
+  int64 total = 2;
+}
+
+message ResolveCommentReportRequest {
+  string id = 1;
+  // remove / dismiss
+  string action = 2;
+  string note = 3;
+}
+
+message ResolveCommentReportReply {
+  string status = 1;
+}
+
+message UnlikeCommentRequest {
+  string cid = 1;
+}
+
+message UnlikeCommentReply {
+  string status = 1;
 }

@@ -25,6 +25,22 @@ service Article {
     };
   }
 
+  // 作者提交审核：draft/rejected -> pending
+  rpc SubmitArticle(SubmitArticleRequest) returns (SubmitArticleReply) {
+    option (google.api.http) = {
+      post: "/v1/article/{aid}/submit"
+      body: "*"
+    };
+  }
+
+  // 管理员审核：pending -> published/rejected；published -> offline
+  rpc ReviewArticle(ReviewArticleRequest) returns (ReviewArticleReply) {
+    option (google.api.http) = {
+      post: "/v1/article/{aid}/review"
+      body: "*"
+    };
+  }
+
   // 删除文章
   rpc DeleteArticle(DeleteArticleRequest) returns (DeleteArticleReply) {
     option (google.api.http) = {
@@ -40,7 +56,14 @@ service Article {
     };
   }
 
-  // 收藏/取消收藏
+  // 取消点赞
+  rpc UnlikeArticle(UnlikeArticleRequest) returns (UnlikeArticleReply) {
+    option (google.api.http) = {
+      delete: "/v1/article/{aid}/like"
+    };
+  }
+
+  // 收藏
   rpc FavoriteArticle(FavoriteArticleRequest) returns (FavoriteArticleReply) {
     option (google.api.http) = {
       post: "/v1/article/{aid}/favorite"
@@ -48,10 +71,24 @@ service Article {
     };
   }
 
+  // 取消收藏
+  rpc UnfavoriteArticle(UnfavoriteArticleRequest) returns (UnfavoriteArticleReply) {
+    option (google.api.http) = {
+      delete: "/v1/article/{aid}/favorite"
+    };
+  }
+
   // 文章列表：支持按时间、点赞、评论、收藏排序
   rpc ListArticles(ListArticlesRequest) returns (ListArticlesReply) {
     option (google.api.http) = {
       get: "/v1/article"
+    };
+  }
+
+  // 关注作者的已发布文章 Feed
+  rpc ListFeed(ListFeedRequest) returns (ListFeedReply) {
+    option (google.api.http) = {
+      get: "/v1/article/feed"
     };
   }
 
@@ -107,6 +144,9 @@ message ArticleMessage {
   int32 height = 13;
   string created_at = 14;
   string updated_at = 15;
+  string status = 16;
+  string published_at = 17;
+  string review_reason = 18;
 }
 
 message CreateArticleRequest {
@@ -165,6 +205,10 @@ message ListArticlesRequest {
   int32 limit = 2;
   string way = 3;
   bool reverse = 4;
+  // 为空时公开列表只返回 published；指定状态仅 admin 可用。
+  string status = 5;
+  // 只看自己的文章（可看 draft/rejected/pending）。
+  bool mine = 6;
 }
 
 message ListArticlesReply {
@@ -204,4 +248,49 @@ message GetMaxVideoIDRequest {}
 
 message GetMaxVideoIDReply {
   int32 videoid = 1;
+}
+
+message SubmitArticleRequest {
+  string aid = 1;
+}
+
+message SubmitArticleReply {
+  string status = 1;
+}
+
+message ReviewArticleRequest {
+  string aid = 1;
+  // approve / reject / offline
+  string action = 2;
+  string reason = 3;
+}
+
+message ReviewArticleReply {
+  string status = 1;
+}
+
+message ListFeedRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message ListFeedReply {
+  repeated ArticleMessage articles = 1;
+  int64 total = 2;
+}
+
+message UnlikeArticleRequest {
+  string aid = 1;
+}
+
+message UnlikeArticleReply {
+  int32 likes = 1;
+}
+
+message UnfavoriteArticleRequest {
+  string aid = 1;
+}
+
+message UnfavoriteArticleReply {
+  int32 favorite = 1;
 }

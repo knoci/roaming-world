@@ -1,0 +1,48 @@
+# 示例：导入 Nacos 的 roaming-world.yaml（不要直接提交真实密钥）
+# Data ID: roaming-world.yaml
+# Group: DEFAULT_GROUP
+# Namespace: 与 k8s/configmaps.yaml 中 service-config 的 namespaceId 一致（演示环境为空）
+
+postgre:
+  host: postgres-service
+  port: 5432
+  user: roaming
+  password: roaming
+  dbname: roaming_world
+  sslmode: disable
+
+redis:
+  host: redis-service
+  port: 6379
+  password: ""
+  db: 0
+
+kafka:
+  address: kafka-service:9092
+  topic:
+    comment-event: comment-events
+
+etcd:
+  endpoints: etcd-service:2379
+  dialTimeout: 5
+
+jwt:
+  secret: change-me-to-a-long-random-secret
+  # 单位：纳秒；432000000000000 = 120 小时
+  expiration: 432000000000000
+
+meili:
+  host: http://meilisearch-service:7700
+  key: roaming-meili-master-key
+
+email:
+  host: smtp.example.com
+  port: 465
+  username: no-reply@example.com
+  password: change-me
+  from: no-reply@example.com
+
+cos:
+  bucket_url: https://example-1250000000.cos.ap-guangzhou.myqcloud.com
+  secret_id: change-me
+  secret_key: change-me

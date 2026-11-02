@@ -12,10 +12,11 @@ import (
 	jwt "github.com/knoci/roaming-world/user/internal/pkg"
 )
 
-func NewUserService(user *biz.UserUsecase, logger log.Logger) *UserService {
+func NewUserService(user *biz.UserUsecase, social *biz.SocialUsecase, logger log.Logger) *UserService {
 	return &UserService{
-		user: user,
-		log:  log.NewHelper(logger),
+		user:   user,
+		social: social,
+		log:    log.NewHelper(logger),
 	}
 }
 
@@ -29,7 +30,7 @@ func (s *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 
 	httpReq, _ := http.RequestFromServerContext(ctx)
 	ua := httpReq.Header.Get("User-Agent")
-	token, err := jwt.GenerateToken(ua, user.Uid, user.Name, req.Email, user.Avatar)
+	token, err := jwt.GenerateToken(ua, user.Uid, user.Name, req.Email, user.Avatar, "user")
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to generate token for user %s: %v", user.Name, err)
 		return nil, biz.ErrInternalError
@@ -65,7 +66,12 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 
 	httpReq, _ := http.RequestFromServerContext(ctx)
 	ua := httpReq.Header.Get("User-Agent")
-	token, err := jwt.GenerateToken(ua, reply.Uid, reply.Name, req.Email, reply.Avatar)
+	role, roleErr := s.user.GetRole(ctx, reply.Uid)
+	if roleErr != nil {
+		s.log.WithContext(ctx).Errorf("failed to get role for user %s: %v", reply.Name, roleErr)
+		return nil, biz.ErrInternalError
+	}
+	token, err := jwt.GenerateToken(ua, reply.Uid, reply.Name, req.Email, reply.Avatar, role)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to generate token for user %s: %v", reply.Name, err)
 		return nil, biz.ErrInternalError

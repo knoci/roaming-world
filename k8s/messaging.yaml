@@ -1,0 +1,200 @@
+# Kafka（KRaft 单节点，开发/演示用）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: roaming-world
+  labels:
+    app: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+      - name: kafka
+        image: apache/kafka:3.9.0
+        env:
+        - name: KAFKA_NODE_ID
+          value: "1"
+        - name: KAFKA_PROCESS_ROLES
+          value: "broker,controller"
+        - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+          value: "1@kafka-service:9093"
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka-service:9092"
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+        - name: KAFKA_CONTROLLER_LISTENER_NAMES
+          value: "CONTROLLER"
+        - name: KAFKA_INTER_BROKER_LISTENER_NAME
+          value: "PLAINTEXT"
+        - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+          value: "true"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "1"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "0"
+        - name: KAFKA_LOG_DIRS
+          value: "/var/lib/kafka/data"
+        - name: CLUSTER_ID
+          value: "4L6g3nShT-eMCtK--X86sw"
+        ports:
+        - containerPort: 9092
+          name: kafka
+        - containerPort: 9093
+          name: controller
+        volumeMounts:
+        - name: kafka-storage
+          mountPath: /var/lib/kafka/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        readinessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 20
+          periodSeconds: 10
+      volumes:
+      - name: kafka-storage
+        persistentVolumeClaim:
+          claimName: kafka-pvc
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-service
+  namespace: roaming-world
+  labels:
+    app: kafka
+spec:
+  type: ClusterIP
+  selector:
+    app: kafka
+  ports:
+  - name: kafka
+    port: 9092
+    targetPort: 9092
+  - name: controller
+    port: 9093
+    targetPort: 9093
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+  namespace: roaming-world
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+
+# Meilisearch（场景搜索）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meilisearch
+  namespace: roaming-world
+  labels:
+    app: meilisearch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meilisearch
+  template:
+    metadata:
+      labels:
+        app: meilisearch
+    spec:
+      containers:
+      - name: meilisearch
+        image: getmeili/meilisearch:v1.8
+        env:
+        - name: MEILI_ENV
+          value: "production"
+        - name: MEILI_NO_ANALYTICS
+          value: "true"
+        - name: MEILI_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: roaming-world-secrets
+              key: meili-master-key
+        ports:
+        - containerPort: 7700
+          name: http
+        volumeMounts:
+        - name: meili-storage
+          mountPath: /meili_data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 7700
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: meili-storage
+        persistentVolumeClaim:
+          claimName: meili-pvc
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: meilisearch-service
+  namespace: roaming-world
+  labels:
+    app: meilisearch
+spec:
+  type: ClusterIP
+  selector:
+    app: meilisearch
+  ports:
+  - name: http
+    port: 7700
+    targetPort: 7700
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: meili-pvc
+  namespace: roaming-world
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

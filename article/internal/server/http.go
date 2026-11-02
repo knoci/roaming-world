@@ -15,6 +15,7 @@ import (
 // NewHTTPServer new an HTTP server.
 func NewHTTPServer(c *conf.Server, article *service.ArticleService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
+		http.Filter(metricsFilter),
 		http.Middleware(
 			recovery.Recovery(),
 			mmd.Server(),
@@ -34,6 +35,7 @@ func NewHTTPServer(c *conf.Server, article *service.ArticleService, logger log.L
 	srv.Route("/").GET("/healthz", func(ctx http.Context) error {
 		return ctx.String(200, "ok")
 	})
+	srv.Route("/").GET("/metrics", metricsHandler)
 	v1.RegisterArticleHTTPServer(srv, article)
 	return srv
 }

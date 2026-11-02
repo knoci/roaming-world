@@ -23,10 +23,16 @@ const OperationUserConfirmEmail = "/user.v1.User/ConfirmEmail"
 const OperationUserConfirmUser = "/user.v1.User/ConfirmUser"
 const OperationUserDeleteUser = "/user.v1.User/DeleteUser"
 const OperationUserFindUser = "/user.v1.User/FindUser"
+const OperationUserFollowUser = "/user.v1.User/FollowUser"
+const OperationUserGetFollowers = "/user.v1.User/GetFollowers"
+const OperationUserGetFollowing = "/user.v1.User/GetFollowing"
+const OperationUserGetNotifications = "/user.v1.User/GetNotifications"
 const OperationUserLogin = "/user.v1.User/Login"
+const OperationUserMarkNotificationRead = "/user.v1.User/MarkNotificationRead"
 const OperationUserRegister = "/user.v1.User/Register"
 const OperationUserResetPassword = "/user.v1.User/ResetPassword"
 const OperationUserSendVerificationCode = "/user.v1.User/SendVerificationCode"
+const OperationUserUnfollowUser = "/user.v1.User/UnfollowUser"
 const OperationUserUpdateUserInfo = "/user.v1.User/UpdateUserInfo"
 const OperationUserUploadAvatar = "/user.v1.User/UploadAvatar"
 
@@ -39,14 +45,26 @@ type UserHTTPServer interface {
 	DeleteUser(context.Context, *DeleteUserRequest) (*DeleteUserReply, error)
 	// FindUser 查找用户
 	FindUser(context.Context, *FindUserRequest) (*FindUserReply, error)
+	// FollowUser 关注用户
+	FollowUser(context.Context, *FollowUserRequest) (*FollowUserReply, error)
+	// GetFollowers 粉丝列表
+	GetFollowers(context.Context, *GetFollowersRequest) (*GetFollowersReply, error)
+	// GetFollowing 关注列表
+	GetFollowing(context.Context, *GetFollowingRequest) (*GetFollowingReply, error)
+	// GetNotifications 我的通知
+	GetNotifications(context.Context, *GetNotificationsRequest) (*GetNotificationsReply, error)
 	// Login 用户登录
 	Login(context.Context, *LoginRequest) (*LoginReply, error)
+	// MarkNotificationRead 标记通知已读
+	MarkNotificationRead(context.Context, *MarkNotificationReadRequest) (*MarkNotificationReadReply, error)
 	// Register 用户注册
 	Register(context.Context, *RegisterRequest) (*RegisterReply, error)
 	// ResetPassword 重置密码
 	ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordReply, error)
 	// SendVerificationCode 发送验证码
 	SendVerificationCode(context.Context, *SendVerificationCodeRequest) (*SendVerificationCodeReply, error)
+	// UnfollowUser 取消关注
+	UnfollowUser(context.Context, *UnfollowUserRequest) (*UnfollowUserReply, error)
 	// UpdateUserInfo 更新用户信息
 	UpdateUserInfo(context.Context, *UpdateUserInfoRequest) (*UpdateUserInfoReply, error)
 	// UploadAvatar 上传头像
@@ -65,6 +83,12 @@ func RegisterUserHTTPServer(s *http.Server, srv UserHTTPServer) {
 	r.POST("/v1/user/avatar", _User_UploadAvatar0_HTTP_Handler(srv))
 	r.POST("/v1/user/confirm", _User_ConfirmUser0_HTTP_Handler(srv))
 	r.POST("/v1/user/email/confirm", _User_ConfirmEmail0_HTTP_Handler(srv))
+	r.POST("/v1/user/{uid}/follow", _User_FollowUser0_HTTP_Handler(srv))
+	r.DELETE("/v1/user/{uid}/follow", _User_UnfollowUser0_HTTP_Handler(srv))
+	r.GET("/v1/user/{uid}/followers", _User_GetFollowers0_HTTP_Handler(srv))
+	r.GET("/v1/user/{uid}/following", _User_GetFollowing0_HTTP_Handler(srv))
+	r.GET("/v1/user/notifications", _User_GetNotifications0_HTTP_Handler(srv))
+	r.POST("/v1/user/notifications/{id}/read", _User_MarkNotificationRead0_HTTP_Handler(srv))
 }
 
 func _User_Register0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
@@ -278,15 +302,150 @@ func _User_ConfirmEmail0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context)
 	}
 }
 
+func _User_FollowUser0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in FollowUserRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserFollowUser)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.FollowUser(ctx, req.(*FollowUserRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*FollowUserReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _User_UnfollowUser0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UnfollowUserRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserUnfollowUser)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UnfollowUser(ctx, req.(*UnfollowUserRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*UnfollowUserReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _User_GetFollowers0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetFollowersRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserGetFollowers)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetFollowers(ctx, req.(*GetFollowersRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetFollowersReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _User_GetFollowing0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetFollowingRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserGetFollowing)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetFollowing(ctx, req.(*GetFollowingRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetFollowingReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _User_GetNotifications0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetNotificationsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserGetNotifications)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetNotifications(ctx, req.(*GetNotificationsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetNotificationsReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _User_MarkNotificationRead0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in MarkNotificationReadRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserMarkNotificationRead)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.MarkNotificationRead(ctx, req.(*MarkNotificationReadRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*MarkNotificationReadReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 type UserHTTPClient interface {
 	ConfirmEmail(ctx context.Context, req *ConfirmEmailRequest, opts ...http.CallOption) (rsp *ConfirmEmailReply, err error)
 	ConfirmUser(ctx context.Context, req *ConfirmUserRequest, opts ...http.CallOption) (rsp *ConfirmUserReply, err error)
 	DeleteUser(ctx context.Context, req *DeleteUserRequest, opts ...http.CallOption) (rsp *DeleteUserReply, err error)
 	FindUser(ctx context.Context, req *FindUserRequest, opts ...http.CallOption) (rsp *FindUserReply, err error)
+	FollowUser(ctx context.Context, req *FollowUserRequest, opts ...http.CallOption) (rsp *FollowUserReply, err error)
+	GetFollowers(ctx context.Context, req *GetFollowersRequest, opts ...http.CallOption) (rsp *GetFollowersReply, err error)
+	GetFollowing(ctx context.Context, req *GetFollowingRequest, opts ...http.CallOption) (rsp *GetFollowingReply, err error)
+	GetNotifications(ctx context.Context, req *GetNotificationsRequest, opts ...http.CallOption) (rsp *GetNotificationsReply, err error)
 	Login(ctx context.Context, req *LoginRequest, opts ...http.CallOption) (rsp *LoginReply, err error)
+	MarkNotificationRead(ctx context.Context, req *MarkNotificationReadRequest, opts ...http.CallOption) (rsp *MarkNotificationReadReply, err error)
 	Register(ctx context.Context, req *RegisterRequest, opts ...http.CallOption) (rsp *RegisterReply, err error)
 	ResetPassword(ctx context.Context, req *ResetPasswordRequest, opts ...http.CallOption) (rsp *ResetPasswordReply, err error)
 	SendVerificationCode(ctx context.Context, req *SendVerificationCodeRequest, opts ...http.CallOption) (rsp *SendVerificationCodeReply, err error)
+	UnfollowUser(ctx context.Context, req *UnfollowUserRequest, opts ...http.CallOption) (rsp *UnfollowUserReply, err error)
 	UpdateUserInfo(ctx context.Context, req *UpdateUserInfoRequest, opts ...http.CallOption) (rsp *UpdateUserInfoReply, err error)
 	UploadAvatar(ctx context.Context, req *UploadAvatarRequest, opts ...http.CallOption) (rsp *UploadAvatarReply, err error)
 }
@@ -351,6 +510,58 @@ func (c *UserHTTPClientImpl) FindUser(ctx context.Context, in *FindUserRequest, 
 	return &out, nil
 }
 
+func (c *UserHTTPClientImpl) FollowUser(ctx context.Context, in *FollowUserRequest, opts ...http.CallOption) (*FollowUserReply, error) {
+	var out FollowUserReply
+	pattern := "/v1/user/{uid}/follow"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationUserFollowUser))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserHTTPClientImpl) GetFollowers(ctx context.Context, in *GetFollowersRequest, opts ...http.CallOption) (*GetFollowersReply, error) {
+	var out GetFollowersReply
+	pattern := "/v1/user/{uid}/followers"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationUserGetFollowers))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserHTTPClientImpl) GetFollowing(ctx context.Context, in *GetFollowingRequest, opts ...http.CallOption) (*GetFollowingReply, error) {
+	var out GetFollowingReply
+	pattern := "/v1/user/{uid}/following"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationUserGetFollowing))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserHTTPClientImpl) GetNotifications(ctx context.Context, in *GetNotificationsRequest, opts ...http.CallOption) (*GetNotificationsReply, error) {
+	var out GetNotificationsReply
+	pattern := "/v1/user/notifications"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationUserGetNotifications))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *UserHTTPClientImpl) Login(ctx context.Context, in *LoginRequest, opts ...http.CallOption) (*LoginReply, error) {
 	var out LoginReply
 	pattern := "/v1/user/login"
@@ -358,6 +569,19 @@ func (c *UserHTTPClientImpl) Login(ctx context.Context, in *LoginRequest, opts .
 	opts = append(opts, http.Operation(OperationUserLogin))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserHTTPClientImpl) MarkNotificationRead(ctx context.Context, in *MarkNotificationReadRequest, opts ...http.CallOption) (*MarkNotificationReadReply, error) {
+	var out MarkNotificationReadReply
+	pattern := "/v1/user/notifications/{id}/read"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationUserMarkNotificationRead))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -397,6 +621,19 @@ func (c *UserHTTPClientImpl) SendVerificationCode(ctx context.Context, in *SendV
 	opts = append(opts, http.Operation(OperationUserSendVerificationCode))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserHTTPClientImpl) UnfollowUser(ctx context.Context, in *UnfollowUserRequest, opts ...http.CallOption) (*UnfollowUserReply, error) {
+	var out UnfollowUserReply
+	pattern := "/v1/user/{uid}/follow"
+	path := binding.EncodeURL(pattern, in, true)
+	opts = append(opts, http.Operation(OperationUserUnfollowUser))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

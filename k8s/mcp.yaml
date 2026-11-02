@@ -1,0 +1,73 @@
+# MCP server: read-only tools backed by the existing HTTP APIs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-service
+  namespace: roaming-world
+  labels:
+    app: mcp-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-service
+  template:
+    metadata:
+      labels:
+        app: mcp-service
+    spec:
+      containers:
+        - name: mcp-service
+          image: roaming-world/mcp:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: SCENE_API
+              value: http://scene-service:8000
+            - name: FOOD_API
+              value: http://food-service:8000
+            - name: ARTICLE_API
+              value: http://article-service:8000
+            - name: MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: roaming-world-secrets
+                  key: mcp-token
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-service
+  namespace: roaming-world
+  labels:
+    app: mcp-service
+spec:
+  type: ClusterIP
+  selector:
+    app: mcp-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

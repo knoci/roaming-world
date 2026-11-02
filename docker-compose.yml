@@ -1,0 +1,400 @@
+name: roaming-world
+
+x-app-healthcheck: &app-healthcheck
+  test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+  interval: 10s
+  timeout: 3s
+  retries: 12
+  start_period: 30s
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: roaming_world
+      POSTGRES_USER: roaming
+      POSTGRES_PASSWORD: roaming
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/migrations:/docker-entrypoint-initdb.d:ro
+      - ./deploy/postgres/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U roaming -d roaming_world"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=etcd=http://etcd:2380
+      - --initial-cluster-state=new
+    ports:
+      - "2379:2379"
+    volumes:
+      - etcd_data:/etcd-data
+
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.8
+    environment:
+      MEILI_ENV: "development"
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: roaming-meili-master-key
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    environment:
+      MODE: "standalone"
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    volumes:
+      - nacos_data:/home/nacos/data
+
+  nacos-init:
+    image: curlimages/curl:8.8.0
+    depends_on:
+      nacos:
+        condition: service_started
+    volumes:
+      - ./deploy/nacos/roaming-world.yaml:/config/roaming-world.yaml:ro
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        until curl -fsS "http://nacos:8848/nacos/v1/console/health/readiness" >/dev/null 2>&1 || \
+              curl -fsS "http://nacos:8848/nacos/actuator/health" >/dev/null 2>&1; do
+          echo "waiting for nacos..."
+          sleep 2
+        done
+        for i in 1 2 3 4 5; do
+          if curl -fsS -X POST "http://nacos:8848/nacos/v1/cs/configs" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "dataId=roaming-world.yaml" \
+            -d "group=DEFAULT_GROUP" \
+            -d "type=yaml" \
+            --data-urlencode "content@/config/roaming-world.yaml" \
+            -o /tmp/import.out; then
+            echo "import response: $(cat /tmp/import.out)"
+            break
+          fi
+          echo "import failed, retry..."
+          sleep 2
+        done
+        curl -fsS "http://nacos:8848/nacos/v1/cs/configs?dataId=roaming-world.yaml&group=DEFAULT_GROUP&tenant=" -o /tmp/imported.yaml
+        test -s /tmp/imported.yaml
+        echo "nacos config imported"
+
+  user:
+    build: ./user
+    ports:
+      - "18000:8000"
+      - "19000:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_started
+      kafka:
+        condition: service_started
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  scene:
+    build: ./scene
+    ports:
+      - "18001:8000"
+      - "19001:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      meilisearch:
+        condition: service_started
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  food:
+    build: ./food
+    ports:
+      - "18002:8000"
+      - "19002:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  comment:
+    build: ./comment
+    ports:
+      - "18003:8000"
+      - "19003:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      user:
+        condition: service_started
+      article:
+        condition: service_started
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  article:
+    build: ./article
+    ports:
+      - "18004:8000"
+      - "19004:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  audiobook:
+    build: ./audiobook
+    ports:
+      - "18005:8000"
+      - "19005:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  plan:
+    build: ./plan
+    ports:
+      - "18006:8000"
+      - "19006:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  ai:
+    build: ./ai
+    ports:
+      - "18007:8000"
+    environment:
+      AI_DB_HOST: postgres
+      AI_DB_PORT: "5432"
+      AI_DB_USER: roaming
+      AI_DB_PASSWORD: roaming
+      AI_DB_NAME: roaming_world
+      AI_INGEST_TOKEN: dev-ingest-token
+      MCP_URL: http://mcp:8000/mcp
+      MCP_TOKEN: dev-mcp-token
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-https://maas.qianwenaiapi.com/compatible-mode/v1}
+      QWEN_MODEL: ${QWEN_MODEL:-qwen3.8-2.4t-a95b}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+      XIAOMI_API_KEY: ${XIAOMI_API_KEY:-}
+      XIAOMI_BASE_URL: ${XIAOMI_BASE_URL:-https://api.xiaomimimo.com/v1}
+      XIAOMI_MODEL: ${XIAOMI_MODEL:-mimo-v2.6-pro}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  mcp:
+    build: ./mcp
+    ports:
+      - "18008:8000"
+    environment:
+      SCENE_API: http://scene:8000
+      FOOD_API: http://food:8000
+      ARTICLE_API: http://article:8000
+      MCP_TOKEN: dev-mcp-token
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "18009:8000"
+      - "19009:9000"
+    environment:
+      NACOS_ADDR: nacos
+      NACOS_PORT: "8848"
+      NACOS_NAMESPACE_ID: ""
+      NACOS_DATA_ID: roaming-world.yaml
+      NACOS_GROUP_ID: DEFAULT_GROUP
+      AI_ENGINE_URL: http://ai:8000
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      ai:
+        condition: service_healthy
+    restart: on-failure
+    healthcheck: *app-healthcheck
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  etcd_data:
+  kafka_data:
+  meili_data:
+  nacos_data:

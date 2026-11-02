@@ -19,6 +19,15 @@ var (
 	// ErrUnauthorized 未授权
 	ErrUnauthorized = errors.New(401, "UNAUTHORIZED", "未登录")
 
+	// ErrInvalidArgument 参数错误
+	ErrInvalidArgument = errors.New(400, "INVALID_ARGUMENT", "参数错误")
+
+	// ErrReportExists 已经举报过
+	ErrReportExists = errors.New(409, "REPORT_EXISTS", "已经举报过该评论")
+
+	// ErrReportNotFound 举报不存在
+	ErrReportNotFound = errors.New(404, "REPORT_NOT_FOUND", "举报不存在")
+
 	// ErrParentCommentNotFound 父评论不存在
 	ErrParentCommentNotFound = errors.New(404, "PARENT_COMMENT_NOT_FOUND", "回复的评论不存在")
 )

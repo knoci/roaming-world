@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v4.25.8
-// source: api/audiobook/v1/audiobook.proto
+// source: audiobook/v1/audiobook.proto
 
 package v1
 
@@ -42,7 +42,7 @@ type AudiobookMessage struct {
 
 func (x *AudiobookMessage) Reset() {
 	*x = AudiobookMessage{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[0]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54,7 +54,7 @@ func (x *AudiobookMessage) String() string {
 func (*AudiobookMessage) ProtoMessage() {}
 
 func (x *AudiobookMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[0]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -67,7 +67,7 @@ func (x *AudiobookMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AudiobookMessage.ProtoReflect.Descriptor instead.
 func (*AudiobookMessage) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{0}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AudiobookMessage) GetBid() string {
@@ -157,7 +157,7 @@ type AudiobookDetailMessage struct {
 
 func (x *AudiobookDetailMessage) Reset() {
 	*x = AudiobookDetailMessage{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[1]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -169,7 +169,7 @@ func (x *AudiobookDetailMessage) String() string {
 func (*AudiobookDetailMessage) ProtoMessage() {}
 
 func (x *AudiobookDetailMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[1]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -182,7 +182,7 @@ func (x *AudiobookDetailMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AudiobookDetailMessage.ProtoReflect.Descriptor instead.
 func (*AudiobookDetailMessage) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{1}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AudiobookDetailMessage) GetDid() string {
@@ -255,7 +255,7 @@ type CreateAudiobookRequest struct {
 
 func (x *CreateAudiobookRequest) Reset() {
 	*x = CreateAudiobookRequest{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[2]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -267,7 +267,7 @@ func (x *CreateAudiobookRequest) String() string {
 func (*CreateAudiobookRequest) ProtoMessage() {}
 
 func (x *CreateAudiobookRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[2]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +280,7 @@ func (x *CreateAudiobookRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAudiobookRequest.ProtoReflect.Descriptor instead.
 func (*CreateAudiobookRequest) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{2}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CreateAudiobookRequest) GetView() string {
@@ -328,7 +328,7 @@ type CreateAudiobookReply struct {
 
 func (x *CreateAudiobookReply) Reset() {
 	*x = CreateAudiobookReply{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[3]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -340,7 +340,7 @@ func (x *CreateAudiobookReply) String() string {
 func (*CreateAudiobookReply) ProtoMessage() {}
 
 func (x *CreateAudiobookReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[3]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -353,7 +353,7 @@ func (x *CreateAudiobookReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAudiobookReply.ProtoReflect.Descriptor instead.
 func (*CreateAudiobookReply) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{3}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CreateAudiobookReply) GetAudiobook() *AudiobookMessage {
@@ -377,7 +377,7 @@ type CreateAudiobookDetailRequest struct {
 
 func (x *CreateAudiobookDetailRequest) Reset() {
 	*x = CreateAudiobookDetailRequest{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[4]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -389,7 +389,7 @@ func (x *CreateAudiobookDetailRequest) String() string {
 func (*CreateAudiobookDetailRequest) ProtoMessage() {}
 
 func (x *CreateAudiobookDetailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[4]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -402,7 +402,7 @@ func (x *CreateAudiobookDetailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAudiobookDetailRequest.ProtoReflect.Descriptor instead.
 func (*CreateAudiobookDetailRequest) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{4}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CreateAudiobookDetailRequest) GetBid() string {
@@ -450,7 +450,7 @@ type CreateAudiobookDetailReply struct {
 
 func (x *CreateAudiobookDetailReply) Reset() {
 	*x = CreateAudiobookDetailReply{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[5]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -462,7 +462,7 @@ func (x *CreateAudiobookDetailReply) String() string {
 func (*CreateAudiobookDetailReply) ProtoMessage() {}
 
 func (x *CreateAudiobookDetailReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[5]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -475,7 +475,7 @@ func (x *CreateAudiobookDetailReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAudiobookDetailReply.ProtoReflect.Descriptor instead.
 func (*CreateAudiobookDetailReply) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{5}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateAudiobookDetailReply) GetDetail() *AudiobookDetailMessage {
@@ -495,7 +495,7 @@ type GetAudiobooksRequest struct {
 
 func (x *GetAudiobooksRequest) Reset() {
 	*x = GetAudiobooksRequest{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[6]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -507,7 +507,7 @@ func (x *GetAudiobooksRequest) String() string {
 func (*GetAudiobooksRequest) ProtoMessage() {}
 
 func (x *GetAudiobooksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[6]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -520,7 +520,7 @@ func (x *GetAudiobooksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAudiobooksRequest.ProtoReflect.Descriptor instead.
 func (*GetAudiobooksRequest) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{6}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetAudiobooksRequest) GetStatus() string {
@@ -540,7 +540,7 @@ type GetAudiobooksReply struct {
 
 func (x *GetAudiobooksReply) Reset() {
 	*x = GetAudiobooksReply{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[7]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -552,7 +552,7 @@ func (x *GetAudiobooksReply) String() string {
 func (*GetAudiobooksReply) ProtoMessage() {}
 
 func (x *GetAudiobooksReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[7]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -565,7 +565,7 @@ func (x *GetAudiobooksReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAudiobooksReply.ProtoReflect.Descriptor instead.
 func (*GetAudiobooksReply) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{7}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetAudiobooksReply) GetAudiobooks() []*AudiobookMessage {
@@ -585,7 +585,7 @@ type GetAudiobookDetailsRequest struct {
 
 func (x *GetAudiobookDetailsRequest) Reset() {
 	*x = GetAudiobookDetailsRequest{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[8]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +597,7 @@ func (x *GetAudiobookDetailsRequest) String() string {
 func (*GetAudiobookDetailsRequest) ProtoMessage() {}
 
 func (x *GetAudiobookDetailsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[8]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +610,7 @@ func (x *GetAudiobookDetailsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAudiobookDetailsRequest.ProtoReflect.Descriptor instead.
 func (*GetAudiobookDetailsRequest) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{8}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetAudiobookDetailsRequest) GetBid() string {
@@ -630,7 +630,7 @@ type GetAudiobookDetailsReply struct {
 
 func (x *GetAudiobookDetailsReply) Reset() {
 	*x = GetAudiobookDetailsReply{}
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[9]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -642,7 +642,7 @@ func (x *GetAudiobookDetailsReply) String() string {
 func (*GetAudiobookDetailsReply) ProtoMessage() {}
 
 func (x *GetAudiobookDetailsReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_audiobook_v1_audiobook_proto_msgTypes[9]
+	mi := &file_audiobook_v1_audiobook_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -655,7 +655,7 @@ func (x *GetAudiobookDetailsReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAudiobookDetailsReply.ProtoReflect.Descriptor instead.
 func (*GetAudiobookDetailsReply) Descriptor() ([]byte, []int) {
-	return file_api_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{9}
+	return file_audiobook_v1_audiobook_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetAudiobookDetailsReply) GetDetails() []*AudiobookDetailMessage {
@@ -665,11 +665,11 @@ func (x *GetAudiobookDetailsReply) GetDetails() []*AudiobookDetailMessage {
 	return nil
 }
 
-var File_api_audiobook_v1_audiobook_proto protoreflect.FileDescriptor
+var File_audiobook_v1_audiobook_proto protoreflect.FileDescriptor
 
-const file_api_audiobook_v1_audiobook_proto_rawDesc = "" +
+const file_audiobook_v1_audiobook_proto_rawDesc = "" +
 	"\n" +
-	" api/audiobook/v1/audiobook.proto\x12\faudiobook.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17validate/validate.proto\"\x9a\x02\n" +
+	"\x1caudiobook/v1/audiobook.proto\x12\faudiobook.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17validate/validate.proto\"\x9a\x02\n" +
 	"\x10AudiobookMessage\x12\x10\n" +
 	"\x03bid\x18\x01 \x01(\tR\x03bid\x12\x12\n" +
 	"\x04view\x18\x02 \x01(\tR\x04view\x12\x16\n" +
@@ -723,27 +723,27 @@ const file_api_audiobook_v1_audiobook_proto_rawDesc = "" +
 	"\x1aGetAudiobookDetailsRequest\x12\x19\n" +
 	"\x03bid\x18\x01 \x01(\tB\a\xfaB\x04r\x02\x10\x01R\x03bid\"Z\n" +
 	"\x18GetAudiobookDetailsReply\x12>\n" +
-	"\adetails\x18\x01 \x03(\v2$.audiobook.v1.AudiobookDetailMessageR\adetails2\x89\x04\n" +
+	"\adetails\x18\x01 \x03(\v2$.audiobook.v1.AudiobookDetailMessageR\adetails2\x97\x04\n" +
 	"\tAudiobook\x12u\n" +
-	"\x0fCreateAudiobook\x12$.audiobook.v1.CreateAudiobookRequest\x1a\".audiobook.v1.CreateAudiobookReply\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/v1/audiobook\x12\x8e\x01\n" +
-	"\x15CreateAudiobookDetail\x12*.audiobook.v1.CreateAudiobookDetailRequest\x1a(.audiobook.v1.CreateAudiobookDetailReply\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/audiobook/detail\x12l\n" +
-	"\rGetAudiobooks\x12\".audiobook.v1.GetAudiobooksRequest\x1a .audiobook.v1.GetAudiobooksReply\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/audiobook\x12\x85\x01\n" +
-	"\x13GetAudiobookDetails\x12(.audiobook.v1.GetAudiobookDetailsRequest\x1a&.audiobook.v1.GetAudiobookDetailsReply\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/audiobook/detailB\x1fZ\x1daudiobook/api/audiobook/v1;v1b\x06proto3"
+	"\x0fCreateAudiobook\x12$.audiobook.v1.CreateAudiobookRequest\x1a\".audiobook.v1.CreateAudiobookReply\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/v1/audiobook\x12\x95\x01\n" +
+	"\x15CreateAudiobookDetail\x12*.audiobook.v1.CreateAudiobookDetailRequest\x1a(.audiobook.v1.CreateAudiobookDetailReply\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/audiobook/{bid}/details\x12l\n" +
+	"\rGetAudiobooks\x12\".audiobook.v1.GetAudiobooksRequest\x1a .audiobook.v1.GetAudiobooksReply\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/audiobook\x12\x8c\x01\n" +
+	"\x13GetAudiobookDetails\x12(.audiobook.v1.GetAudiobookDetailsRequest\x1a&.audiobook.v1.GetAudiobookDetailsReply\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/audiobook/{bid}/detailsB\x1fZ\x1daudiobook/api/audiobook/v1;v1b\x06proto3"
 
 var (
-	file_api_audiobook_v1_audiobook_proto_rawDescOnce sync.Once
-	file_api_audiobook_v1_audiobook_proto_rawDescData []byte
+	file_audiobook_v1_audiobook_proto_rawDescOnce sync.Once
+	file_audiobook_v1_audiobook_proto_rawDescData []byte
 )
 
-func file_api_audiobook_v1_audiobook_proto_rawDescGZIP() []byte {
-	file_api_audiobook_v1_audiobook_proto_rawDescOnce.Do(func() {
-		file_api_audiobook_v1_audiobook_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_audiobook_v1_audiobook_proto_rawDesc), len(file_api_audiobook_v1_audiobook_proto_rawDesc)))
+func file_audiobook_v1_audiobook_proto_rawDescGZIP() []byte {
+	file_audiobook_v1_audiobook_proto_rawDescOnce.Do(func() {
+		file_audiobook_v1_audiobook_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_audiobook_v1_audiobook_proto_rawDesc), len(file_audiobook_v1_audiobook_proto_rawDesc)))
 	})
-	return file_api_audiobook_v1_audiobook_proto_rawDescData
+	return file_audiobook_v1_audiobook_proto_rawDescData
 }
 
-var file_api_audiobook_v1_audiobook_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
-var file_api_audiobook_v1_audiobook_proto_goTypes = []any{
+var file_audiobook_v1_audiobook_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_audiobook_v1_audiobook_proto_goTypes = []any{
 	(*AudiobookMessage)(nil),             // 0: audiobook.v1.AudiobookMessage
 	(*AudiobookDetailMessage)(nil),       // 1: audiobook.v1.AudiobookDetailMessage
 	(*CreateAudiobookRequest)(nil),       // 2: audiobook.v1.CreateAudiobookRequest
@@ -755,7 +755,7 @@ var file_api_audiobook_v1_audiobook_proto_goTypes = []any{
 	(*GetAudiobookDetailsRequest)(nil),   // 8: audiobook.v1.GetAudiobookDetailsRequest
 	(*GetAudiobookDetailsReply)(nil),     // 9: audiobook.v1.GetAudiobookDetailsReply
 }
-var file_api_audiobook_v1_audiobook_proto_depIdxs = []int32{
+var file_audiobook_v1_audiobook_proto_depIdxs = []int32{
 	0, // 0: audiobook.v1.CreateAudiobookReply.audiobook:type_name -> audiobook.v1.AudiobookMessage
 	1, // 1: audiobook.v1.CreateAudiobookDetailReply.detail:type_name -> audiobook.v1.AudiobookDetailMessage
 	0, // 2: audiobook.v1.GetAudiobooksReply.audiobooks:type_name -> audiobook.v1.AudiobookMessage
@@ -775,26 +775,26 @@ var file_api_audiobook_v1_audiobook_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_api_audiobook_v1_audiobook_proto_init() }
-func file_api_audiobook_v1_audiobook_proto_init() {
-	if File_api_audiobook_v1_audiobook_proto != nil {
+func init() { file_audiobook_v1_audiobook_proto_init() }
+func file_audiobook_v1_audiobook_proto_init() {
+	if File_audiobook_v1_audiobook_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_audiobook_v1_audiobook_proto_rawDesc), len(file_api_audiobook_v1_audiobook_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_audiobook_v1_audiobook_proto_rawDesc), len(file_audiobook_v1_audiobook_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_audiobook_v1_audiobook_proto_goTypes,
-		DependencyIndexes: file_api_audiobook_v1_audiobook_proto_depIdxs,
-		MessageInfos:      file_api_audiobook_v1_audiobook_proto_msgTypes,
+		GoTypes:           file_audiobook_v1_audiobook_proto_goTypes,
+		DependencyIndexes: file_audiobook_v1_audiobook_proto_depIdxs,
+		MessageInfos:      file_audiobook_v1_audiobook_proto_msgTypes,
 	}.Build()
-	File_api_audiobook_v1_audiobook_proto = out.File
-	file_api_audiobook_v1_audiobook_proto_goTypes = nil
-	file_api_audiobook_v1_audiobook_proto_depIdxs = nil
+	File_audiobook_v1_audiobook_proto = out.File
+	file_audiobook_v1_audiobook_proto_goTypes = nil
+	file_audiobook_v1_audiobook_proto_depIdxs = nil
 }

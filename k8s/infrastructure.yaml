@@ -26,7 +26,7 @@ spec:
               name: roaming-world-secrets
               key: mysql-password
         - name: MYSQL_DATABASE
-          value: "roaming_world"
+          value: "nacos_config"
         ports:
         - containerPort: 3306
           name: mysql

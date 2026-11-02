@@ -13,6 +13,7 @@ import (
 // NewHTTPServer new an HTTP server.
 func NewHTTPServer(c *conf.Server, audiobook *service.AudiobookService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
+		http.Filter(metricsFilter),
 		http.Middleware(
 			recovery.Recovery(),
 		),
@@ -30,6 +31,7 @@ func NewHTTPServer(c *conf.Server, audiobook *service.AudiobookService, logger l
 	srv.Route("/").GET("/healthz", func(ctx http.Context) error {
 		return ctx.String(200, "ok")
 	})
+	srv.Route("/").GET("/metrics", metricsHandler)
 	v1.RegisterAudiobookHTTPServer(srv, audiobook)
 	return srv
 }

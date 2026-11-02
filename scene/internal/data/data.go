@@ -2,14 +2,12 @@ package data
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/scene/internal/conf"
 	nacos "github.com/knoci/roaming-world/scene/internal/conf/nacos"
-	kafka "github.com/knoci/roaming-world/scene/internal/pkg"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
@@ -25,23 +23,10 @@ var ProviderSet = wire.NewSet(
 
 // Data ..
 type Data struct {
-	db        *gorm.DB
-	log       *log.Helper
-	redis     *redis.Client
-	cdc       *kafka.KafkaSender
-	logsender *kafka.KafkaSender
-	meili     meilisearch.ServiceManager
-}
-
-type SqlMsg struct {
-	Query  string        `json:"query"`
-	Params []interface{} `json:"params"`
-}
-
-type ErrorMsg struct {
-	ErrorMsg  string `json:"error_msg"`
-	ErrorOp   string `json:"error_op"`
-	ErrorData any    `json:"error_data"`
+	db    *gorm.DB
+	log   *log.Helper
+	redis *redis.Client
+	meili meilisearch.ServiceManager
 }
 
 // NewData .
@@ -75,20 +60,6 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	if err != nil {
 		log.Errorf("sceneData: failed to auto migrate: %v", err)
 		return nil, nil, err
-	}
-
-	address1 := nacos.GetConfigString(cfg, "kafka.address.cdc")
-	topic1 := nacos.GetConfigString(cfg, "kafka.topic.cdc")
-	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
-	if err != nil {
-		panic(err)
-	}
-
-	address2 := nacos.GetConfigString(cfg, "kafka.address.log")
-	topic2 := nacos.GetConfigString(cfg, "kafka.topic.log")
-	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
-	if err != nil {
-		panic(err)
 	}
 
 	// 初始化MeiliSearch客户端
@@ -146,11 +117,9 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 	// 创建Data实例
 	d := &Data{
-		db:        db,
-		log:       log,
-		cdc:       cdc,
-		logsender: logsender,
-		meili:     meili,
+		db:    db,
+		log:   log,
+		meili: meili,
 	}
 
 	// 异步同步数据库中的场景到MeiliSearch
@@ -239,37 +208,12 @@ func (d *Data) syncScenesToMeiliSearch(ctx context.Context) {
 
 }
 
-func (d *Data) SendSqlLog(ctx context.Context, key string, sql string, params []interface{}) error {
-	msg := SqlMsg{
-		Query:  sql,
-		Params: params,
-	}
-	sqlbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	sqllog := kafka.NewMessage(key, sqlbyte)
-	err = d.cdc.Send(ctx, sqllog)
-	if err != nil {
-		return err
-	}
+func (d *Data) LogSQLAudit(ctx context.Context, key string, sql string, params []interface{}) error {
+	d.log.WithContext(ctx).Debugf("sql audit: %s", sql)
 	return nil
 }
 
-func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
-	msg := ErrorMsg{
-		ErrorMsg:  errmsg,
-		ErrorOp:   errop,
-		ErrorData: errdata,
-	}
-	errbyte, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	errorlog := kafka.NewMessage(key, errbyte)
-	err = d.logsender.Send(ctx, errorlog)
-	if err != nil {
-		return err
-	}
+func (d *Data) LogError(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
+	d.log.WithContext(ctx).Errorf("module=%s op=%s error=%s data=%v", key, errop, errmsg, errdata)
 	return nil
 }

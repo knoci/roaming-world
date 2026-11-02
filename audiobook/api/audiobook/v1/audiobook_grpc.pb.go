@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.25.8
-// source: api/audiobook/v1/audiobook.proto
+// source: audiobook/v1/audiobook.proto
 
 package v1
 
@@ -243,5 +243,5 @@ var Audiobook_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/audiobook/v1/audiobook.proto",
+	Metadata: "audiobook/v1/audiobook.proto",
 }

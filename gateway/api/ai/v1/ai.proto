@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package gateway.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/knoci/roaming-world/gateway/api/ai/v1;v1";
+
+// Ai gateway: validates JWT, then proxies to the Python AI engine.
+service Ai {
+  rpc Chat(ChatRequest) returns (ProxyReply) {
+    option (google.api.http) = {
+      post: "/v1/ai/chat"
+      body: "*"
+    };
+  }
+
+  rpc Agent(ChatRequest) returns (ProxyReply) {
+    option (google.api.http) = {
+      post: "/v1/ai/agent"
+      body: "*"
+    };
+  }
+
+  rpc Graph(ChatRequest) returns (ProxyReply) {
+    option (google.api.http) = {
+      post: "/v1/ai/graph"
+      body: "*"
+    };
+  }
+
+  rpc Multi(ChatRequest) returns (ProxyReply) {
+    option (google.api.http) = {
+      post: "/v1/ai/multi"
+      body: "*"
+    };
+  }
+}
+
+message ChatRequest {
+  string query = 1;
+  int32 top_k = 2;
+}
+
+message ProxyReply {
+  string raw_json = 1;
+}

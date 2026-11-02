@@ -3,7 +3,6 @@ package data
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
+	userv1 "github.com/knoci/roaming-world/article/api/user/v1"
 	"github.com/knoci/roaming-world/article/internal/biz"
 )
 
@@ -24,21 +25,25 @@ const (
 
 // Article 文章表模型。
 type Article struct {
-	AID       string    `gorm:"primaryKey;type:varchar(36);column:aid" json:"aid"`
-	UID       string    `gorm:"type:varchar(36);column:uid;index" json:"uid"`
-	Name      string    `gorm:"type:varchar(50);not null" json:"name"`
-	Avatar    string    `gorm:"type:varchar(255)" json:"avatar"`
-	Title     string    `gorm:"type:varchar(100);not null" json:"title"`
-	View      []string  `gorm:"type:text;not null;serializer:json" json:"view"`
-	Content   string    `gorm:"type:text;not null" json:"content"`
-	Likes     int       `gorm:"default:0" json:"likes"`
-	Comments  int       `gorm:"default:0" json:"comments"`
-	Favorite  int       `gorm:"default:0" json:"favorite"`
-	Video     bool      `gorm:"default:false;index:idx_articles_video_videoid,priority:1" json:"video"`
-	Videoid   int       `gorm:"default:0;index:idx_articles_video_videoid,priority:2" json:"videoid"`
-	Height    int       `gorm:"default:0" json:"height"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	AID          string     `gorm:"primaryKey;type:varchar(36);column:aid" json:"aid"`
+	UID          string     `gorm:"type:varchar(36);column:uid;index" json:"uid"`
+	Name         string     `gorm:"type:varchar(50);not null" json:"name"`
+	Avatar       string     `gorm:"type:varchar(255)" json:"avatar"`
+	Title        string     `gorm:"type:varchar(100);not null" json:"title"`
+	View         []string   `gorm:"type:text;not null;serializer:json" json:"view"`
+	Content      string     `gorm:"type:text;not null" json:"content"`
+	Likes        int        `gorm:"default:0" json:"likes"`
+	Comments     int        `gorm:"default:0" json:"comments"`
+	Favorite     int        `gorm:"default:0" json:"favorite"`
+	Video        bool       `gorm:"default:false;index:idx_articles_video_videoid,priority:1" json:"video"`
+	Videoid      int        `gorm:"default:0;index:idx_articles_video_videoid,priority:2" json:"videoid"`
+	Height       int        `gorm:"default:0" json:"height"`
+	Status       string     `gorm:"type:varchar(20);not null;default:published;index:idx_articles_status" json:"status"`
+	PublishedAt  *time.Time `json:"published_at"`
+	ReviewedBy   string     `gorm:"type:varchar(36)" json:"reviewed_by"`
+	ReviewReason string     `gorm:"type:text" json:"review_reason"`
+	CreatedAt    time.Time  `gorm:"index:idx_articles_created_at" json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 func (a *Article) BeforeCreate(tx *gorm.DB) error {
@@ -83,10 +88,14 @@ func (r *articleRepo) Create(ctx context.Context, a *biz.Article) (*biz.Article,
 		Content: a.Content,
 		Video:   a.Video,
 		Height:  a.Height,
+		Status:  a.Status,
+	}
+	if article.Status == "" {
+		article.Status = "draft"
 	}
 	if err := r.data.db.WithContext(ctx).Create(article).Error; err != nil {
 		r.log.WithContext(ctx).Errorf("articleRepo: create article failed: %v", err)
-		_ = r.data.SendErrorLog(ctx, "article", err.Error(), "db.Create", article)
+		_ = r.data.LogError(ctx, "article", err.Error(), "db.Create", article)
 		return nil, err
 	}
 
@@ -94,14 +103,16 @@ func (r *articleRepo) Create(ctx context.Context, a *biz.Article) (*biz.Article,
 	r.sendSQL(ctx, "INSERT INTO articles (aid, uid, name, avatar, title, view, content, video, videoid, height) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
 		article.AID, article.UID, article.Name, article.Avatar, article.Title, string(viewJSON), article.Content, article.Video, article.Videoid, article.Height)
 
-	// 新文章初始化四个排序 zset，后续点赞/评论/收藏只更新分数。
-	pipe := r.data.redis.Pipeline()
-	pipe.ZAdd(ctx, keyArticleLikes, redis.Z{Score: 0, Member: article.AID})
-	pipe.ZAdd(ctx, keyArticleComments, redis.Z{Score: 0, Member: article.AID})
-	pipe.ZAdd(ctx, keyArticleFavorites, redis.Z{Score: 0, Member: article.AID})
-	pipe.ZAdd(ctx, keyArticleTime, redis.Z{Score: float64(article.CreatedAt.Unix()), Member: article.AID})
-	if _, err := pipe.Exec(ctx); err != nil {
-		r.log.WithContext(ctx).Errorf("articleRepo: init article cache failed: %v", err)
+	// 只有已发布文章进入公开排序 zset；草稿不能出现在列表里。
+	if article.Status == "published" {
+		pipe := r.data.redis.Pipeline()
+		pipe.ZAdd(ctx, keyArticleLikes, redis.Z{Score: 0, Member: article.AID})
+		pipe.ZAdd(ctx, keyArticleComments, redis.Z{Score: 0, Member: article.AID})
+		pipe.ZAdd(ctx, keyArticleFavorites, redis.Z{Score: 0, Member: article.AID})
+		pipe.ZAdd(ctx, keyArticleTime, redis.Z{Score: float64(article.CreatedAt.Unix()), Member: article.AID})
+		if _, err := pipe.Exec(ctx); err != nil {
+			r.log.WithContext(ctx).Errorf("articleRepo: init article cache failed: %v", err)
+		}
 	}
 
 	return toBizArticle(article), nil
@@ -137,14 +148,14 @@ func (r *articleRepo) Update(ctx context.Context, a *biz.Article) (*biz.Article,
 
 	if err := r.data.db.WithContext(ctx).Save(&existing).Error; err != nil {
 		r.log.WithContext(ctx).Errorf("articleRepo: update article failed: %v", err)
-		_ = r.data.SendErrorLog(ctx, "article", err.Error(), "db.Save", existing)
+		_ = r.data.LogError(ctx, "article", err.Error(), "db.Save", existing)
 		return nil, err
 	}
 
 	viewJSON, _ := json.Marshal(existing.View)
 	r.sendSQL(ctx, "UPDATE articles SET title=$1, view=$2, content=$3, video=$4, videoid=$5, height=$6, avatar=$7, updated_at=NOW() WHERE aid=$8",
 		existing.Title, string(viewJSON), existing.Content, existing.Video, existing.Videoid, existing.Height, existing.Avatar, existing.AID)
-	_ = r.data.redis.ZAdd(ctx, keyArticleTime, redis.Z{Score: float64(existing.UpdatedAt.Unix()), Member: existing.AID}).Err()
+	// 草稿/驳回状态的更新时间不进入公开时间线，发布时再写入。
 
 	return toBizArticle(&existing), nil
 }
@@ -165,7 +176,7 @@ func (r *articleRepo) Delete(ctx context.Context, aid string) error {
 	if err := tx.Where("aid = ?", aid).Delete(&Article{}).Error; err != nil {
 		tx.Rollback()
 		r.log.WithContext(ctx).Errorf("articleRepo: delete article failed: %v", err)
-		_ = r.data.SendErrorLog(ctx, "article", err.Error(), "db.Delete", aid)
+		_ = r.data.LogError(ctx, "article", err.Error(), "db.Delete", aid)
 		return err
 	}
 	if err := tx.Commit().Error; err != nil {
@@ -187,6 +198,72 @@ func (r *articleRepo) Delete(ctx context.Context, aid string) error {
 	return nil
 }
 
+// UpdateStatus 只更新生命周期字段，并同步公开排序 zset。
+func (r *articleRepo) UpdateStatus(ctx context.Context, aid, status, reviewedBy, reason string) error {
+	var article Article
+	if err := r.data.db.WithContext(ctx).Where("aid = ?", aid).First(&article).Error; err != nil {
+		return err
+	}
+
+	updates := map[string]any{
+		"status":        status,
+		"reviewed_by":   reviewedBy,
+		"review_reason": reason,
+	}
+	if status == "published" {
+		now := time.Now()
+		updates["published_at"] = now
+		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).Updates(updates).Error; err != nil {
+			return err
+		}
+		pipe := r.data.redis.Pipeline()
+		pipe.ZAdd(ctx, keyArticleLikes, redis.Z{Score: float64(article.Likes), Member: aid})
+		pipe.ZAdd(ctx, keyArticleComments, redis.Z{Score: float64(article.Comments), Member: aid})
+		pipe.ZAdd(ctx, keyArticleFavorites, redis.Z{Score: float64(article.Favorite), Member: aid})
+		pipe.ZAdd(ctx, keyArticleTime, redis.Z{Score: float64(article.CreatedAt.Unix()), Member: aid})
+		_, _ = pipe.Exec(ctx)
+		return nil
+	}
+
+	if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).Updates(updates).Error; err != nil {
+		return err
+	}
+	pipe := r.data.redis.Pipeline()
+	pipe.ZRem(ctx, keyArticleLikes, aid)
+	pipe.ZRem(ctx, keyArticleComments, aid)
+	pipe.ZRem(ctx, keyArticleFavorites, aid)
+	pipe.ZRem(ctx, keyArticleTime, aid)
+	_, _ = pipe.Exec(ctx)
+	return nil
+}
+
+// ListFeed 关注作者的已发布文章。作者列表来自 user 服务 gRPC。
+func (r *articleRepo) ListFeed(ctx context.Context, uid string, page, limit int) ([]*biz.Article, int64, error) {
+	rsp, err := r.data.userClient.GetFollowingUIDs(ctx, &userv1.GetFollowingUIDsRequest{Uid: uid})
+	if err != nil {
+		r.log.WithContext(ctx).Errorf("articleRepo: get following uids failed: %v", err)
+		return nil, 0, err
+	}
+	if len(rsp.Uids) == 0 {
+		return []*biz.Article{}, 0, nil
+	}
+	q := r.data.db.WithContext(ctx).Model(&Article{}).
+		Where("status = ? AND uid IN ?", "published", rsp.Uids)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []Article
+	if err := q.Order("created_at DESC").Offset((page - 1) * limit).Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	result := make([]*biz.Article, 0, len(rows))
+	for i := range rows {
+		result = append(result, toBizArticle(&rows[i]))
+	}
+	return result, total, nil
+}
+
 func (r *articleRepo) FindByID(ctx context.Context, aid string) (*biz.Article, error) {
 	var article Article
 	if err := r.data.db.WithContext(ctx).Where("aid = ?", aid).First(&article).Error; err != nil {
@@ -195,7 +272,7 @@ func (r *articleRepo) FindByID(ctx context.Context, aid string) (*biz.Article, e
 	return toBizArticle(&article), nil
 }
 
-func (r *articleRepo) List(ctx context.Context, page, limit int, way string, reverse bool) ([]*biz.Article, int64, error) {
+func (r *articleRepo) List(ctx context.Context, page, limit int, way string, reverse bool, status, ownerID string) ([]*biz.Article, int64, error) {
 	key, orderBy, err := sortKey(way)
 	if err != nil {
 		return nil, 0, err
@@ -207,14 +284,15 @@ func (r *articleRepo) List(ctx context.Context, page, limit int, way string, rev
 		start, end = 0, -1
 	}
 
+	useCache := status == "published" && ownerID == ""
 	var zs []redis.Z
-	if reverse {
+	if useCache && reverse {
 		zs, err = r.data.redis.ZRevRangeWithScores(ctx, key, start, end).Result()
-	} else {
+	} else if useCache {
 		zs, err = r.data.redis.ZRangeWithScores(ctx, key, start, end).Result()
 	}
 
-	if err == nil && len(zs) > 0 {
+	if useCache && err == nil && len(zs) > 0 {
 		aids := make([]string, 0, len(zs))
 		for _, z := range zs {
 			if aid, ok := z.Member.(string); ok {
@@ -231,19 +309,32 @@ func (r *articleRepo) List(ctx context.Context, page, limit int, way string, rev
 
 	// 缓存未命中或 Redis 异常：回源数据库，并重建对应 zset。
 	query := r.data.db.WithContext(ctx).Model(&Article{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if ownerID != "" {
+		query = query.Where("uid = ?", ownerID)
+	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		_ = r.data.SendErrorLog(ctx, "article", err.Error(), "db.Count", nil)
+		_ = r.data.LogError(ctx, "article", err.Error(), "db.Count", nil)
 		return nil, 0, err
 	}
 
 	var rows []Article
-	q := r.data.db.WithContext(ctx).Model(&Article{}).Order(orderBy)
+	q := r.data.db.WithContext(ctx).Model(&Article{})
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if ownerID != "" {
+		q = q.Where("uid = ?", ownerID)
+	}
+	q = q.Order(orderBy)
 	if limit > 0 {
 		q = q.Offset(int(start)).Limit(limit)
 	}
 	if err := q.Find(&rows).Error; err != nil {
-		_ = r.data.SendErrorLog(ctx, "article", err.Error(), "db.Find", nil)
+		_ = r.data.LogError(ctx, "article", err.Error(), "db.Find", nil)
 		return nil, 0, err
 	}
 
@@ -251,130 +342,86 @@ func (r *articleRepo) List(ctx context.Context, page, limit int, way string, rev
 	for i := range rows {
 		articles = append(articles, toBizArticle(&rows[i]))
 	}
-	if limit == 0 {
+	if useCache && limit == 0 {
 		r.rebuildCache(ctx, key, articles, way)
 	}
 	return articles, total, nil
 }
 
 func (r *articleRepo) Like(ctx context.Context, uid, aid string) (bool, int, error) {
-	tx := r.data.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return false, 0, tx.Error
+	res := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&Like{UID: uid, AID: aid})
+	if res.Error != nil {
+		return false, 0, res.Error
 	}
-	defer func() {
-		if rec := recover(); rec != nil {
-			tx.Rollback()
-		}
-	}()
-
-	var like Like
-	err := tx.Where("uid = ? AND aid = ?", uid, aid).First(&like).Error
-	liked := false
-	switch {
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		if err := tx.Create(&Like{UID: uid, AID: aid}).Error; err != nil {
-			tx.Rollback()
+	if res.RowsAffected > 0 {
+		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
+			UpdateColumn("likes", gorm.Expr("likes + 1")).Error; err != nil {
 			return false, 0, err
 		}
-		if err := tx.Model(&Article{}).Where("aid = ?", aid).UpdateColumn("likes", gorm.Expr("likes + 1")).Error; err != nil {
-			tx.Rollback()
-			return false, 0, err
-		}
-		liked = true
-		r.sendSQL(ctx, "INSERT INTO likes (uid, aid) VALUES ($1,$2)", uid, aid)
+		_ = r.data.redis.ZIncrBy(ctx, keyArticleLikes, 1, aid).Err()
 		r.sendSQL(ctx, "UPDATE articles SET likes = likes + 1 WHERE aid=$1", aid)
-	case err != nil:
-		tx.Rollback()
-		return false, 0, err
-	default:
-		if err := tx.Delete(&like).Error; err != nil {
-			tx.Rollback()
-			return false, 0, err
+	}
+	return true, r.articleLikes(ctx, aid), nil
+}
+
+func (r *articleRepo) Unlike(ctx context.Context, uid, aid string) (int, error) {
+	res := r.data.db.WithContext(ctx).Where("uid = ? AND aid = ?", uid, aid).Delete(&Like{})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	if res.RowsAffected > 0 {
+		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
+			UpdateColumn("likes", gorm.Expr("GREATEST(likes - 1, 0)")).Error; err != nil {
+			return 0, err
 		}
-		if err := tx.Model(&Article{}).Where("aid = ?", aid).UpdateColumn("likes", gorm.Expr("GREATEST(likes - 1, 0)")).Error; err != nil {
-			tx.Rollback()
-			return false, 0, err
-		}
-		r.sendSQL(ctx, "DELETE FROM likes WHERE uid=$1 AND aid=$2", uid, aid)
+		_ = r.data.redis.ZIncrBy(ctx, keyArticleLikes, -1, aid).Err()
 		r.sendSQL(ctx, "UPDATE articles SET likes = GREATEST(likes - 1, 0) WHERE aid=$1", aid)
 	}
+	return r.articleLikes(ctx, aid), nil
+}
 
-	if err := tx.Commit().Error; err != nil {
-		return false, 0, err
-	}
-
-	delta := -1
-	if liked {
-		delta = 1
-	}
-	if err := r.data.redis.ZIncrBy(ctx, keyArticleLikes, float64(delta), aid).Err(); err != nil {
-		r.log.WithContext(ctx).Warnf("articleRepo: update like cache failed: %v", err)
-	}
-
+func (r *articleRepo) articleLikes(ctx context.Context, aid string) int {
 	var row struct{ Likes int }
 	_ = r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).Select("likes").Scan(&row).Error
-	return liked, row.Likes, nil
+	return row.Likes
 }
 
 func (r *articleRepo) Favorite(ctx context.Context, uid, aid string) (bool, int, error) {
-	tx := r.data.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return false, 0, tx.Error
+	res := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&Favorite{UID: uid, AID: aid})
+	if res.Error != nil {
+		return false, 0, res.Error
 	}
-	defer func() {
-		if rec := recover(); rec != nil {
-			tx.Rollback()
-		}
-	}()
-
-	var fav Favorite
-	err := tx.Where("uid = ? AND aid = ?", uid, aid).First(&fav).Error
-	favorited := false
-	switch {
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		if err := tx.Create(&Favorite{UID: uid, AID: aid}).Error; err != nil {
-			tx.Rollback()
+	if res.RowsAffected > 0 {
+		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
+			UpdateColumn("favorite", gorm.Expr("favorite + 1")).Error; err != nil {
 			return false, 0, err
 		}
-		if err := tx.Model(&Article{}).Where("aid = ?", aid).UpdateColumn("favorite", gorm.Expr("favorite + 1")).Error; err != nil {
-			tx.Rollback()
-			return false, 0, err
-		}
-		favorited = true
-		r.sendSQL(ctx, "INSERT INTO favorites (uid, aid) VALUES ($1,$2)", uid, aid)
+		_ = r.data.redis.ZIncrBy(ctx, keyArticleFavorites, 1, aid).Err()
 		r.sendSQL(ctx, "UPDATE articles SET favorite = favorite + 1 WHERE aid=$1", aid)
-	case err != nil:
-		tx.Rollback()
-		return false, 0, err
-	default:
-		if err := tx.Delete(&fav).Error; err != nil {
-			tx.Rollback()
-			return false, 0, err
+	}
+	return true, r.articleFavorites(ctx, aid), nil
+}
+
+func (r *articleRepo) Unfavorite(ctx context.Context, uid, aid string) (int, error) {
+	res := r.data.db.WithContext(ctx).Where("uid = ? AND aid = ?", uid, aid).Delete(&Favorite{})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	if res.RowsAffected > 0 {
+		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
+			UpdateColumn("favorite", gorm.Expr("GREATEST(favorite - 1, 0)")).Error; err != nil {
+			return 0, err
 		}
-		if err := tx.Model(&Article{}).Where("aid = ?", aid).UpdateColumn("favorite", gorm.Expr("GREATEST(favorite - 1, 0)")).Error; err != nil {
-			tx.Rollback()
-			return false, 0, err
-		}
-		r.sendSQL(ctx, "DELETE FROM favorites WHERE uid=$1 AND aid=$2", uid, aid)
+		_ = r.data.redis.ZIncrBy(ctx, keyArticleFavorites, -1, aid).Err()
 		r.sendSQL(ctx, "UPDATE articles SET favorite = GREATEST(favorite - 1, 0) WHERE aid=$1", aid)
 	}
+	return r.articleFavorites(ctx, aid), nil
+}
 
-	if err := tx.Commit().Error; err != nil {
-		return false, 0, err
-	}
-
-	delta := -1
-	if favorited {
-		delta = 1
-	}
-	if err := r.data.redis.ZIncrBy(ctx, keyArticleFavorites, float64(delta), aid).Err(); err != nil {
-		r.log.WithContext(ctx).Warnf("articleRepo: update favorite cache failed: %v", err)
-	}
-
+func (r *articleRepo) articleFavorites(ctx context.Context, aid string) int {
 	var row struct{ Favorite int }
 	_ = r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).Select("favorite").Scan(&row).Error
-	return favorited, row.Favorite, nil
+	return row.Favorite
 }
 
 func (r *articleRepo) GetUserLikeList(ctx context.Context, uid string) ([]string, error) {
@@ -424,7 +471,7 @@ func (r *articleRepo) loadByIDs(ctx context.Context, aids []string) ([]*biz.Arti
 		return []*biz.Article{}, nil
 	}
 	var rows []Article
-	if err := r.data.db.WithContext(ctx).Where("aid IN ?", aids).Find(&rows).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).Where("aid IN ? AND status = ?", aids, "published").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	byID := make(map[string]*Article, len(rows))
@@ -466,7 +513,7 @@ func (r *articleRepo) rebuildCache(ctx context.Context, key string, articles []*
 }
 
 func (r *articleRepo) sendSQL(ctx context.Context, sql string, params ...any) {
-	if err := r.data.SendSqlLog(ctx, "article", sql, params); err != nil {
+	if err := r.data.LogSQLAudit(ctx, "article", sql, params); err != nil {
 		r.log.WithContext(ctx).Errorf("articleRepo: kafka send sqllog error: %v", err)
 	}
 }
@@ -488,20 +535,24 @@ func sortKey(way string) (string, string, error) {
 
 func toBizArticle(a *Article) *biz.Article {
 	return &biz.Article{
-		AID:       a.AID,
-		UID:       a.UID,
-		Name:      a.Name,
-		Avatar:    a.Avatar,
-		Title:     a.Title,
-		View:      a.View,
-		Content:   a.Content,
-		Likes:     a.Likes,
-		Comments:  a.Comments,
-		Favorite:  a.Favorite,
-		Video:     a.Video,
-		Videoid:   a.Videoid,
-		Height:    a.Height,
-		CreatedAt: a.CreatedAt,
-		UpdatedAt: a.UpdatedAt,
+		AID:          a.AID,
+		UID:          a.UID,
+		Name:         a.Name,
+		Avatar:       a.Avatar,
+		Title:        a.Title,
+		View:         a.View,
+		Content:      a.Content,
+		Likes:        a.Likes,
+		Comments:     a.Comments,
+		Favorite:     a.Favorite,
+		Video:        a.Video,
+		Videoid:      a.Videoid,
+		Height:       a.Height,
+		Status:       a.Status,
+		PublishedAt:  a.PublishedAt,
+		ReviewedBy:   a.ReviewedBy,
+		ReviewReason: a.ReviewReason,
+		CreatedAt:    a.CreatedAt,
+		UpdatedAt:    a.UpdatedAt,
 	}
 }

@@ -20,11 +20,12 @@ type Claims struct {
 	Name   string `json:"name"`
 	Email  string `json:"email"`
 	Avatar string `json:"avatar"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
 // GenerateToken 生成加密的 JWT token，使用UA作为加密密钥
-func GenerateToken(ua, uid, name, email, avatar string) (string, error) {
+func GenerateToken(ua, uid, name, email, avatar, role string) (string, error) {
 	c := nacos.GetConfig()
 	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
 	if jwtSecret == "" {
@@ -41,6 +42,7 @@ func GenerateToken(ua, uid, name, email, avatar string) (string, error) {
 		Name:   name,
 		Email:  email,
 		Avatar: avatar,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

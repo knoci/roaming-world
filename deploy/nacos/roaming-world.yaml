@@ -1,0 +1,44 @@
+# Local development config imported into Nacos (Data ID: roaming-world.yaml)
+postgre:
+  host: postgres
+  port: 5432
+  user: roaming
+  password: roaming
+  dbname: roaming_world
+  sslmode: disable
+
+redis:
+  host: redis
+  port: 6379
+  password: ""
+  db: 0
+
+kafka:
+  address: kafka:9092
+  topic:
+    comment-event: comment-events
+
+etcd:
+  endpoints: etcd:2379
+  dialTimeout: 5
+
+jwt:
+  secret: local-dev-secret-change-me
+  # nanoseconds: 120h
+  expiration: 432000000000000
+
+meili:
+  host: http://meilisearch:7700
+  key: roaming-meili-master-key
+
+email:
+  host: smtp.example.com
+  port: 465
+  username: no-reply@example.com
+  password: change-me
+  from: no-reply@example.com
+
+cos:
+  bucket_url: https://example-1250000000.cos.ap-guangzhou.myqcloud.com
+  secret_id: change-me
+  secret_key: change-me

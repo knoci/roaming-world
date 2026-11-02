@@ -89,106 +89,124 @@ func (s *CommentService) LikeComment(ctx context.Context, req *pb.LikeCommentReq
 		Status: "点赞成功",
 	}, nil
 }
+func (s *CommentService) UnlikeComment(ctx context.Context, req *pb.UnlikeCommentRequest) (*pb.UnlikeCommentReply, error) {
+	claims, err := GetJwtClaim(ctx)
+	if err != nil {
+		return nil, biz.ErrUnauthorized
+	}
+	if err := s.uc.UnlikeComment(ctx, claims.UID, req.Cid); err != nil {
+		return nil, err
+	}
+	return &pb.UnlikeCommentReply{Status: "取消点赞成功"}, nil
+}
+
 func (s *CommentService) GetCommentList(ctx context.Context, req *pb.GetCommentListRequest) (*pb.GetCommentListReply, error) {
-	// 获取评论列表
-	comments, err := s.uc.GetCommentList(ctx, req.Aid)
+	comments, total, err := s.uc.GetCommentList(ctx, req.Aid, int(req.Page), int(req.Limit))
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to get comment list: %v", err)
 		return nil, err
 	}
-
-	// 转换为API响应
 	result := make([]*pb.CommentMessage, 0, len(comments))
 	for _, comment := range comments {
-		createdAt := comment.CreatedAt.Format("2006-01-02 15:04:05")
-		updatedAt := comment.UpdatedAt.Format("2006-01-02 15:04:05")
-
-		result = append(result, &pb.CommentMessage{
-			Cid:       comment.CID,
-			Target:    comment.Target,
-			Content:   comment.Content,
-			Likes:     int32(comment.Likes),
-			Uid:       comment.UID,
-			Name:      comment.Name,
-			Avatar:    comment.Avatar,
-			Replycid:  comment.Replycid,
-			Replyname: comment.Replyname,
-			Time:      comment.Time,
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
-		})
+		result = append(result, toMessage(comment))
 	}
-
-	return &pb.GetCommentListReply{
-		Comments: result,
-	}, nil
+	return &pb.GetCommentListReply{Comments: result, Total: total}, nil
 }
+
 func (s *CommentService) GetCommentListWithReplies(ctx context.Context, req *pb.GetCommentListWithRepliesRequest) (*pb.GetCommentListWithRepliesReply, error) {
-	// 获取评论列表及其回复
-	comments, err := s.uc.GetCommentListWithReplies(ctx, req.Aid)
+	comments, total, err := s.uc.GetCommentListWithReplies(ctx, req.Aid, int(req.Page), int(req.Limit))
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to get comment list with replies: %v", err)
 		return nil, err
 	}
-
 	result := make([]*pb.CommentMessage, 0, len(comments))
 	for _, comment := range comments {
-		createdAt := comment.CreatedAt.Format("2006-01-02 15:04:05")
-		updatedAt := comment.UpdatedAt.Format("2006-01-02 15:04:05")
-
-		result = append(result, &pb.CommentMessage{
-			Cid:       comment.CID,
-			Target:    comment.Target,
-			Content:   comment.Content,
-			Likes:     int32(comment.Likes),
-			Uid:       comment.UID,
-			Name:      comment.Name,
-			Avatar:    comment.Avatar,
-			Replycid:  comment.Replycid,
-			Replyname: comment.Replyname,
-			Time:      comment.Time,
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
-		})
+		result = append(result, toMessage(comment))
 	}
-
-	return &pb.GetCommentListWithRepliesReply{
-		Comments: result,
-	}, nil
+	return &pb.GetCommentListWithRepliesReply{Comments: result, Total: total}, nil
 }
+
 func (s *CommentService) GetReplyList(ctx context.Context, req *pb.GetReplyListRequest) (*pb.GetReplyListReply, error) {
-	// 获取回复列表
-	replies, err := s.uc.GetReplyList(ctx, req.Cid)
+	replies, total, err := s.uc.GetReplyList(ctx, req.Cid, int(req.Page), int(req.Limit))
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to get reply list: %v", err)
 		return nil, err
 	}
-
-	// 转换为API响应
 	result := make([]*pb.CommentMessage, 0, len(replies))
 	for _, reply := range replies {
-		createdAt := reply.CreatedAt.Format("2006-01-02 15:04:05")
-		updatedAt := reply.UpdatedAt.Format("2006-01-02 15:04:05")
+		result = append(result, toMessage(reply))
+	}
+	return &pb.GetReplyListReply{Comments: result, Total: total}, nil
+}
 
-		result = append(result, &pb.CommentMessage{
-			Cid:       reply.CID,
-			Target:    reply.Target,
-			Content:   reply.Content,
-			Likes:     int32(reply.Likes),
-			Uid:       reply.UID,
-			Name:      reply.Name,
-			Avatar:    reply.Avatar,
-			Replycid:  reply.Replycid,
-			Replyname: reply.Replyname,
-			Time:      reply.Time,
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
+func toMessage(comment *biz.Comment) *pb.CommentMessage {
+	if comment == nil {
+		return nil
+	}
+	return &pb.CommentMessage{
+		Cid:       comment.CID,
+		Target:    comment.Target,
+		Content:   comment.Content,
+		Likes:     int32(comment.Likes),
+		Uid:       comment.UID,
+		Name:      comment.Name,
+		Avatar:    comment.Avatar,
+		Replycid:  comment.Replycid,
+		Replyname: comment.Replyname,
+		Time:      comment.Time,
+		CreatedAt: comment.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt: comment.UpdatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+
+func (s *CommentService) ReportComment(ctx context.Context, req *pb.ReportCommentRequest) (*pb.ReportCommentReply, error) {
+	claims, err := GetJwtClaim(ctx)
+	if err != nil {
+		return nil, biz.ErrUnauthorized
+	}
+	report, err := s.uc.ReportComment(ctx, claims.UID, req.Cid, req.Reason)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ReportCommentReply{Status: "reported", ReportId: report.ID}, nil
+}
+
+func (s *CommentService) ListCommentReports(ctx context.Context, req *pb.ListCommentReportsRequest) (*pb.ListCommentReportsReply, error) {
+	claims, err := GetJwtClaim(ctx)
+	if err != nil {
+		return nil, biz.ErrUnauthorized
+	}
+	if claims.Role != "admin" {
+		return nil, biz.ErrNoPermission
+	}
+	reports, total, err := s.uc.ListReports(ctx, req.Status, int(req.Page), int(req.Limit))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*pb.CommentReportMessage, 0, len(reports))
+	for _, report := range reports {
+		result = append(result, &pb.CommentReportMessage{
+			Id: report.ID, Cid: report.CID, ReporterUid: report.ReporterUID,
+			Reason: report.Reason, Status: report.Status, ReviewNote: report.ReviewNote,
+			CreatedAt: report.CreatedAt.Format("2006-01-02 15:04:05"),
 		})
 	}
+	return &pb.ListCommentReportsReply{Reports: result, Total: total}, nil
+}
 
-	return &pb.GetReplyListReply{
-		Comments: result,
-	}, nil
+func (s *CommentService) ResolveCommentReport(ctx context.Context, req *pb.ResolveCommentReportRequest) (*pb.ResolveCommentReportReply, error) {
+	claims, err := GetJwtClaim(ctx)
+	if err != nil {
+		return nil, biz.ErrUnauthorized
+	}
+	if claims.Role != "admin" {
+		return nil, biz.ErrNoPermission
+	}
+	report, err := s.uc.ResolveReport(ctx, claims.UID, req.Id, req.Action, req.Note)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ResolveCommentReportReply{Status: report.Status}, nil
 }
 
 func GetJwtClaim(ctx context.Context) (*pkg.Claims, error) {

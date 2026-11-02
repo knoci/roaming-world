@@ -85,6 +85,54 @@ service User {
       body: "*"
     };
   }
+
+  // 关注用户
+  rpc FollowUser(FollowUserRequest) returns (FollowUserReply) {
+    option (google.api.http) = {
+      post: "/v1/user/{uid}/follow"
+    };
+  }
+
+  // 取消关注
+  rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserReply) {
+    option (google.api.http) = {
+      delete: "/v1/user/{uid}/follow"
+    };
+  }
+
+  // 粉丝列表
+  rpc GetFollowers(GetFollowersRequest) returns (GetFollowersReply) {
+    option (google.api.http) = {
+      get: "/v1/user/{uid}/followers"
+    };
+  }
+
+  // 关注列表
+  rpc GetFollowing(GetFollowingRequest) returns (GetFollowingReply) {
+    option (google.api.http) = {
+      get: "/v1/user/{uid}/following"
+    };
+  }
+
+  // 内部：关注作者 UID 列表，供 feed 服务调用
+  rpc GetFollowingUIDs(GetFollowingUIDsRequest) returns (GetFollowingUIDsReply);
+
+  // 内部：其他服务创建通知
+  rpc CreateNotification(CreateNotificationRequest) returns (CreateNotificationReply);
+
+  // 我的通知
+  rpc GetNotifications(GetNotificationsRequest) returns (GetNotificationsReply) {
+    option (google.api.http) = {
+      get: "/v1/user/notifications"
+    };
+  }
+
+  // 标记通知已读
+  rpc MarkNotificationRead(MarkNotificationReadRequest) returns (MarkNotificationReadReply) {
+    option (google.api.http) = {
+      post: "/v1/user/notifications/{id}/read"
+    };
+  }
 }
 
 // 注册请求
@@ -206,5 +254,98 @@ message ConfirmEmailRequest {
 
 // 邮箱确认响应
 message ConfirmEmailReply {
+  string status = 1;
+}
+
+message FollowUserRequest {
+  string uid = 1;
+}
+
+message FollowUserReply {
+  bool following = 1;
+}
+
+message UnfollowUserRequest {
+  string uid = 1;
+}
+
+message UnfollowUserReply {
+  bool following = 1;
+}
+
+message UserSummary {
+  string uid = 1;
+  string name = 2;
+  string avatar = 3;
+}
+
+message GetFollowersRequest {
+  string uid = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message GetFollowersReply {
+  repeated UserSummary users = 1;
+  int64 total = 2;
+}
+
+message GetFollowingRequest {
+  string uid = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message GetFollowingReply {
+  repeated UserSummary users = 1;
+  int64 total = 2;
+}
+
+message NotificationMessage {
+  string id = 1;
+  string type = 2;
+  string actor_uid = 3;
+  string actor_name = 4;
+  string payload = 5;
+  bool read = 6;
+  string created_at = 7;
+}
+
+message GetNotificationsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message GetNotificationsReply {
+  repeated NotificationMessage notifications = 1;
+  int64 total = 2;
+  int64 unread = 3;
+}
+
+message MarkNotificationReadRequest {
+  string id = 1;
+}
+
+message MarkNotificationReadReply {
+  string status = 1;
+}
+
+message GetFollowingUIDsRequest {
+  string uid = 1;
+}
+
+message GetFollowingUIDsReply {
+  repeated string uids = 1;
+}
+
+message CreateNotificationRequest {
+  string uid = 1;
+  string type = 2;
+  string actor_uid = 3;
+  string actor_name = 4;
+  string payload = 5;
+}
+
+message CreateNotificationReply {
   string status = 1;
 }

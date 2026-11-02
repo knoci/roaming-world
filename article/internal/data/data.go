@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	nacos "github.com/go-kratos/kratos/contrib/registry/nacos/v2"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v2/middleware/recovery"
+	kratosgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
 	"github.com/google/wire"
-	"github.com/nacos-group/nacos-sdk-go/clients"
-	"github.com/nacos-group/nacos-sdk-go/common/constant"
-	"github.com/nacos-group/nacos-sdk-go/vo"
+	userv1 "github.com/knoci/roaming-world/article/api/user/v1"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -26,22 +28,17 @@ var ProviderSet = wire.NewSet(NewData, NewArticleRepo, NewNacosEngine)
 
 // Data 数据层资源。
 type Data struct {
-	db        *gorm.DB
-	redis     *redis.Client
-	cdc       *kafka.KafkaSender
-	logsender *kafka.KafkaSender
-	log       *log.Helper
+	db              *gorm.DB
+	redis           *redis.Client
+	commentConsumer *kafka.KafkaReceiver
+	userClient      userv1.UserClient
+	userConn        *grpc.ClientConn
+	log             *log.Helper
 }
 
-type SqlMsg struct {
-	Query  string        `json:"query"`
-	Params []interface{} `json:"params"`
-}
-
-type ErrorMsg struct {
-	ErrorMsg  string `json:"error_msg"`
-	ErrorOp   string `json:"error_op"`
-	ErrorData any    `json:"error_data"`
+type CommentCountEvent struct {
+	AID   string `json:"aid"`
+	Count int64  `json:"count"`
 }
 
 func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
@@ -71,21 +68,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	address1 := nc.GetConfigString(cfg, "kafka.address.cdc")
-	topic1 := nc.GetConfigString(cfg, "kafka.topic.cdc")
-	cdc, err := kafka.NewKafkaSender([]string{address1}, topic1)
-	if err != nil {
-		l.Errorf("articleData: failed to create cdc sender: %v", err)
-		return nil, nil, err
-	}
-
-	address2 := nc.GetConfigString(cfg, "kafka.address.log")
-	topic2 := nc.GetConfigString(cfg, "kafka.topic.log")
-	logsender, err := kafka.NewKafkaSender([]string{address2}, topic2)
-	if err != nil {
-		l.Errorf("articleData: failed to create log sender: %v", err)
-		return nil, nil, err
-	}
+	address := nc.GetConfigString(cfg, "kafka.address")
 
 	redisHost := nc.GetConfigString(cfg, "redis.host")
 	redisPort := nc.GetConfigInt(cfg, "redis.port")
@@ -99,12 +82,38 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
+	registry := nc.NewRegistry()
+	conn, err := kratosgrpc.DialInsecure(context.Background(),
+		kratosgrpc.WithEndpoint("discovery:///user.grpc"),
+		kratosgrpc.WithDiscovery(registry),
+		kratosgrpc.WithTimeout(2*time.Second),
+		kratosgrpc.WithMiddleware(recovery.Recovery()),
+	)
+	if err != nil {
+		l.Errorf("articleData: failed to connect user grpc: %v", err)
+		return nil, nil, err
+	}
+
 	d := &Data{
-		db:        db,
-		redis:     rdb,
-		cdc:       cdc,
-		logsender: logsender,
-		log:       l,
+		db:         db,
+		redis:      rdb,
+		userClient: userv1.NewUserClient(conn),
+		userConn:   conn,
+		log:        l,
+	}
+
+	eventTopic := nc.GetConfigString(cfg, "kafka.topic.comment-event")
+	if eventTopic != "" {
+		consumer, err := kafka.NewKafkaReceiver([]string{address}, eventTopic, "article-comment-consumer")
+		if err != nil {
+			l.Errorf("articleData: failed to create comment consumer: %v", err)
+			return nil, nil, err
+		}
+		d.commentConsumer = consumer
+		if err := consumer.Receive(context.Background(), d.handleCommentCountEvent); err != nil {
+			l.Errorf("articleData: failed to start comment consumer: %v", err)
+			return nil, nil, err
+		}
 	}
 
 	cleanup := func() {
@@ -113,8 +122,12 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 			_ = sqlDB.Close()
 		}
 		_ = d.redis.Close()
-		_ = d.cdc.Close()
-		_ = d.logsender.Close()
+		if d.userConn != nil {
+			_ = d.userConn.Close()
+		}
+		if d.commentConsumer != nil {
+			_ = d.commentConsumer.Close()
+		}
 	}
 
 	return d, cleanup, nil
@@ -122,44 +135,32 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 // NewNacosEngine 注册 article 服务到 Nacos，供 gateway 或其他服务发现。
 func NewNacosEngine(c *conf.Data) *nacos.Registry {
-	sc := []constant.ServerConfig{
-		*constant.NewServerConfig(c.Nacos.Addr, c.Nacos.Port),
-	}
-	cc := constant.ClientConfig{
-		NamespaceId:         c.Nacos.NamespaceId,
-		TimeoutMs:           5000,
-		NotLoadCacheAtStart: true,
-		LogDir:              "tmp/nacos/log",
-		CacheDir:            "tmp/nacos/cache",
-		LogLevel:            "debug",
-	}
-
-	client, err := clients.NewNamingClient(
-		vo.NacosClientParam{
-			ClientConfig:  &cc,
-			ServerConfigs: sc,
-		},
-	)
-	if err != nil {
-		panic(err)
-	}
-	return nacos.New(client)
+	return nc.NewRegistry()
 }
 
-func (d *Data) SendSqlLog(ctx context.Context, key string, sql string, params []interface{}) error {
-	msg := SqlMsg{Query: sql, Params: params}
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	return d.cdc.Send(ctx, kafka.NewMessage(key, body))
+func (d *Data) LogSQLAudit(ctx context.Context, key string, sql string, params []interface{}) error {
+	d.log.WithContext(ctx).Debugf("sql audit: %s", sql)
+	return nil
 }
 
-func (d *Data) SendErrorLog(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
-	msg := ErrorMsg{ErrorMsg: errmsg, ErrorOp: errop, ErrorData: errdata}
-	body, err := json.Marshal(msg)
-	if err != nil {
+func (d *Data) LogError(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
+	d.log.WithContext(ctx).Errorf("module=%s op=%s error=%s data=%v", key, errop, errmsg, errdata)
+	return nil
+}
+
+func (d *Data) handleCommentCountEvent(ctx context.Context, msg *kafka.Message) error {
+	var event CommentCountEvent
+	if err := json.Unmarshal(msg.Value(), &event); err != nil {
 		return err
 	}
-	return d.logsender.Send(ctx, kafka.NewMessage(key, body))
+	if event.AID == "" {
+		return nil
+	}
+	if err := d.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", event.AID).UpdateColumn("comments", event.Count).Error; err != nil {
+		return err
+	}
+	if err := d.redis.ZAdd(ctx, keyArticleComments, redis.Z{Score: float64(event.Count), Member: event.AID}).Err(); err != nil {
+		d.log.WithContext(ctx).Errorf("articleData: update comment zset failed: %v", err)
+	}
+	return nil
 }

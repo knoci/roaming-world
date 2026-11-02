@@ -16,6 +16,7 @@ func NewHTTPServer(c *conf.Server, user *service.UserService, logger log.Logger)
 	// JWT 中间件配置
 
 	var opts = []http.ServerOption{
+		http.Filter(metricsFilter),
 		http.Middleware(
 			recovery.Recovery(),
 			mmd.Server(),
@@ -34,6 +35,7 @@ func NewHTTPServer(c *conf.Server, user *service.UserService, logger log.Logger)
 	srv.Route("/").GET("/healthz", func(ctx http.Context) error {
 		return ctx.String(200, "ok")
 	})
+	srv.Route("/").GET("/metrics", metricsHandler)
 	v1.RegisterUserHTTPServer(srv, user)
 	return srv
 }

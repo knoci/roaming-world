@@ -1,30 +1,41 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: roaming-world
-
 resources:
   # 命名空间
-  - namesapce.yaml
-  
+  - namespace.yaml
+
   # 配置和密钥
   - secrets.yaml
   - configmaps.yaml
-  
-  # 基础设施服务
-  - infrastructure.yaml  # MySQL & Redis
-  - nacos.yaml          # Nacos配置中心
-  
-  # 微服务部署
-  - deployments.yaml    # User, Article, Food, Scene服务
-  - deployments-2.yaml  # Comment, Audiobook服务
-  
-  # 服务暴露
-  - service.yaml        # 所有微服务的Service
 
-commonLabels:
-  project: roaming-world
-  version: v1.0.0
+  # 基础设施服务
+  - postgres.yaml       # 业务 PostgreSQL
+  - infrastructure.yaml # MySQL（Nacos 配置存储）& Redis
+  - nacos.yaml          # Nacos 注册/配置中心
+  - messaging.yaml      # Kafka + Meilisearch
+  - etcd.yaml           # 验证码 etcd
+
+  # 微服务部署
+  - deployments.yaml    # User, Article, Food, Scene
+  - deployments-2.yaml  # Comment, Audiobook
+  - plan.yaml           # Travel Plan
+  - ai.yaml             # AI Engine
+  - mcp.yaml            # MCP server
+  - gateway.yaml        # Kratos AI gateway
+
+  # 服务暴露
+  - service.yaml        # 所有微服务的 ClusterIP Service
+  - ingress.yaml        # 可选七层入口（需 ingress-nginx）
+  - postgres-migration-job.yaml  # 一次性 schema 迁移
+  - nacos-config-init.yaml       # 一次性 Nacos 配置导入
+  - reconcile-counts-cronjob.yaml # 计数对账
+  - observability.yaml  # Prometheus
+
+labels:
+  - pairs:
+      project: roaming-world
+      version: v1.0.0
 
 images:
   - name: roaming-world/user
@@ -38,6 +49,14 @@ images:
   - name: roaming-world/comment
     newTag: latest
   - name: roaming-world/audiobook
+    newTag: latest
+  - name: roaming-world/plan
+    newTag: latest
+  - name: roaming-world/ai
+    newTag: latest
+  - name: roaming-world/mcp
+    newTag: latest
+  - name: roaming-world/gateway
     newTag: latest
 
 replicas:
@@ -53,9 +72,62 @@ replicas:
     count: 2
   - name: audiobook-service
     count: 2
+  - name: plan-service
+    count: 2
+  - name: ai-service
+    count: 1
+  - name: mcp-service
+    count: 1
+  - name: gateway-service
+    count: 1
+  - name: postgres
+    count: 1
   - name: mysql
     count: 1
   - name: redis
     count: 1
   - name: nacos
     count: 1
+  - name: kafka
+    count: 1
+  - name: meilisearch
+    count: 1
+  - name: etcd
+    count: 1
+
+# 业务服务统一挂载 Nacos 连接配置；这样不需要改代码读环境变量。
+# 业务数据库/Redis/Kafka 等仍在 Nacos 的 roaming-world.yaml 中管理。
+patches:
+  - target:
+      kind: Deployment
+      labelSelector: "service"
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env
+        value: []
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts
+        value:
+          - name: service-config
+            mountPath: /app/configs/config.yaml
+            subPath: config.yaml
+            readOnly: true
+      - op: add
+        path: /spec/template/spec/volumes
+        value:
+          - name: service-config
+            configMap:
+              name: roaming-world-service-config
+configMapGenerator:
+  - name: postgres-migrations
+    namespace: roaming-world
+    files:
+      - 001_init.sql=./postgres-migrations/001_init.sql
+  - name: nacos-config
+    namespace: roaming-world
+    files:
+      - roaming-world.yaml=./roaming-world.yaml.example
+  - name: reconcile-sql
+    namespace: roaming-world
+    files:
+      - reconcile_counts.sql=./reconcile_counts.sql
