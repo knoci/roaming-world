@@ -118,6 +118,30 @@ patches:
           - name: service-config
             configMap:
               name: roaming-world-service-config
+  - target:
+      kind: Deployment
+      labelSelector: "service in (user,article)"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ARTICLE_USER_RPC_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: roaming-world-internal-tokens
+              key: ARTICLE_USER_RPC_TOKEN
+  - target:
+      kind: Deployment
+      labelSelector: "service in (user,comment)"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: COMMENT_USER_RPC_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: roaming-world-internal-tokens
+              key: COMMENT_USER_RPC_TOKEN
 configMapGenerator:
   - name: postgres-migrations
     namespace: roaming-world

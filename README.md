@@ -31,19 +31,22 @@ AI Gateway -> AI Engine
 | article | 文章、Feed、点赞收藏 | 18004 |
 | audiobook | 有声书 | 18005 |
 | plan | 旅行计划 | 18006 |
-| ai | RAG / Agent Engine | 18007 |
-| mcp | MCP 工具服务 | 18008 |
+| ai | RAG / Agent Engine | 容器内 8000 |
+| mcp | MCP 工具服务 | 容器内 8000 |
 | gateway | AI 网关 | 18009 |
 
 ## 快速开始
 
 ### Docker Compose
 
-```bash
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\configure-internal-tokens.ps1
 docker compose up -d --build
-curl http://localhost:18000/healthz
-curl http://localhost:18007/healthz
+curl.exe http://localhost:18000/healthz
+curl.exe http://localhost:18009/healthz
 ```
+
+Compose 默认绑定本机回环地址，内部 gRPC、AI Engine 和 MCP 不映射到宿主机。初始化脚本在本地 `.env` 生成缺失的服务令牌。
 
 ### Kubernetes
 

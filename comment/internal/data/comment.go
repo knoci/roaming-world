@@ -2,12 +2,14 @@ package data
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
 	pd "github.com/knoci/roaming-world/comment/api/user/v1"
 	"github.com/knoci/roaming-world/comment/internal/biz"
+	"google.golang.org/grpc/metadata"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -97,7 +99,8 @@ func (r *commentRepo) Create(ctx context.Context, comment *biz.Comment) (*biz.Co
 	}
 
 	if comment.NotifyUID != "" && comment.NotifyUID != c.UID {
-		if _, err := r.data.userClient.CreateNotification(ctx, &pd.CreateNotificationRequest{
+		rpcCtx := metadata.AppendToOutgoingContext(ctx, "x-roaming-service-token", os.Getenv("COMMENT_USER_RPC_TOKEN"))
+		if _, err := r.data.userClient.CreateNotification(rpcCtx, &pd.CreateNotificationRequest{
 			Uid: comment.NotifyUID, Type: "comment_reply", ActorUid: c.UID, ActorName: c.Name, Payload: c.CID,
 		}); err != nil {
 			r.log.WithContext(ctx).Errorf("commentRepo: create reply notification failed: %v", err)

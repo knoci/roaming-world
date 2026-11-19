@@ -375,6 +375,8 @@ func (m *SendVerificationCodeRequest) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
+	// no validation rules for Purpose
+
 	if len(errors) > 0 {
 		return SendVerificationCodeRequestMultiError(errors)
 	}
@@ -527,8 +529,6 @@ func (m *SendVerificationCodeReply) validate(all bool) error {
 	}
 
 	var errors []error
-
-	// no validation rules for Code
 
 	if len(errors) > 0 {
 		return SendVerificationCodeReplyMultiError(errors)
@@ -2344,6 +2344,8 @@ func (m *ConfirmEmailRequest) validate(all bool) error {
 
 	// no validation rules for Code
 
+	// no validation rules for Purpose
+
 	if len(errors) > 0 {
 		return ConfirmEmailRequestMultiError(errors)
 	}
@@ -2527,3 +2529,2007 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ConfirmEmailReplyValidationError{}
+
+// Validate checks the field values on FollowUserRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *FollowUserRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on FollowUserRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// FollowUserRequestMultiError, or nil if none found.
+func (m *FollowUserRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *FollowUserRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Uid
+
+	if len(errors) > 0 {
+		return FollowUserRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// FollowUserRequestMultiError is an error wrapping multiple validation errors
+// returned by FollowUserRequest.ValidateAll() if the designated constraints
+// aren't met.
+type FollowUserRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m FollowUserRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m FollowUserRequestMultiError) AllErrors() []error { return m }
+
+// FollowUserRequestValidationError is the validation error returned by
+// FollowUserRequest.Validate if the designated constraints aren't met.
+type FollowUserRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e FollowUserRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e FollowUserRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e FollowUserRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e FollowUserRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e FollowUserRequestValidationError) ErrorName() string {
+	return "FollowUserRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e FollowUserRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sFollowUserRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = FollowUserRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = FollowUserRequestValidationError{}
+
+// Validate checks the field values on FollowUserReply with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *FollowUserReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on FollowUserReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// FollowUserReplyMultiError, or nil if none found.
+func (m *FollowUserReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *FollowUserReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Following
+
+	if len(errors) > 0 {
+		return FollowUserReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// FollowUserReplyMultiError is an error wrapping multiple validation errors
+// returned by FollowUserReply.ValidateAll() if the designated constraints
+// aren't met.
+type FollowUserReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m FollowUserReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m FollowUserReplyMultiError) AllErrors() []error { return m }
+
+// FollowUserReplyValidationError is the validation error returned by
+// FollowUserReply.Validate if the designated constraints aren't met.
+type FollowUserReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e FollowUserReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e FollowUserReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e FollowUserReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e FollowUserReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e FollowUserReplyValidationError) ErrorName() string { return "FollowUserReplyValidationError" }
+
+// Error satisfies the builtin error interface
+func (e FollowUserReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sFollowUserReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = FollowUserReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = FollowUserReplyValidationError{}
+
+// Validate checks the field values on UnfollowUserRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UnfollowUserRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UnfollowUserRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UnfollowUserRequestMultiError, or nil if none found.
+func (m *UnfollowUserRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UnfollowUserRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Uid
+
+	if len(errors) > 0 {
+		return UnfollowUserRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// UnfollowUserRequestMultiError is an error wrapping multiple validation
+// errors returned by UnfollowUserRequest.ValidateAll() if the designated
+// constraints aren't met.
+type UnfollowUserRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UnfollowUserRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UnfollowUserRequestMultiError) AllErrors() []error { return m }
+
+// UnfollowUserRequestValidationError is the validation error returned by
+// UnfollowUserRequest.Validate if the designated constraints aren't met.
+type UnfollowUserRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UnfollowUserRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UnfollowUserRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UnfollowUserRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UnfollowUserRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UnfollowUserRequestValidationError) ErrorName() string {
+	return "UnfollowUserRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UnfollowUserRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUnfollowUserRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UnfollowUserRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UnfollowUserRequestValidationError{}
+
+// Validate checks the field values on UnfollowUserReply with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *UnfollowUserReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UnfollowUserReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UnfollowUserReplyMultiError, or nil if none found.
+func (m *UnfollowUserReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UnfollowUserReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Following
+
+	if len(errors) > 0 {
+		return UnfollowUserReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// UnfollowUserReplyMultiError is an error wrapping multiple validation errors
+// returned by UnfollowUserReply.ValidateAll() if the designated constraints
+// aren't met.
+type UnfollowUserReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UnfollowUserReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UnfollowUserReplyMultiError) AllErrors() []error { return m }
+
+// UnfollowUserReplyValidationError is the validation error returned by
+// UnfollowUserReply.Validate if the designated constraints aren't met.
+type UnfollowUserReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UnfollowUserReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UnfollowUserReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UnfollowUserReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UnfollowUserReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UnfollowUserReplyValidationError) ErrorName() string {
+	return "UnfollowUserReplyValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UnfollowUserReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUnfollowUserReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UnfollowUserReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UnfollowUserReplyValidationError{}
+
+// Validate checks the field values on UserSummary with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *UserSummary) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UserSummary with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in UserSummaryMultiError, or
+// nil if none found.
+func (m *UserSummary) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UserSummary) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Uid
+
+	// no validation rules for Name
+
+	// no validation rules for Avatar
+
+	if len(errors) > 0 {
+		return UserSummaryMultiError(errors)
+	}
+
+	return nil
+}
+
+// UserSummaryMultiError is an error wrapping multiple validation errors
+// returned by UserSummary.ValidateAll() if the designated constraints aren't met.
+type UserSummaryMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UserSummaryMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UserSummaryMultiError) AllErrors() []error { return m }
+
+// UserSummaryValidationError is the validation error returned by
+// UserSummary.Validate if the designated constraints aren't met.
+type UserSummaryValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UserSummaryValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UserSummaryValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UserSummaryValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UserSummaryValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UserSummaryValidationError) ErrorName() string { return "UserSummaryValidationError" }
+
+// Error satisfies the builtin error interface
+func (e UserSummaryValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUserSummary.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UserSummaryValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UserSummaryValidationError{}
+
+// Validate checks the field values on GetFollowersRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetFollowersRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetFollowersRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetFollowersRequestMultiError, or nil if none found.
+func (m *GetFollowersRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetFollowersRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Uid
+
+	// no validation rules for Page
+
+	// no validation rules for Limit
+
+	if len(errors) > 0 {
+		return GetFollowersRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetFollowersRequestMultiError is an error wrapping multiple validation
+// errors returned by GetFollowersRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetFollowersRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetFollowersRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetFollowersRequestMultiError) AllErrors() []error { return m }
+
+// GetFollowersRequestValidationError is the validation error returned by
+// GetFollowersRequest.Validate if the designated constraints aren't met.
+type GetFollowersRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetFollowersRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetFollowersRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetFollowersRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetFollowersRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetFollowersRequestValidationError) ErrorName() string {
+	return "GetFollowersRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetFollowersRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetFollowersRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetFollowersRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetFollowersRequestValidationError{}
+
+// Validate checks the field values on GetFollowersReply with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *GetFollowersReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetFollowersReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetFollowersReplyMultiError, or nil if none found.
+func (m *GetFollowersReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetFollowersReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetUsers() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetFollowersReplyValidationError{
+						field:  fmt.Sprintf("Users[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetFollowersReplyValidationError{
+						field:  fmt.Sprintf("Users[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return GetFollowersReplyValidationError{
+					field:  fmt.Sprintf("Users[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Total
+
+	if len(errors) > 0 {
+		return GetFollowersReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetFollowersReplyMultiError is an error wrapping multiple validation errors
+// returned by GetFollowersReply.ValidateAll() if the designated constraints
+// aren't met.
+type GetFollowersReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetFollowersReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetFollowersReplyMultiError) AllErrors() []error { return m }
+
+// GetFollowersReplyValidationError is the validation error returned by
+// GetFollowersReply.Validate if the designated constraints aren't met.
+type GetFollowersReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetFollowersReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetFollowersReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetFollowersReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetFollowersReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetFollowersReplyValidationError) ErrorName() string {
+	return "GetFollowersReplyValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetFollowersReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetFollowersReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetFollowersReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetFollowersReplyValidationError{}
+
+// Validate checks the field values on GetFollowingRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetFollowingRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetFollowingRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetFollowingRequestMultiError, or nil if none found.
+func (m *GetFollowingRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetFollowingRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Uid
+
+	// no validation rules for Page
+
+	// no validation rules for Limit
+
+	if len(errors) > 0 {
+		return GetFollowingRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetFollowingRequestMultiError is an error wrapping multiple validation
+// errors returned by GetFollowingRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetFollowingRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetFollowingRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetFollowingRequestMultiError) AllErrors() []error { return m }
+
+// GetFollowingRequestValidationError is the validation error returned by
+// GetFollowingRequest.Validate if the designated constraints aren't met.
+type GetFollowingRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetFollowingRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetFollowingRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetFollowingRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetFollowingRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetFollowingRequestValidationError) ErrorName() string {
+	return "GetFollowingRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetFollowingRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetFollowingRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetFollowingRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetFollowingRequestValidationError{}
+
+// Validate checks the field values on GetFollowingReply with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *GetFollowingReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetFollowingReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetFollowingReplyMultiError, or nil if none found.
+func (m *GetFollowingReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetFollowingReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetUsers() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetFollowingReplyValidationError{
+						field:  fmt.Sprintf("Users[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetFollowingReplyValidationError{
+						field:  fmt.Sprintf("Users[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return GetFollowingReplyValidationError{
+					field:  fmt.Sprintf("Users[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Total
+
+	if len(errors) > 0 {
+		return GetFollowingReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetFollowingReplyMultiError is an error wrapping multiple validation errors
+// returned by GetFollowingReply.ValidateAll() if the designated constraints
+// aren't met.
+type GetFollowingReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetFollowingReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetFollowingReplyMultiError) AllErrors() []error { return m }
+
+// GetFollowingReplyValidationError is the validation error returned by
+// GetFollowingReply.Validate if the designated constraints aren't met.
+type GetFollowingReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetFollowingReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetFollowingReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetFollowingReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetFollowingReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetFollowingReplyValidationError) ErrorName() string {
+	return "GetFollowingReplyValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetFollowingReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetFollowingReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetFollowingReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetFollowingReplyValidationError{}
+
+// Validate checks the field values on NotificationMessage with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *NotificationMessage) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NotificationMessage with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// NotificationMessageMultiError, or nil if none found.
+func (m *NotificationMessage) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NotificationMessage) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for Type
+
+	// no validation rules for ActorUid
+
+	// no validation rules for ActorName
+
+	// no validation rules for Payload
+
+	// no validation rules for Read
+
+	// no validation rules for CreatedAt
+
+	if len(errors) > 0 {
+		return NotificationMessageMultiError(errors)
+	}
+
+	return nil
+}
+
+// NotificationMessageMultiError is an error wrapping multiple validation
+// errors returned by NotificationMessage.ValidateAll() if the designated
+// constraints aren't met.
+type NotificationMessageMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NotificationMessageMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NotificationMessageMultiError) AllErrors() []error { return m }
+
+// NotificationMessageValidationError is the validation error returned by
+// NotificationMessage.Validate if the designated constraints aren't met.
+type NotificationMessageValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NotificationMessageValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NotificationMessageValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NotificationMessageValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NotificationMessageValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NotificationMessageValidationError) ErrorName() string {
+	return "NotificationMessageValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e NotificationMessageValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNotificationMessage.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NotificationMessageValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NotificationMessageValidationError{}
+
+// Validate checks the field values on GetNotificationsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetNotificationsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetNotificationsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetNotificationsRequestMultiError, or nil if none found.
+func (m *GetNotificationsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetNotificationsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Page
+
+	// no validation rules for Limit
+
+	if len(errors) > 0 {
+		return GetNotificationsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetNotificationsRequestMultiError is an error wrapping multiple validation
+// errors returned by GetNotificationsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetNotificationsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetNotificationsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetNotificationsRequestMultiError) AllErrors() []error { return m }
+
+// GetNotificationsRequestValidationError is the validation error returned by
+// GetNotificationsRequest.Validate if the designated constraints aren't met.
+type GetNotificationsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetNotificationsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetNotificationsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetNotificationsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetNotificationsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetNotificationsRequestValidationError) ErrorName() string {
+	return "GetNotificationsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetNotificationsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetNotificationsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetNotificationsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetNotificationsRequestValidationError{}
+
+// Validate checks the field values on GetNotificationsReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetNotificationsReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetNotificationsReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetNotificationsReplyMultiError, or nil if none found.
+func (m *GetNotificationsReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetNotificationsReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetNotifications() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, GetNotificationsReplyValidationError{
+						field:  fmt.Sprintf("Notifications[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, GetNotificationsReplyValidationError{
+						field:  fmt.Sprintf("Notifications[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return GetNotificationsReplyValidationError{
+					field:  fmt.Sprintf("Notifications[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Total
+
+	// no validation rules for Unread
+
+	if len(errors) > 0 {
+		return GetNotificationsReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetNotificationsReplyMultiError is an error wrapping multiple validation
+// errors returned by GetNotificationsReply.ValidateAll() if the designated
+// constraints aren't met.
+type GetNotificationsReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetNotificationsReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetNotificationsReplyMultiError) AllErrors() []error { return m }
+
+// GetNotificationsReplyValidationError is the validation error returned by
+// GetNotificationsReply.Validate if the designated constraints aren't met.
+type GetNotificationsReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetNotificationsReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetNotificationsReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetNotificationsReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetNotificationsReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetNotificationsReplyValidationError) ErrorName() string {
+	return "GetNotificationsReplyValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetNotificationsReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetNotificationsReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetNotificationsReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetNotificationsReplyValidationError{}
+
+// Validate checks the field values on MarkNotificationReadRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MarkNotificationReadRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MarkNotificationReadRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MarkNotificationReadRequestMultiError, or nil if none found.
+func (m *MarkNotificationReadRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MarkNotificationReadRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	if len(errors) > 0 {
+		return MarkNotificationReadRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// MarkNotificationReadRequestMultiError is an error wrapping multiple
+// validation errors returned by MarkNotificationReadRequest.ValidateAll() if
+// the designated constraints aren't met.
+type MarkNotificationReadRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MarkNotificationReadRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MarkNotificationReadRequestMultiError) AllErrors() []error { return m }
+
+// MarkNotificationReadRequestValidationError is the validation error returned
+// by MarkNotificationReadRequest.Validate if the designated constraints
+// aren't met.
+type MarkNotificationReadRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MarkNotificationReadRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MarkNotificationReadRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MarkNotificationReadRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MarkNotificationReadRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MarkNotificationReadRequestValidationError) ErrorName() string {
+	return "MarkNotificationReadRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MarkNotificationReadRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMarkNotificationReadRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MarkNotificationReadRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MarkNotificationReadRequestValidationError{}
+
+// Validate checks the field values on MarkNotificationReadReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *MarkNotificationReadReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on MarkNotificationReadReply with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// MarkNotificationReadReplyMultiError, or nil if none found.
+func (m *MarkNotificationReadReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *MarkNotificationReadReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Status
+
+	if len(errors) > 0 {
+		return MarkNotificationReadReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// MarkNotificationReadReplyMultiError is an error wrapping multiple validation
+// errors returned by MarkNotificationReadReply.ValidateAll() if the
+// designated constraints aren't met.
+type MarkNotificationReadReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m MarkNotificationReadReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m MarkNotificationReadReplyMultiError) AllErrors() []error { return m }
+
+// MarkNotificationReadReplyValidationError is the validation error returned by
+// MarkNotificationReadReply.Validate if the designated constraints aren't met.
+type MarkNotificationReadReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e MarkNotificationReadReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e MarkNotificationReadReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e MarkNotificationReadReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e MarkNotificationReadReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e MarkNotificationReadReplyValidationError) ErrorName() string {
+	return "MarkNotificationReadReplyValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e MarkNotificationReadReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sMarkNotificationReadReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = MarkNotificationReadReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = MarkNotificationReadReplyValidationError{}
+
+// Validate checks the field values on GetFollowingUIDsRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetFollowingUIDsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetFollowingUIDsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetFollowingUIDsRequestMultiError, or nil if none found.
+func (m *GetFollowingUIDsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetFollowingUIDsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Uid
+
+	if len(errors) > 0 {
+		return GetFollowingUIDsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetFollowingUIDsRequestMultiError is an error wrapping multiple validation
+// errors returned by GetFollowingUIDsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetFollowingUIDsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetFollowingUIDsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetFollowingUIDsRequestMultiError) AllErrors() []error { return m }
+
+// GetFollowingUIDsRequestValidationError is the validation error returned by
+// GetFollowingUIDsRequest.Validate if the designated constraints aren't met.
+type GetFollowingUIDsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetFollowingUIDsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetFollowingUIDsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetFollowingUIDsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetFollowingUIDsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetFollowingUIDsRequestValidationError) ErrorName() string {
+	return "GetFollowingUIDsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetFollowingUIDsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetFollowingUIDsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetFollowingUIDsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetFollowingUIDsRequestValidationError{}
+
+// Validate checks the field values on GetFollowingUIDsReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetFollowingUIDsReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetFollowingUIDsReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetFollowingUIDsReplyMultiError, or nil if none found.
+func (m *GetFollowingUIDsReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetFollowingUIDsReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return GetFollowingUIDsReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetFollowingUIDsReplyMultiError is an error wrapping multiple validation
+// errors returned by GetFollowingUIDsReply.ValidateAll() if the designated
+// constraints aren't met.
+type GetFollowingUIDsReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetFollowingUIDsReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetFollowingUIDsReplyMultiError) AllErrors() []error { return m }
+
+// GetFollowingUIDsReplyValidationError is the validation error returned by
+// GetFollowingUIDsReply.Validate if the designated constraints aren't met.
+type GetFollowingUIDsReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetFollowingUIDsReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetFollowingUIDsReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetFollowingUIDsReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetFollowingUIDsReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetFollowingUIDsReplyValidationError) ErrorName() string {
+	return "GetFollowingUIDsReplyValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetFollowingUIDsReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetFollowingUIDsReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetFollowingUIDsReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetFollowingUIDsReplyValidationError{}
+
+// Validate checks the field values on CreateNotificationRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CreateNotificationRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateNotificationRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateNotificationRequestMultiError, or nil if none found.
+func (m *CreateNotificationRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateNotificationRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Uid
+
+	// no validation rules for Type
+
+	// no validation rules for ActorUid
+
+	// no validation rules for ActorName
+
+	// no validation rules for Payload
+
+	if len(errors) > 0 {
+		return CreateNotificationRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateNotificationRequestMultiError is an error wrapping multiple validation
+// errors returned by CreateNotificationRequest.ValidateAll() if the
+// designated constraints aren't met.
+type CreateNotificationRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateNotificationRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateNotificationRequestMultiError) AllErrors() []error { return m }
+
+// CreateNotificationRequestValidationError is the validation error returned by
+// CreateNotificationRequest.Validate if the designated constraints aren't met.
+type CreateNotificationRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateNotificationRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateNotificationRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateNotificationRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateNotificationRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateNotificationRequestValidationError) ErrorName() string {
+	return "CreateNotificationRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateNotificationRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateNotificationRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateNotificationRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateNotificationRequestValidationError{}
+
+// Validate checks the field values on CreateNotificationReply with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CreateNotificationReply) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CreateNotificationReply with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CreateNotificationReplyMultiError, or nil if none found.
+func (m *CreateNotificationReply) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CreateNotificationReply) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Status
+
+	if len(errors) > 0 {
+		return CreateNotificationReplyMultiError(errors)
+	}
+
+	return nil
+}
+
+// CreateNotificationReplyMultiError is an error wrapping multiple validation
+// errors returned by CreateNotificationReply.ValidateAll() if the designated
+// constraints aren't met.
+type CreateNotificationReplyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CreateNotificationReplyMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CreateNotificationReplyMultiError) AllErrors() []error { return m }
+
+// CreateNotificationReplyValidationError is the validation error returned by
+// CreateNotificationReply.Validate if the designated constraints aren't met.
+type CreateNotificationReplyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CreateNotificationReplyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CreateNotificationReplyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CreateNotificationReplyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CreateNotificationReplyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CreateNotificationReplyValidationError) ErrorName() string {
+	return "CreateNotificationReplyValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CreateNotificationReplyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCreateNotificationReply.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CreateNotificationReplyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CreateNotificationReplyValidationError{}

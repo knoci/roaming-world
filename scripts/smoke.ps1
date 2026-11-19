@@ -1,3 +1,5 @@
+param([switch]$Kubernetes)
+
 $ErrorActionPreference = "Stop"
 
 $targets = @(
@@ -8,12 +10,24 @@ $targets = @(
   @{ Name = "article";    Url = "http://localhost:18004/healthz" },
   @{ Name = "audiobook";  Url = "http://localhost:18005/healthz" },
   @{ Name = "plan";       Url = "http://localhost:18006/healthz" },
-  @{ Name = "ai";         Url = "http://localhost:18007/healthz" },
-  @{ Name = "mcp";        Url = "http://localhost:18008/healthz" },
   @{ Name = "gateway";    Url = "http://localhost:18009/healthz" }
 )
 
 $failed = $false
+foreach ($internalService in @("ai", "mcp")) {
+  $check = 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=5).close()'
+  if ($Kubernetes) {
+    $check | kubectl exec -i -n roaming-world "deployment/$internalService-service" -- python -
+  } else {
+    $check | docker compose --project-directory (Join-Path $PSScriptRoot "..") exec -T $internalService python -
+  }
+  if ($LASTEXITCODE -eq 0) {
+    Write-Host "[OK] $internalService internal health"
+  } else {
+    Write-Host "[FAIL] $internalService internal health"
+    $failed = $true
+  }
+}
 foreach ($t in $targets) {
   try {
     $resp = Invoke-WebRequest -UseBasicParsing -Uri $t.Url -TimeoutSec 5

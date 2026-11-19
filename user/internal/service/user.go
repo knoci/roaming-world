@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/metadata"
+	"github.com/go-kratos/kratos/v2/transport"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	pb "github.com/knoci/roaming-world/user/api/user/v1"
 	"github.com/knoci/roaming-world/user/internal/biz"
@@ -28,9 +28,7 @@ func (s *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 		return nil, err
 	}
 
-	httpReq, _ := http.RequestFromServerContext(ctx)
-	ua := httpReq.Header.Get("User-Agent")
-	token, err := jwt.GenerateToken(ua, user.Uid, user.Name, req.Email, user.Avatar, "user")
+	token, err := jwt.GenerateToken(requestUserAgent(ctx), user.Uid, user.Name, req.Email, user.Avatar, "user")
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to generate token for user %s: %v", user.Name, err)
 		return nil, biz.ErrInternalError
@@ -44,16 +42,17 @@ func (s *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 	}, nil
 }
 func (s *UserService) SendVerificationCode(ctx context.Context, req *pb.SendVerificationCodeRequest) (*pb.SendVerificationCodeReply, error) {
-	s.log.WithContext(ctx).Infof("SendVerificationCode received: Email=%s", req.Email)
-	code, err := s.user.SendVerificationCode(ctx, req.Email)
+	if tr, ok := transport.FromServerContext(ctx); ok && tr.Kind() == transport.KindHTTP {
+		tr.ReplyHeader().Set("Cache-Control", "no-store")
+	}
+	target, err := verificationTarget(ctx, req.Email, req.Purpose)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("SendVerificationCode failed: %v", err)
 		return nil, err
 	}
-
-	return &pb.SendVerificationCodeReply{
-		Code: code,
-	}, nil
+	if err := s.user.SendVerificationCode(ctx, target); err != nil {
+		return nil, err
+	}
+	return &pb.SendVerificationCodeReply{}, nil
 }
 
 func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginReply, error) {
@@ -64,14 +63,12 @@ func (s *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, err
 	}
 
-	httpReq, _ := http.RequestFromServerContext(ctx)
-	ua := httpReq.Header.Get("User-Agent")
 	role, roleErr := s.user.GetRole(ctx, reply.Uid)
 	if roleErr != nil {
 		s.log.WithContext(ctx).Errorf("failed to get role for user %s: %v", reply.Name, roleErr)
 		return nil, biz.ErrInternalError
 	}
-	token, err := jwt.GenerateToken(ua, reply.Uid, reply.Name, req.Email, reply.Avatar, role)
+	token, err := jwt.GenerateToken(requestUserAgent(ctx), reply.Uid, reply.Name, req.Email, reply.Avatar, role)
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("failed to generate token for user %s: %v", reply.Name, err)
 		return nil, biz.ErrInternalError
@@ -178,34 +175,50 @@ func (s *UserService) ConfirmUser(ctx context.Context, req *pb.ConfirmUserReques
 	return &pb.ConfirmUserReply{Status: "验证成功"}, nil
 }
 func (s *UserService) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailRequest) (*pb.ConfirmEmailReply, error) {
-	s.log.WithContext(ctx).Infof("userService: VerifyCode received: Email=%s, Code=%s", req.Email, req.Code)
-	rep, err := s.user.ConfirmEmail(ctx, req)
+	target, err := verificationTarget(ctx, req.Email, req.Purpose)
 	if err != nil {
-		s.log.WithContext(ctx).Errorf("userService: VerifyCode failed: %v", err)
-		return rep, err
+		return nil, err
 	}
-	return rep, nil
+	if err := s.user.ConfirmEmail(ctx, target, req.Code); err != nil {
+		return nil, err
+	}
+	return &pb.ConfirmEmailReply{Status: "验证成功"}, nil
+}
+
+func verificationTarget(ctx context.Context, email, purpose string) (biz.VerificationTarget, error) {
+	if purpose == "" {
+		purpose = biz.VerificationRegister
+	}
+	target := biz.VerificationTarget{Email: email, Purpose: purpose}
+	if purpose == biz.VerificationChangeEmail {
+		claims, err := GetJwtClaim(ctx)
+		if err != nil {
+			return biz.VerificationTarget{}, err
+		}
+		target.UID = claims.UID
+	}
+	return target, nil
+}
+
+func requestUserAgent(ctx context.Context) string {
+	if tr, ok := transport.FromServerContext(ctx); ok {
+		return tr.RequestHeader().Get("User-Agent")
+	}
+	return ""
 }
 
 func GetJwtClaim(ctx context.Context) (*jwt.Claims, error) {
-	var authHeader, ua string
-	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
-		authHeader = req.Header.Get("Authorization")
-		ua = req.Header.Get("User-Agent")
-	} else if md, ok := metadata.FromServerContext(ctx); ok {
-		authHeader = md.Get("authorization")
-		ua = md.Get("user-agent")
-	}
-
-	if len(authHeader) == 0 {
+	tr, ok := transport.FromServerContext(ctx)
+	if !ok {
 		return nil, biz.ErrUnauthorized
 	}
+	authHeader := tr.RequestHeader().Get("Authorization")
 	parts := strings.SplitN(authHeader, " ", 2)
 	if !(len(parts) == 2 && parts[0] == "Bearer") {
 		return nil, biz.ErrUnauthorized
 	}
 
-	claims, err := jwt.ParseToken(ua, parts[1])
+	claims, err := jwt.ParseToken(tr.RequestHeader().Get("User-Agent"), parts[1])
 	if err != nil {
 		return nil, biz.ErrUnauthorized
 	}

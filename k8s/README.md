@@ -15,7 +15,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\k8s-up.ps1
 - MySQL 0 副本，Nacos 用 embedded storage；
 - 业务镜像 `IfNotPresent`，由脚本构建并 `minikube image load`；
 - 单节点 Kafka 的 controller quorum 用 `localhost:9093`，避免 ClusterIP hairpin；
-- PostgreSQL 迁移 Job + Nacos 配置导入 Job。
+- PostgreSQL 迁移 Job + Nacos 配置导入 Job；
+- 脚本初始化 `roaming-world-internal-tokens` Secret，升级已有环境时移除旧的 Nacos NodePort。
 
 这是单节点验证，不是生产高可用。
 
@@ -51,7 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\k8s-up.ps1
 | PostgreSQL | 业务数据库 | postgres-service:5432，PVC 10Gi |
 | MySQL | Nacos 配置存储 | 仅 Nacos 使用，不是业务库 |
 | Redis | 缓存/排行榜 | redis-service:6379，PVC 5Gi |
-| Nacos | 注册/配置中心 | nacos-service:8848，NodePort 30848 |
+| Nacos | 注册/配置中心 | nacos-service:8848 |
 | Kafka | 评论计数事件 comment-events（不接日志） | kafka-service:9092，单节点 KRaft |
 | Meilisearch | 场景搜索 | meilisearch-service:7700 |
 | etcd | 验证码 | etcd-service:2379 |
@@ -116,8 +117,8 @@ MySQL 只给 Nacos 用，首次启动前要确保 `nacos_config` 库存在并导
 业务服务启动时会从 Nacos 拉 roaming-world.yaml，所以要先在 Nacos 建配置：
 
 1. 访问 Nacos 控制台：
-   - kubectl get nodes -o wide
-   - http://<NODE_IP>:30848/nacos
+   - `kubectl port-forward -n roaming-world svc/nacos-service 8848:8848 --address 127.0.0.1`
+   - http://127.0.0.1:8848/nacos
    - 演示清单关闭了 Nacos 鉴权；生产要开启并配置独立 token
 2. 新建配置：
    - Data ID：roaming-world.yaml
@@ -161,6 +162,8 @@ roaming-world-service-config 里只有：
 - Data ID / Group。
 
 业务数据库、Redis、Kafka、JWT 等仍在 Nacos 的 roaming-world.yaml 里，符合“配置中心统一管理”的设计。
+
+手动部署时，先应用 `k8s/namespace.yaml`，再运行 `scripts/configure-internal-tokens.ps1 -Kubernetes` 创建内部服务 Secret，之后应用 Kustomize 清单。升级旧集群时删除 `roaming-world` 命名空间中的旧 `nacos-nodeport` Service。
 
 ## 5. 请求怎么走
 

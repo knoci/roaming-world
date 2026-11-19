@@ -1,5 +1,6 @@
 ﻿$ErrorActionPreference = "Stop"
 
+Set-Location (Join-Path $PSScriptRoot "..")
 & "$PSScriptRoot\preflight.ps1"
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
@@ -19,6 +20,7 @@ foreach ($img in @("golang:1.24", "debian:bookworm-slim")) {
 }
 
 Write-Host "Starting Roaming World local stack..."
+& "$PSScriptRoot\configure-internal-tokens.ps1"
 docker compose up -d --build
 if ($LASTEXITCODE -ne 0) {
   Write-Host "[FAIL] docker compose up 失败，请查看上面的构建日志"
@@ -34,7 +36,8 @@ $targets = @(
   @{ Name = "comment";    Url = "http://localhost:18003/healthz" },
   @{ Name = "article";    Url = "http://localhost:18004/healthz" },
   @{ Name = "audiobook";  Url = "http://localhost:18005/healthz" },
-  @{ Name = "plan";       Url = "http://localhost:18006/healthz" }
+  @{ Name = "plan";       Url = "http://localhost:18006/healthz" },
+  @{ Name = "gateway";    Url = "http://localhost:18009/healthz" }
 )
 
 $deadline = (Get-Date).AddMinutes(3)

@@ -171,8 +171,10 @@ func (x *RegisterReply) GetAvatar() string {
 
 // 发送验证码请求
 type SendVerificationCodeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Email string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	// register (默认)、reset_password 或 change_email。更换邮箱需要登录。
+	Purpose       string `protobuf:"bytes,2,opt,name=purpose,proto3" json:"purpose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -214,10 +216,16 @@ func (x *SendVerificationCodeRequest) GetEmail() string {
 	return ""
 }
 
+func (x *SendVerificationCodeRequest) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
+	}
+	return ""
+}
+
 // 发送验证码响应
 type SendVerificationCodeReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -250,13 +258,6 @@ func (x *SendVerificationCodeReply) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SendVerificationCodeReply.ProtoReflect.Descriptor instead.
 func (*SendVerificationCodeReply) Descriptor() ([]byte, []int) {
 	return file_user_v1_user_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *SendVerificationCodeReply) GetCode() string {
-	if x != nil {
-		return x.Code
-	}
-	return ""
 }
 
 // 登录请求
@@ -1011,9 +1012,11 @@ func (x *ConfirmUserReply) GetStatus() string {
 
 // 邮箱确认请求
 type ConfirmEmailRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Email string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Code  string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	// 与发码时的用途一致。此接口只检查验证码，最终业务操作负责消费。
+	Purpose       string `protobuf:"bytes,3,opt,name=purpose,proto3" json:"purpose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1058,6 +1061,13 @@ func (x *ConfirmEmailRequest) GetEmail() string {
 func (x *ConfirmEmailRequest) GetCode() string {
 	if x != nil {
 		return x.Code
+	}
+	return ""
+}
+
+func (x *ConfirmEmailRequest) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
 	}
 	return ""
 }
@@ -2082,11 +2092,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x03uid\x18\x01 \x01(\tR\x03uid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\x12\x16\n" +
-	"\x06avatar\x18\x04 \x01(\tR\x06avatar\"<\n" +
+	"\x06avatar\x18\x04 \x01(\tR\x06avatar\"V\n" +
 	"\x1bSendVerificationCodeRequest\x12\x1d\n" +
-	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\"/\n" +
-	"\x19SendVerificationCodeReply\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\"T\n" +
+	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12\x18\n" +
+	"\apurpose\x18\x02 \x01(\tR\apurpose\"'\n" +
+	"\x19SendVerificationCodeReplyJ\x04\b\x01\x10\x02R\x04code\"T\n" +
 	"\fLoginRequest\x12\x1d\n" +
 	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12%\n" +
 	"\bpassword\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18\x12R\bpassword\"`\n" +
@@ -2130,10 +2140,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\"*\n" +
 	"\x10ConfirmUserReply\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status\"?\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\"Y\n" +
 	"\x13ConfirmEmailRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x12\n" +
-	"\x04code\x18\x02 \x01(\tR\x04code\"+\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x18\n" +
+	"\apurpose\x18\x03 \x01(\tR\apurpose\"+\n" +
 	"\x11ConfirmEmailReply\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\"%\n" +
 	"\x11FollowUserRequest\x12\x10\n" +

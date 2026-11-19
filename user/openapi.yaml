@@ -3,8 +3,557 @@
 
 openapi: 3.0.3
 info:
-    title: ""
+    title: User API
+    description: 用户服务接口定义
     version: 0.0.1
-paths: {}
+paths:
+    /v1/user:
+        delete:
+            tags:
+                - User
+            description: 删除用户
+            operationId: User_DeleteUser
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.DeleteUserReply'
+    /v1/user/avatar:
+        post:
+            tags:
+                - User
+            description: 上传头像
+            operationId: User_UploadAvatar
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.UploadAvatarRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.UploadAvatarReply'
+    /v1/user/confirm:
+        post:
+            tags:
+                - User
+            description: 用户确认
+            operationId: User_ConfirmUser
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.ConfirmUserRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.ConfirmUserReply'
+    /v1/user/email/confirm:
+        post:
+            tags:
+                - User
+            description: 验证邮箱
+            operationId: User_ConfirmEmail
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.ConfirmEmailRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.ConfirmEmailReply'
+    /v1/user/find:
+        get:
+            tags:
+                - User
+            description: 查找用户
+            operationId: User_FindUser
+            parameters:
+                - name: keyword
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.FindUserReply'
+    /v1/user/info:
+        put:
+            tags:
+                - User
+            description: 更新用户信息
+            operationId: User_UpdateUserInfo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.UpdateUserInfoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.UpdateUserInfoReply'
+    /v1/user/login:
+        post:
+            tags:
+                - User
+            description: 用户登录
+            operationId: User_Login
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.LoginRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.LoginReply'
+    /v1/user/notifications:
+        get:
+            tags:
+                - User
+            description: 我的通知
+            operationId: User_GetNotifications
+            parameters:
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.GetNotificationsReply'
+    /v1/user/notifications/{id}/read:
+        post:
+            tags:
+                - User
+            description: 标记通知已读
+            operationId: User_MarkNotificationRead
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.MarkNotificationReadReply'
+    /v1/user/register:
+        post:
+            tags:
+                - User
+            description: 用户注册
+            operationId: User_Register
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.RegisterRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.RegisterReply'
+    /v1/user/reset:
+        post:
+            tags:
+                - User
+            description: 重置密码
+            operationId: User_ResetPassword
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.ResetPasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.ResetPasswordReply'
+    /v1/user/verify:
+        get:
+            tags:
+                - User
+            description: 发送验证码
+            operationId: User_SendVerificationCode
+            parameters:
+                - name: email
+                  in: query
+                  schema:
+                    type: string
+                - name: purpose
+                  in: query
+                  description: register (默认)、reset_password 或 change_email。更换邮箱需要登录。
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.SendVerificationCodeReply'
+    /v1/user/{uid}/follow:
+        post:
+            tags:
+                - User
+            description: 关注用户
+            operationId: User_FollowUser
+            parameters:
+                - name: uid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.FollowUserReply'
+        delete:
+            tags:
+                - User
+            description: 取消关注
+            operationId: User_UnfollowUser
+            parameters:
+                - name: uid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.UnfollowUserReply'
+    /v1/user/{uid}/followers:
+        get:
+            tags:
+                - User
+            description: 粉丝列表
+            operationId: User_GetFollowers
+            parameters:
+                - name: uid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.GetFollowersReply'
+    /v1/user/{uid}/following:
+        get:
+            tags:
+                - User
+            description: 关注列表
+            operationId: User_GetFollowing
+            parameters:
+                - name: uid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.GetFollowingReply'
 components:
-    schemas: {}
+    schemas:
+        user.v1.ConfirmEmailReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: 邮箱确认响应
+        user.v1.ConfirmEmailRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                code:
+                    type: string
+                purpose:
+                    type: string
+                    description: 与发码时的用途一致。此接口只检查验证码，最终业务操作负责消费。
+            description: 邮箱确认请求
+        user.v1.ConfirmUserReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: 用户确认响应
+        user.v1.ConfirmUserRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                email:
+                    type: string
+            description: 用户确认请求
+        user.v1.DeleteUserReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: 删除用户响应
+        user.v1.FindUserReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                avatar:
+                    type: string
+                email:
+                    type: string
+            description: 查找用户响应
+        user.v1.FollowUserReply:
+            type: object
+            properties:
+                following:
+                    type: boolean
+        user.v1.GetFollowersReply:
+            type: object
+            properties:
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/user.v1.UserSummary'
+                total:
+                    type: string
+        user.v1.GetFollowingReply:
+            type: object
+            properties:
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/user.v1.UserSummary'
+                total:
+                    type: string
+        user.v1.GetNotificationsReply:
+            type: object
+            properties:
+                notifications:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/user.v1.NotificationMessage'
+                total:
+                    type: string
+                unread:
+                    type: string
+        user.v1.LoginReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                token:
+                    type: string
+                avatar:
+                    type: string
+            description: 登录响应
+        user.v1.LoginRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                password:
+                    type: string
+            description: 登录请求
+        user.v1.MarkNotificationReadReply:
+            type: object
+            properties:
+                status:
+                    type: string
+        user.v1.NotificationMessage:
+            type: object
+            properties:
+                id:
+                    type: string
+                type:
+                    type: string
+                actorUid:
+                    type: string
+                actorName:
+                    type: string
+                payload:
+                    type: string
+                read:
+                    type: boolean
+                createdAt:
+                    type: string
+        user.v1.RegisterReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                token:
+                    type: string
+                avatar:
+                    type: string
+            description: 注册响应
+        user.v1.RegisterRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                email:
+                    type: string
+                password:
+                    type: string
+                code:
+                    type: string
+                avatar:
+                    type: string
+            description: 注册请求
+        user.v1.ResetPasswordReply:
+            type: object
+            properties:
+                status:
+                    type: string
+            description: 重置密码响应
+        user.v1.ResetPasswordRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                email:
+                    type: string
+                code:
+                    type: string
+                newPassword:
+                    type: string
+            description: 重置密码请求
+        user.v1.SendVerificationCodeReply:
+            type: object
+            properties: {}
+            description: 发送验证码响应
+        user.v1.UnfollowUserReply:
+            type: object
+            properties:
+                following:
+                    type: boolean
+        user.v1.UpdateUserInfoReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                email:
+                    type: string
+            description: 更新用户信息响应
+        user.v1.UpdateUserInfoRequest:
+            type: object
+            properties:
+                newName:
+                    type: string
+                newEmail:
+                    type: string
+                code:
+                    type: string
+            description: 更新用户信息请求
+        user.v1.UploadAvatarReply:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                avatar:
+                    type: string
+            description: 上传头像响应
+        user.v1.UploadAvatarRequest:
+            type: object
+            properties: {}
+            description: 上传头像请求
+        user.v1.UserSummary:
+            type: object
+            properties:
+                uid:
+                    type: string
+                name:
+                    type: string
+                avatar:
+                    type: string
+tags:
+    - name: User

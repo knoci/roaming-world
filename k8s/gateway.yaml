@@ -38,6 +38,11 @@ spec:
               value: DEFAULT_GROUP
             - name: AI_ENGINE_URL
               value: http://ai-service:8000
+            - name: AI_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: roaming-world-internal-tokens
+                  key: AI_GATEWAY_TOKEN
           livenessProbe:
             httpGet:
               path: /healthz

@@ -155,11 +155,14 @@ message RegisterReply {
 // 发送验证码请求
 message SendVerificationCodeRequest {
   string email = 1 [(validate.rules).string.email = true];
+  // register (默认)、reset_password 或 change_email。更换邮箱需要登录。
+  string purpose = 2;
 }
 
 // 发送验证码响应
 message SendVerificationCodeReply {
-  string code = 1;
+  reserved 1;
+  reserved "code";
 }
 
 // 登录请求
@@ -250,6 +253,8 @@ message ConfirmUserReply {
 message ConfirmEmailRequest {
   string email = 1;
   string code = 2;
+  // 与发码时的用途一致。此接口只检查验证码，最终业务操作负责消费。
+  string purpose = 3;
 }
 
 // 邮箱确认响应

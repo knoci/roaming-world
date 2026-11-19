@@ -297,32 +297,6 @@ func (r *userRepo) Delete(ctx context.Context, uid string) error {
 	return nil
 }
 
-// VerifyCode 验证验证码
-func (r *userRepo) VerifyCode(ctx context.Context, email, code string) error {
-	key := fmt.Sprintf("verify_code:%s:%s", email, code)
-	resp, err := r.data.etcd.Get(ctx, key)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("userRepo: etcd get verify code error: %v, key: %s", err, key)
-		error := r.data.LogError(ctx, "user", err.Error(), "etcd.Get", key)
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("userRepo: kafka send errorlog error: %v", error)
-		}
-		return err
-	}
-	if len(resp.Kvs) == 0 {
-		return errors.New("verification code not found")
-	}
-
-	// 验证成功后删除验证码
-	_, err = r.data.etcd.Delete(ctx, key)
-	if err != nil {
-		// 即使删除失败，验证也已通过，记录错误但不必返回给用户
-		r.log.WithContext(ctx).Errorf("userRepo: etcd delete verify code error: %v, key: %s", err, key)
-	}
-	r.log.WithContext(ctx).Infof("userRepo: verify code success and deleted, key: %s", key)
-	return nil
-}
-
 // UploadAvatar 上传头像并更新用户记录中的头像URL
 func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart.FileHeader) (*biz.User, error) {
 	var u User
@@ -425,15 +399,6 @@ func (r *userRepo) UploadAvatar(ctx context.Context, uid string, file *multipart
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
 	}, nil
-}
-
-func (r *userRepo) SetCode(ctx context.Context, key string, time int64) error {
-	err := r.data.SetEtcd(ctx, key, time)
-	if err != nil {
-		r.log.WithContext(ctx).Errorf("userRepo: save verify code failed: %s", err)
-		return err
-	}
-	return nil
 }
 
 func randcode() string {

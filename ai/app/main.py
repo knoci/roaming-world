@@ -1,9 +1,10 @@
 import logging
 import os
+import secrets
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
@@ -98,11 +99,24 @@ def readyz():
         raise HTTPException(status_code=503, detail=f"db not ready: {exc}")
 
 
-@app.post("/v1/ai/ingest")
-def ingest(x_ingest_token: str | None = Header(default=None)):
-    expected = os.getenv("AI_INGEST_TOKEN", "dev-ingest-token")
-    if x_ingest_token != expected:
-        raise HTTPException(status_code=401, detail="invalid ingest token")
+def require_token(name: str, provided: str | None):
+    expected = os.getenv(name)
+    if not expected:
+        raise HTTPException(status_code=503, detail="internal authentication unavailable")
+    if not provided or not secrets.compare_digest(provided.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+def require_gateway(x_ai_gateway_token: str | None = Header(default=None)):
+    require_token("AI_GATEWAY_TOKEN", x_ai_gateway_token)
+
+
+def require_admin(x_ingest_token: str | None = Header(default=None)):
+    require_token("AI_INGEST_TOKEN", x_ingest_token)
+
+
+@app.post("/v1/ai/ingest", dependencies=[Depends(require_admin)])
+def ingest():
     try:
         with connection() as conn:
             result = ingest_all(conn)
@@ -124,12 +138,12 @@ class AgentResponse(BaseModel):
 
 
 
-@app.get("/v1/ai/providers")
+@app.get("/v1/ai/providers", dependencies=[Depends(require_admin)])
 def providers():
     return provider_status()
 
 
-@app.post("/v1/ai/multi", response_model=AgentResponse)
+@app.post("/v1/ai/multi", response_model=AgentResponse, dependencies=[Depends(require_gateway)])
 def multi_chat(req: ChatRequest):
     query = req.query.strip()
     if not query:
@@ -156,7 +170,7 @@ def multi_chat(req: ChatRequest):
         raise HTTPException(status_code=503, detail=f"multi-agent failed: {exc}")
 
 
-@app.post("/v1/ai/graph", response_model=AgentResponse)
+@app.post("/v1/ai/graph", response_model=AgentResponse, dependencies=[Depends(require_gateway)])
 def graph_chat(req: ChatRequest):
     query = req.query.strip()
     if not query:
@@ -178,7 +192,7 @@ def graph_chat(req: ChatRequest):
         raise HTTPException(status_code=503, detail=f"graph failed: {exc}")
 
 
-@app.post("/v1/ai/agent", response_model=AgentResponse)
+@app.post("/v1/ai/agent", response_model=AgentResponse, dependencies=[Depends(require_gateway)])
 def agent_chat(req: ChatRequest):
     query = req.query.strip()
     if not query:
@@ -196,7 +210,7 @@ def agent_chat(req: ChatRequest):
         raise HTTPException(status_code=503, detail=f"agent failed: {exc}")
 
 
-@app.post("/v1/ai/chat", response_model=ChatResponse)
+@app.post("/v1/ai/chat", response_model=ChatResponse, dependencies=[Depends(require_gateway)])
 def chat(req: ChatRequest):
     query = req.query.strip()
     if not query:

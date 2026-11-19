@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import sys
 import urllib.parse
 import urllib.request
@@ -169,7 +170,8 @@ class MCPHandler:
 
 def _check_token(headers) -> bool:
     expected = os.getenv("MCP_TOKEN", "")
-    return not expected or headers.get("X-MCP-Token") == expected
+    provided = headers.get("X-MCP-Token", "")
+    return bool(expected and provided and secrets.compare_digest(provided.encode(), expected.encode()))
 
 
 def make_http_server(host: str, port: int):

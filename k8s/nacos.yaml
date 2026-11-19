@@ -106,26 +106,6 @@ spec:
 ---
 
 apiVersion: v1
-kind: Service
-metadata:
-  name: nacos-nodeport
-  namespace: roaming-world
-  labels:
-    app: nacos
-spec:
-  type: NodePort
-  selector:
-    app: nacos
-  ports:
-  - name: http
-    port: 8848
-    targetPort: 8848
-    nodePort: 30848
-    protocol: TCP
-
----
-
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: nacos-pvc

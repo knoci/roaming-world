@@ -135,20 +135,6 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	return d, cleanup, nil
 }
 
-func (d *Data) SetEtcd(ctx context.Context, key string, time int64) error {
-	lease, err := d.etcd.Grant(ctx, 600) // 10分钟 = 600秒
-	if err != nil {
-		return err
-	}
-
-	// 使用租约存储验证码，值设为1
-	_, err = d.etcd.Put(ctx, key, "1", clientv3.WithLease(lease.ID))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (d *Data) LogSQLAudit(ctx context.Context, key string, sql string, params []interface{}) error {
 	d.log.WithContext(ctx).Debugf("sql audit: %s", sql)
 	return nil

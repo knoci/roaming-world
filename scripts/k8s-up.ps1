@@ -53,6 +53,12 @@ Write-Host "Removing one-shot jobs so changed templates can be reapplied..."
 kubectl delete job postgres-migrate nacos-config-init -n roaming-world --ignore-not-found=true 2>&1 | Out-Null
 
 Write-Host "Applying single-node manifests..."
+kubectl apply -f k8s/namespace.yaml
+if ($LASTEXITCODE -ne 0) { Fail "namespace apply failed" }
+try { & "$PSScriptRoot\configure-internal-tokens.ps1" -Kubernetes }
+catch { Fail $_.Exception.Message }
+kubectl delete service nacos-nodeport -n roaming-world --ignore-not-found
+if ($LASTEXITCODE -ne 0) { Fail "unable to remove the legacy Nacos NodePort" }
 $rendered = Join-Path $env:TEMP "roaming-world-single-node.yaml"
 kubectl kustomize k8s-single-node --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 $rendered
 if ($LASTEXITCODE -ne 0) { Fail "kustomize render failed" }
@@ -95,8 +101,6 @@ $ports = @(
   @{ Svc = "article-service";   Local = 18004 },
   @{ Svc = "audiobook-service"; Local = 18005 },
   @{ Svc = "plan-service";      Local = 18006 },
-  @{ Svc = "ai-service";        Local = 18007 },
-  @{ Svc = "mcp-service";       Local = 18008 },
   @{ Svc = "gateway-service";   Local = 18009 }
 )
 try {
@@ -106,7 +110,7 @@ try {
     $forwards += $proc
   }
   Start-Sleep -Seconds 4
-  & (Join-Path $PSScriptRoot "smoke.ps1")
+  & (Join-Path $PSScriptRoot "smoke.ps1") -Kubernetes
   $smokeExit = $LASTEXITCODE
 } finally {
   foreach ($proc in $forwards) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }

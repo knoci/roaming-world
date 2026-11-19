@@ -2,15 +2,12 @@ package biz
 
 import (
 	"context"
-	"fmt"
-	"math/rand"
 	"mime/multipart"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	v1 "github.com/knoci/roaming-world/user/api/user/v1"
-	"github.com/knoci/roaming-world/user/internal/pkg"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -36,8 +33,8 @@ type UserRepo interface {
 	FindByName(ctx context.Context, name string) (*User, error)
 	FindByKeyword(ctx context.Context, keyword string) (*User, error)
 	Delete(ctx context.Context, uid string) error
-	VerifyCode(ctx context.Context, email, code string) error
-	SetCode(ctx context.Context, key string, time int64) error
+	IssueVerificationCode(ctx context.Context, target VerificationTarget, code string) (func(context.Context) error, error)
+	CheckVerificationCode(ctx context.Context, target VerificationTarget, code string, consume bool) error
 	UploadAvatar(ctx context.Context, uid string, file *multipart.FileHeader) (*User, error)
 }
 
@@ -55,8 +52,8 @@ func NewUserUsecase(repo UserRepo, logger log.Logger) *UserUsecase {
 // Register 用户注册
 func (uc *UserUsecase) Register(ctx context.Context, req *v1.RegisterRequest) (*v1.RegisterReply, error) {
 	// 验证验证码
-	if err := uc.repo.VerifyCode(ctx, req.Email, req.Code); err != nil {
-		return nil, ErrVerificationExpired
+	if err := uc.checkVerificationCode(ctx, VerificationTarget{Email: req.Email, Purpose: VerificationRegister}, req.Code, true); err != nil {
+		return nil, err
 	}
 
 	// 检查用户名是否已存在
@@ -95,29 +92,6 @@ func (uc *UserUsecase) Register(ctx context.Context, req *v1.RegisterRequest) (*
 		Name:   createdUser.Name,
 		Avatar: createdUser.Avatar,
 	}, nil
-}
-
-// SendVerificationCode 发送验证码并存储到etcd
-func (uc *UserUsecase) SendVerificationCode(ctx context.Context, email string) (string, error) {
-	// 生成6位随机验证码
-	code := generateVerificationCode()
-
-	// 将验证码存储到etcd，有效期10分钟
-	key := fmt.Sprintf("verify_code:%s:%s", email, code)
-	err := uc.repo.SetCode(ctx, key, 600)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("userUsecase: failed to store verification code in etcd: %v", err)
-		return "", ErrInternalError
-	}
-
-	err = pkg.SendVerificationCode(email, code)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("userUsecase: failed to send code by email: %v", err)
-		return "", ErrInternalError
-	}
-
-	uc.log.WithContext(ctx).Infof("userUsecase: verification code %s sent to %s and stored with key %s", code, email, key)
-	return code, nil
 }
 
 // Login 用户登录
@@ -183,8 +157,8 @@ func (uc *UserUsecase) UpdateUserInfo(ctx context.Context, uid string, req *v1.U
 	}
 
 	// 校验新邮箱的验证码
-	if err := uc.repo.VerifyCode(ctx, req.NewEmail, req.Code); err != nil {
-		return nil, ErrVerificationExpired
+	if err := uc.checkVerificationCode(ctx, VerificationTarget{Email: req.NewEmail, Purpose: VerificationChangeEmail, UID: uid}, req.Code, true); err != nil {
+		return nil, err
 	}
 
 	// 用户名不能被其他用户占用
@@ -229,9 +203,12 @@ func (uc *UserUsecase) CheckUserExist(ctx context.Context, name, email string) e
 
 // ResetPassword 重置密码
 func (uc *UserUsecase) ResetPassword(ctx context.Context, req *v1.ResetPasswordRequest) error {
+	if len(req.NewPassword) > 72 {
+		return ErrInvalidArgument
+	}
 	// 验证验证码
-	if err := uc.repo.VerifyCode(ctx, req.Email, req.Code); err != nil {
-		return ErrVerificationExpired
+	if err := uc.checkVerificationCode(ctx, VerificationTarget{Email: req.Email, Purpose: VerificationResetPassword}, req.Code, true); err != nil {
+		return err
 	}
 
 	// 查找用户
@@ -245,6 +222,9 @@ func (uc *UserUsecase) ResetPassword(ctx context.Context, req *v1.ResetPasswordR
 
 	// 更新密码
 	hashPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return ErrInternalError
+	}
 	user.Password = string(hashPassword)
 	user.UpdatedAt = time.Now()
 
@@ -272,29 +252,6 @@ func (uc *UserUsecase) UploadAvatar(ctx context.Context, uid string, file *multi
 		Name:   result.Name,
 		Avatar: result.Avatar,
 	}, nil
-}
-
-// ConfirmEmail 验证邮箱
-func (uc *UserUsecase) ConfirmEmail(ctx context.Context, req *v1.ConfirmEmailRequest) (*v1.ConfirmEmailReply, error) {
-	uc.log.WithContext(ctx).Infof("userUsecase: confirm mail email %s, code: %s", req.Email, req.Code)
-
-	err := uc.repo.VerifyCode(ctx, req.Email, req.Code)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("userUsecase: failed to confirm mail email %s, code: %s", req.Email, req.Code)
-		return &v1.ConfirmEmailReply{
-			Status: "验证失败",
-		}, ErrInternalError
-	}
-
-	uc.log.WithContext(ctx).Infof("userUsecase: successfully confirm mail email %s, code: %s", req.Email, req.Code)
-	return &v1.ConfirmEmailReply{
-		Status: "验证成功",
-	}, nil
-}
-
-// generateVerificationCode 生成6位随机数字验证码
-func generateVerificationCode() string {
-	return fmt.Sprintf("%06v", rand.New(rand.NewSource(time.Now().UnixNano())).Int31n(1000000))
 }
 
 // GetRole 查询用户角色，登录时写入 JWT。

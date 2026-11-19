@@ -6,7 +6,6 @@ $failed = $false
 
 if ($Kubernetes) {
   $forwards += Start-Process kubectl -ArgumentList @("port-forward","-n","roaming-world","svc/user-service","18000:8000","--address","127.0.0.1") -PassThru -WindowStyle Hidden
-  $forwards += Start-Process kubectl -ArgumentList @("port-forward","-n","roaming-world","svc/ai-service","18007:8000","--address","127.0.0.1") -PassThru -WindowStyle Hidden
   $forwards += Start-Process kubectl -ArgumentList @("port-forward","-n","roaming-world","svc/gateway-service","18009:8000","--address","127.0.0.1") -PassThru -WindowStyle Hidden
   Start-Sleep -Seconds 3
 }
@@ -20,8 +19,24 @@ try {
   Write-Host "[OK] login"
 
   $stage = "ingest"
-  $ingest = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "http://127.0.0.1:18007/v1/ai/ingest" -Headers @{"X-Ingest-Token"="dev-ingest-token"} -TimeoutSec 120
-  Write-Host ("[OK] ingest: " + $ingest.Content)
+  $ingestScript = @'
+import os
+import urllib.request
+
+req = urllib.request.Request(
+    "http://127.0.0.1:8000/v1/ai/ingest", method="POST",
+    headers={"X-Ingest-Token": os.environ["AI_INGEST_TOKEN"]},
+)
+with urllib.request.urlopen(req, timeout=120) as response:
+    print(response.read().decode("utf-8"))
+'@
+  $ingest = if ($Kubernetes) {
+    $ingestScript | kubectl exec -i -n roaming-world deployment/ai-service -- python -
+  } else {
+    $ingestScript | docker compose --project-directory (Join-Path $PSScriptRoot "..") exec -T ai python -
+  }
+  if ($LASTEXITCODE -ne 0) { throw "AI ingest failed" }
+  Write-Host ("[OK] ingest: " + $ingest)
 
   $queryJson = '{"query":"成都3天美食行程"}'
   $queryBytes = [Text.Encoding]::UTF8.GetBytes($queryJson)

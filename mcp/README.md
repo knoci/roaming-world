@@ -29,13 +29,13 @@
 SCENE_API=http://scene:8000
 FOOD_API=http://food:8000
 ARTICLE_API=http://article:8000
-MCP_TOKEN=dev-mcp-token
+MCP_TOKEN=<与 AI Engine 共享的内部令牌>
 ```
 
-设置 `MCP_TOKEN` 后，请求必须带：
+HTTP 请求必须带 `X-MCP-Token`。未配置 `MCP_TOKEN` 时拒绝工具调用。
 
 ```text
-X-MCP-Token: dev-mcp-token
+X-MCP-Token: <MCP_TOKEN>
 ```
 
 ## 本地 HTTP
@@ -44,26 +44,26 @@ X-MCP-Token: dev-mcp-token
 $env:SCENE_API="http://localhost:18001"
 $env:FOOD_API="http://localhost:18002"
 $env:ARTICLE_API="http://localhost:18004"
-$env:MCP_TOKEN="dev-mcp-token"
-python mcp/server.py --host 0.0.0.0 --port 18008
+$env:MCP_TOKEN=[guid]::NewGuid().ToString("N")
+python mcp/server.py --host 127.0.0.1 --port 18008
 ```
 
 初始化：
 
 ```powershell
-curl -X POST http://localhost:18008/mcp -H "Content-Type: application/json" -H "X-MCP-Token: dev-mcp-token" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}"
+Invoke-RestMethod -Method Post http://127.0.0.1:18008/mcp -ContentType "application/json" -Headers @{"X-MCP-Token"=$env:MCP_TOKEN} -Body '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
 ```
 
 列工具：
 
 ```powershell
-curl -X POST http://localhost:18008/mcp -H "Content-Type: application/json" -H "X-MCP-Token: dev-mcp-token" -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}"
+Invoke-RestMethod -Method Post http://127.0.0.1:18008/mcp -ContentType "application/json" -Headers @{"X-MCP-Token"=$env:MCP_TOKEN} -Body '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 ```
 
 调用：
 
 ```powershell
-curl -X POST http://localhost:18008/mcp -H "Content-Type: application/json" -H "X-MCP-Token: dev-mcp-token" -d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"search_scenes\",\"arguments\":{\"query\":\"成都\"}}}"
+Invoke-RestMethod -Method Post http://127.0.0.1:18008/mcp -ContentType "application/json" -Headers @{"X-MCP-Token"=$env:MCP_TOKEN} -Body '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_scenes","arguments":{"query":"成都"}}}'
 ```
 
 ## stdio

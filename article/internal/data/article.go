@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc/metadata"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -239,7 +241,8 @@ func (r *articleRepo) UpdateStatus(ctx context.Context, aid, status, reviewedBy,
 
 // ListFeed 关注作者的已发布文章。作者列表来自 user 服务 gRPC。
 func (r *articleRepo) ListFeed(ctx context.Context, uid string, page, limit int) ([]*biz.Article, int64, error) {
-	rsp, err := r.data.userClient.GetFollowingUIDs(ctx, &userv1.GetFollowingUIDsRequest{Uid: uid})
+	rpcCtx := metadata.AppendToOutgoingContext(ctx, "x-roaming-service-token", os.Getenv("ARTICLE_USER_RPC_TOKEN"))
+	rsp, err := r.data.userClient.GetFollowingUIDs(rpcCtx, &userv1.GetFollowingUIDsRequest{Uid: uid})
 	if err != nil {
 		r.log.WithContext(ctx).Errorf("articleRepo: get following uids failed: %v", err)
 		return nil, 0, err

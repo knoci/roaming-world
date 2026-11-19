@@ -7,13 +7,15 @@
 ```text
 GET  /healthz
 GET  /readyz
-POST /v1/ai/ingest    X-Ingest-Token: dev-ingest-token
+POST /v1/ai/ingest    X-Ingest-Token: <AI_INGEST_TOKEN>
 POST /v1/ai/chat      {"query":"成都三天美食行程","top_k":5}
 POST /v1/ai/agent     {"query":"成都三天美食行程"}
 POST /v1/ai/graph     {"query":"成都三天美食行程"}
 POST /v1/ai/multi     {"query":"成都三天美食行程"}
 GET  /v1/ai/providers
 ```
+
+网关通过 `X-AI-Gateway-Token` 调用对话接口，客户端使用 JWT 访问网关。入库和查看模型配置都需要独立的 `X-Ingest-Token`。
 
 ## 数据流
 
@@ -77,10 +79,9 @@ extract city/days -> MCP search tools -> planner -> citations
 ## 本地
 
 ```powershell
-docker compose build ai
-docker compose up -d ai
-curl http://localhost:18007/healthz
-curl -X POST http://localhost:18007/v1/ai/ingest -H "X-Ingest-Token: dev-ingest-token"
-curl -X POST http://localhost:18007/v1/ai/chat -H "Content-Type: application/json" -d "{\"query\":\"成都美食\"}"
+docker compose ps ai mcp gateway
+curl http://localhost:18009/healthz
 ```
+
+完成 [演示数据初始化](../docs/AI-RUNBOOK.md) 后，可以用 `scripts/ai-demo.ps1 -Kubernetes:$false` 在 Compose 环境跑入库和 JWT 调用。
 

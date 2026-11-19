@@ -47,6 +47,10 @@ func (s *GatewayService) proxy(ctx context.Context, path string, req *pb.ChatReq
 	if _, err := getJwtClaim(ctx); err != nil {
 		return nil, errors.Unauthorized("UNAUTHORIZED", "unauthorized")
 	}
+	token := os.Getenv("AI_GATEWAY_TOKEN")
+	if token == "" {
+		return nil, errors.New(http.StatusServiceUnavailable, "AI_UNAVAILABLE", "ai engine unavailable")
+	}
 	body, _ := json.Marshal(map[string]any{"query": req.Query, "top_k": req.TopK})
 	base := strings.TrimRight(os.Getenv("AI_ENGINE_URL"), "/")
 	if base == "" {
@@ -57,6 +61,7 @@ func (s *GatewayService) proxy(ctx context.Context, path string, req *pb.ChatReq
 		return nil, errors.InternalServer("AI_PROXY_FAILED", err.Error())
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-AI-Gateway-Token", token)
 	client := &http.Client{Timeout: 300 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {

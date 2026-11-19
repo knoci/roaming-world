@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/subtle"
+	"os"
 
 	pb "github.com/knoci/roaming-world/user/api/user/v1"
 	"github.com/knoci/roaming-world/user/internal/biz"
+	"google.golang.org/grpc/metadata"
 )
 
 func (s *UserService) FollowUser(ctx context.Context, req *pb.FollowUserRequest) (*pb.FollowUserReply, error) {
@@ -46,6 +49,9 @@ func (s *UserService) GetFollowing(ctx context.Context, req *pb.GetFollowingRequ
 }
 
 func (s *UserService) GetFollowingUIDs(ctx context.Context, req *pb.GetFollowingUIDsRequest) (*pb.GetFollowingUIDsReply, error) {
+	if !hasInternalRPCToken(ctx, "ARTICLE_USER_RPC_TOKEN") {
+		return nil, biz.ErrUnauthorized
+	}
 	uids, err := s.social.FollowingUIDs(ctx, req.Uid)
 	if err != nil {
 		return nil, err
@@ -54,12 +60,25 @@ func (s *UserService) GetFollowingUIDs(ctx context.Context, req *pb.GetFollowing
 }
 
 func (s *UserService) CreateNotification(ctx context.Context, req *pb.CreateNotificationRequest) (*pb.CreateNotificationReply, error) {
+	if !hasInternalRPCToken(ctx, "COMMENT_USER_RPC_TOKEN") {
+		return nil, biz.ErrUnauthorized
+	}
+	if req.Type != "comment_reply" {
+		return nil, biz.ErrInvalidArgument
+	}
 	if err := s.social.CreateNotification(ctx, &biz.Notification{
 		UID: req.Uid, Type: req.Type, ActorUID: req.ActorUid, ActorName: req.ActorName, Payload: req.Payload,
 	}); err != nil {
 		return nil, err
 	}
 	return &pb.CreateNotificationReply{Status: "created"}, nil
+}
+
+func hasInternalRPCToken(ctx context.Context, envName string) bool {
+	expected := os.Getenv(envName)
+	tokens := metadata.ValueFromIncomingContext(ctx, "x-roaming-service-token")
+	return expected != "" && len(tokens) == 1 &&
+		subtle.ConstantTimeCompare([]byte(expected), []byte(tokens[0])) == 1
 }
 
 func (s *UserService) GetNotifications(ctx context.Context, req *pb.GetNotificationsRequest) (*pb.GetNotificationsReply, error) {

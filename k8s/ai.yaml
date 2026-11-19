@@ -44,8 +44,13 @@ spec:
             - name: AI_INGEST_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: roaming-world-secrets
-                  key: ai-ingest-token
+                  name: roaming-world-internal-tokens
+                  key: AI_INGEST_TOKEN
+            - name: AI_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: roaming-world-internal-tokens
+                  key: AI_GATEWAY_TOKEN
             - name: QWEN_BASE_URL
               value: https://maas.qianwenaiapi.com/compatible-mode/v1
             - name: MCP_URL
@@ -53,8 +58,8 @@ spec:
             - name: MCP_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: roaming-world-secrets
-                  key: mcp-token
+                  name: roaming-world-internal-tokens
+                  key: MCP_TOKEN
           livenessProbe:
             httpGet:
               path: /healthz
