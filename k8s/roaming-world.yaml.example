@@ -27,7 +27,6 @@ etcd:
   dialTimeout: 5
 
 jwt:
-  secret: change-me-to-a-long-random-secret
   # 单位：纳秒；432000000000000 = 120 小时
   expiration: 432000000000000
 

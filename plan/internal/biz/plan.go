@@ -2,10 +2,12 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
 )
@@ -44,18 +46,17 @@ type Item struct {
 	StartTime string
 	EndTime   string
 	Note      string
-	SortOrder int
 }
 
 type PlanRepo interface {
 	Create(ctx context.Context, plan *Plan) (*Plan, error)
 	FindByID(ctx context.Context, id string) (*Plan, error)
-	List(ctx context.Context, uid, scope string, page, limit int) ([]*Plan, int64, error)
+	List(ctx context.Context, uid, scope string, page, limit int, summaryOnly bool) ([]*Plan, int64, error)
 	Update(ctx context.Context, plan *Plan) (*Plan, error)
-	Publish(ctx context.Context, id string) error
-	AddItem(ctx context.Context, item *Item) (*Plan, error)
-	DeleteItem(ctx context.Context, planID, itemID string) error
-	Delete(ctx context.Context, id string) error
+	Publish(ctx context.Context, uid, id string) error
+	AddItem(ctx context.Context, uid string, dayNo int, item *Item) (*Plan, error)
+	DeleteItem(ctx context.Context, uid, planID, itemID string) error
+	Delete(ctx context.Context, uid, id string) error
 }
 
 type PlanUsecase struct {
@@ -123,36 +124,17 @@ func (uc *PlanUsecase) Create(ctx context.Context, uid string, title, city, star
 }
 
 func (uc *PlanUsecase) Update(ctx context.Context, uid, id, title, city, visibility, cover string, budget int) (*Plan, error) {
-	plan, err := uc.repo.FindByID(ctx, id)
-	if err != nil {
-		return nil, ErrPlanNotFound
-	}
-	if plan.UID != uid {
-		return nil, ErrNoPermission
-	}
-	if plan.Status != "draft" {
-		return nil, ErrPlanNotEditable
-	}
 	if title = strings.TrimSpace(title); title == "" || len([]rune(title)) > 100 {
 		return nil, ErrInvalidArgument
 	}
-	if visibility == "" {
-		visibility = plan.Visibility
-	}
-	if visibility != "private" && visibility != "public" {
+	if visibility != "" && visibility != "private" && visibility != "public" {
 		return nil, ErrInvalidVisibility
 	}
-	plan.Title = title
-	plan.City = strings.TrimSpace(city)
-	plan.Budget = budget
-	plan.Visibility = visibility
-	plan.Cover = cover
-	updated, err := uc.repo.Update(ctx, plan)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("planUsecase: update failed: %v", err)
-		return nil, ErrUpdateFailed
-	}
-	return updated, nil
+	updated, err := uc.repo.Update(ctx, &Plan{
+		ID: id, UID: uid, Title: title, City: strings.TrimSpace(city),
+		Budget: budget, Visibility: visibility, Cover: cover,
+	})
+	return updated, uc.mutationError(ctx, err)
 }
 
 func (uc *PlanUsecase) Get(ctx context.Context, id, uid string) (*Plan, error) {
@@ -166,7 +148,7 @@ func (uc *PlanUsecase) Get(ctx context.Context, id, uid string) (*Plan, error) {
 	return plan, nil
 }
 
-func (uc *PlanUsecase) List(ctx context.Context, uid, scope string, page, limit int) ([]*Plan, int64, error) {
+func (uc *PlanUsecase) List(ctx context.Context, uid, scope string, page, limit int, summaryOnly bool) ([]*Plan, int64, error) {
 	if scope == "" {
 		scope = "public"
 	}
@@ -185,29 +167,12 @@ func (uc *PlanUsecase) List(ctx context.Context, uid, scope string, page, limit 
 	if limit > 50 {
 		limit = 50
 	}
-	return uc.repo.List(ctx, uid, scope, page, limit)
+	return uc.repo.List(ctx, uid, scope, page, limit, summaryOnly)
 }
 
 func (uc *PlanUsecase) Publish(ctx context.Context, uid, id string) (string, error) {
-	plan, err := uc.repo.FindByID(ctx, id)
-	if err != nil {
-		return "", ErrPlanNotFound
-	}
-	if plan.UID != uid {
-		return "", ErrNoPermission
-	}
-	if plan.Status != "draft" {
-		return "", ErrPlanNotEditable
-	}
-	itemCount := 0
-	for _, day := range plan.Days {
-		itemCount += len(day.Items)
-	}
-	if itemCount == 0 {
-		return "", ErrEmptyPlan
-	}
-	if err := uc.repo.Publish(ctx, id); err != nil {
-		return "", ErrUpdateFailed
+	if err := uc.repo.Publish(ctx, uid, id); err != nil {
+		return "", uc.mutationError(ctx, err)
 	}
 	return "published", nil
 }
@@ -229,88 +194,41 @@ func validClock(s string) bool {
 	return err == nil
 }
 
-func overlaps(aStart, aEnd, bStart, bEnd string) bool {
-	return aStart < bEnd && bStart < aEnd
-}
-
 func (uc *PlanUsecase) AddItem(ctx context.Context, uid, planID string, dayNo int, itemType, itemID, start, end, note string) (*Plan, error) {
-	plan, err := uc.repo.FindByID(ctx, planID)
-	if err != nil {
-		return nil, ErrPlanNotFound
-	}
-	if plan.UID != uid {
-		return nil, ErrNoPermission
-	}
-	if plan.Status != "draft" {
-		return nil, ErrPlanNotEditable
-	}
 	if !validateItemType(itemType) || strings.TrimSpace(itemID) == "" {
 		return nil, ErrInvalidArgument
 	}
 	if !validClock(start) || !validClock(end) || start >= end {
 		return nil, ErrInvalidTime
 	}
-	var day *Day
-	for _, d := range plan.Days {
-		if d.DayNo == dayNo {
-			day = d
-			break
-		}
-	}
-	if day == nil {
-		return nil, ErrDayNotFound
-	}
-	for _, it := range day.Items {
-		if overlaps(start, end, it.StartTime, it.EndTime) {
-			return nil, ErrTimeOverlap
-		}
-	}
-	item := &Item{
+	updated, err := uc.repo.AddItem(ctx, uid, dayNo, &Item{
 		ID:        uuid.New().String(),
-		PlanID:    plan.ID,
-		DayID:     day.ID,
+		PlanID:    planID,
 		ItemType:  itemType,
 		ItemID:    itemID,
 		StartTime: start,
 		EndTime:   end,
 		Note:      note,
-		SortOrder: len(day.Items) + 1,
-	}
-	updated, err := uc.repo.AddItem(ctx, item)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("planUsecase: add item failed: %v", err)
-		return nil, ErrUpdateFailed
-	}
-	return updated, nil
+	})
+	return updated, uc.mutationError(ctx, err)
 }
 
 func (uc *PlanUsecase) DeleteItem(ctx context.Context, uid, planID, itemID string) error {
-	plan, err := uc.repo.FindByID(ctx, planID)
-	if err != nil {
-		return ErrPlanNotFound
-	}
-	if plan.UID != uid {
-		return ErrNoPermission
-	}
-	if plan.Status != "draft" {
-		return ErrPlanNotEditable
-	}
-	if err := uc.repo.DeleteItem(ctx, planID, itemID); err != nil {
-		return ErrUpdateFailed
-	}
-	return nil
+	return uc.mutationError(ctx, uc.repo.DeleteItem(ctx, uid, planID, itemID))
 }
 
 func (uc *PlanUsecase) Delete(ctx context.Context, uid, id string) error {
-	plan, err := uc.repo.FindByID(ctx, id)
-	if err != nil {
-		return ErrPlanNotFound
+	return uc.mutationError(ctx, uc.repo.Delete(ctx, uid, id))
+}
+
+func (uc *PlanUsecase) mutationError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
 	}
-	if plan.UID != uid {
-		return ErrNoPermission
+	var businessErr *kerrors.Error
+	if errors.As(err, &businessErr) {
+		return businessErr
 	}
-	if err := uc.repo.Delete(ctx, id); err != nil {
-		return ErrUpdateFailed
-	}
-	return nil
+	uc.log.WithContext(ctx).Errorf("planUsecase: write failed: %v", err)
+	return ErrUpdateFailed
 }

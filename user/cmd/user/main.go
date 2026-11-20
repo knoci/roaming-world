@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/knoci/roaming-world/user/internal/conf"
+	"github.com/knoci/roaming-world/user/internal/pkg"
 
 	"github.com/go-kratos/kratos/contrib/registry/nacos/v2"
 	"github.com/go-kratos/kratos/v2"
@@ -52,6 +53,9 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, rg *nacos.Regis
 
 func main() {
 	flag.Parse()
+	if err := pkg.ValidateJWTSigningKey(); err != nil {
+		log.Fatal(err)
+	}
 	logger := log.With(log.NewStdLogger(os.Stdout),
 		"ts", log.DefaultTimestamp,
 		"caller", log.DefaultCaller,

@@ -46,7 +46,9 @@ curl.exe http://localhost:18000/healthz
 curl.exe http://localhost:18009/healthz
 ```
 
-Compose 默认绑定本机回环地址，内部 gRPC、AI Engine 和 MCP 不映射到宿主机。初始化脚本在本地 `.env` 生成缺失的服务令牌。
+Compose 默认绑定本机回环地址，内部 gRPC、AI Engine 和 MCP 不映射到宿主机。初始化脚本在本地 `.env` 生成缺失的服务令牌和 JWT 签名密钥。
+
+从旧版升级时，先运行初始化脚本，再重新构建并启动 8 个 Go 服务。全部实例切换到新密钥后，已有会话需重新登录。
 
 ### Kubernetes
 

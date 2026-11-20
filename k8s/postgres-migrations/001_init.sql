@@ -19,19 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_users_name ON users (name);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_users_email ON users (email);
-CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
-CREATE INDEX IF NOT EXISTS idx_users_status ON users (status);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role varchar(20) NOT NULL DEFAULT 'user';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'active';
-ALTER TABLE articles ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'published';
-ALTER TABLE articles ADD COLUMN IF NOT EXISTS published_at timestamptz;
-ALTER TABLE articles ADD COLUMN IF NOT EXISTS reviewed_by varchar(36);
-ALTER TABLE articles ADD COLUMN IF NOT EXISTS review_reason text;
-ALTER TABLE comments ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'active';
-ALTER TABLE comments ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
-
-
-
+CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users (status);
 
 CREATE TABLE IF NOT EXISTS scenes (
     sid         varchar(36) PRIMARY KEY,
@@ -77,6 +68,10 @@ CREATE TABLE IF NOT EXISTS articles (
     created_at  timestamptz,
     updated_at  timestamptz
 );
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'published';
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS published_at timestamptz;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS reviewed_by varchar(36);
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS review_reason text;
 CREATE INDEX IF NOT EXISTS idx_articles_uid ON articles (uid);
 CREATE INDEX IF NOT EXISTS idx_articles_video_videoid ON articles (video, videoid);
 CREATE INDEX IF NOT EXISTS idx_articles_created_at ON articles (created_at);
@@ -113,6 +108,8 @@ CREATE TABLE IF NOT EXISTS comments (
     created_at  timestamptz,
     updated_at  timestamptz
 );
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'active';
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 CREATE INDEX IF NOT EXISTS idx_comments_target_reply_time ON comments (target, replycid, created_at);
 CREATE INDEX IF NOT EXISTS idx_comments_uid ON comments (uid);
 CREATE INDEX IF NOT EXISTS idx_comments_reply_time ON comments (replycid, created_at);

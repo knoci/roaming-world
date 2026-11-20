@@ -38,6 +38,11 @@ spec:
               value: DEFAULT_GROUP
             - name: AI_ENGINE_URL
               value: http://ai-service:8000
+            - name: JWT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: roaming-world-jwt-signing
+                  key: JWT_SIGNING_KEY
             - name: AI_GATEWAY_TOKEN
               valueFrom:
                 secretKeyRef:

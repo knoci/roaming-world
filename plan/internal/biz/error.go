@@ -8,6 +8,7 @@ var (
 	ErrNoPermission      = errors.Forbidden("NO_PERMISSION", "no permission")
 	ErrPlanNotFound      = errors.NotFound("PLAN_NOT_FOUND", "plan not found")
 	ErrDayNotFound       = errors.NotFound("DAY_NOT_FOUND", "plan day not found")
+	ErrItemNotFound      = errors.NotFound("PLAN_ITEM_NOT_FOUND", "plan item not found")
 	ErrInvalidDate       = errors.BadRequest("INVALID_DATE", "invalid date, use YYYY-MM-DD")
 	ErrInvalidDateRange  = errors.BadRequest("INVALID_DATE_RANGE", "end date must be after start date")
 	ErrPlanTooLong       = errors.BadRequest("PLAN_TOO_LONG", "plan cannot exceed 30 days")

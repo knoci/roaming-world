@@ -55,3 +55,10 @@ spec:
                 name: audiobook-service
                 port:
                   number: 8000
+          - path: /v1/plan
+            pathType: Prefix
+            backend:
+              service:
+                name: plan-service
+                port:
+                  number: 8000

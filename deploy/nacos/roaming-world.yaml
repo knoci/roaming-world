@@ -23,7 +23,6 @@ etcd:
   dialTimeout: 5
 
 jwt:
-  secret: local-dev-secret-change-me
   # nanoseconds: 120h
   expiration: 432000000000000
 

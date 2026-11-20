@@ -15,7 +15,7 @@ services:
       POSTGRES_USER: roaming
       POSTGRES_PASSWORD: roaming
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./deploy/postgres/migrations:/docker-entrypoint-initdb.d:ro
@@ -29,7 +29,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -52,7 +52,7 @@ services:
       - --initial-cluster=etcd=http://etcd:2380
       - --initial-cluster-state=new
     ports:
-      - "2379:2379"
+      - "127.0.0.1:2379:2379"
     volumes:
       - etcd_data:/etcd-data
 
@@ -75,7 +75,7 @@ services:
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
       CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     volumes:
       - kafka_data:/var/lib/kafka/data
 
@@ -86,7 +86,7 @@ services:
       MEILI_NO_ANALYTICS: "true"
       MEILI_MASTER_KEY: roaming-meili-master-key
     ports:
-      - "7700:7700"
+      - "127.0.0.1:7700:7700"
     volumes:
       - meili_data:/meili_data
 
@@ -96,8 +96,8 @@ services:
       MODE: "standalone"
       NACOS_AUTH_ENABLE: "false"
     ports:
-      - "8848:8848"
-      - "9848:9848"
+      - "127.0.0.1:8848:8848"
+      - "127.0.0.1:9848:9848"
     volumes:
       - nacos_data:/home/nacos/data
 
@@ -139,9 +139,11 @@ services:
   user:
     build: ./user
     ports:
-      - "18000:8000"
-      - "19000:9000"
+      - "127.0.0.1:18000:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      ARTICLE_USER_RPC_TOKEN: ${ARTICLE_USER_RPC_TOKEN:-}
+      COMMENT_USER_RPC_TOKEN: ${COMMENT_USER_RPC_TOKEN:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -164,9 +166,9 @@ services:
   scene:
     build: ./scene
     ports:
-      - "18001:8000"
-      - "19001:9000"
+      - "127.0.0.1:18001:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -189,9 +191,9 @@ services:
   food:
     build: ./food
     ports:
-      - "18002:8000"
-      - "19002:9000"
+      - "127.0.0.1:18002:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -212,9 +214,10 @@ services:
   comment:
     build: ./comment
     ports:
-      - "18003:8000"
-      - "19003:9000"
+      - "127.0.0.1:18003:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      COMMENT_USER_RPC_TOKEN: ${COMMENT_USER_RPC_TOKEN:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -239,9 +242,10 @@ services:
   article:
     build: ./article
     ports:
-      - "18004:8000"
-      - "19004:9000"
+      - "127.0.0.1:18004:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      ARTICLE_USER_RPC_TOKEN: ${ARTICLE_USER_RPC_TOKEN:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -262,9 +266,9 @@ services:
   audiobook:
     build: ./audiobook
     ports:
-      - "18005:8000"
-      - "19005:9000"
+      - "127.0.0.1:18005:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -285,9 +289,9 @@ services:
   plan:
     build: ./plan
     ports:
-      - "18006:8000"
-      - "19006:9000"
+      - "127.0.0.1:18006:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -303,17 +307,16 @@ services:
 
   ai:
     build: ./ai
-    ports:
-      - "18007:8000"
     environment:
+      AI_GATEWAY_TOKEN: ${AI_GATEWAY_TOKEN:-}
       AI_DB_HOST: postgres
       AI_DB_PORT: "5432"
       AI_DB_USER: roaming
       AI_DB_PASSWORD: roaming
       AI_DB_NAME: roaming_world
-      AI_INGEST_TOKEN: dev-ingest-token
+      AI_INGEST_TOKEN: ${AI_INGEST_TOKEN:-}
       MCP_URL: http://mcp:8000/mcp
-      MCP_TOKEN: dev-mcp-token
+      MCP_TOKEN: ${MCP_TOKEN:-}
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_BASE_URL: ${QWEN_BASE_URL:-https://maas.qianwenaiapi.com/compatible-mode/v1}
       QWEN_MODEL: ${QWEN_MODEL:-qwen3.8-2.4t-a95b}
@@ -335,13 +338,11 @@ services:
 
   mcp:
     build: ./mcp
-    ports:
-      - "18008:8000"
     environment:
       SCENE_API: http://scene:8000
       FOOD_API: http://food:8000
       ARTICLE_API: http://article:8000
-      MCP_TOKEN: dev-mcp-token
+      MCP_TOKEN: ${MCP_TOKEN:-}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\""]
       interval: 10s
@@ -352,9 +353,10 @@ services:
   gateway:
     build: ./gateway
     ports:
-      - "18009:8000"
-      - "19009:9000"
+      - "127.0.0.1:18009:8000"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      AI_GATEWAY_TOKEN: ${AI_GATEWAY_TOKEN:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
@@ -372,7 +374,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     restart: unless-stopped
@@ -380,7 +382,7 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin

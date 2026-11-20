@@ -675,10 +675,12 @@ func (x *GetPlanReply) GetPlan() *PlanMessage {
 }
 
 type ListPlansRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Scope         string                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
-	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Scope string                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	Page  int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	Limit int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	// 只返回行程概要，跳过按天行程和条目。
+	SummaryOnly   bool `protobuf:"varint,4,opt,name=summary_only,json=summaryOnly,proto3" json:"summary_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -732,6 +734,13 @@ func (x *ListPlansRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListPlansRequest) GetSummaryOnly() bool {
+	if x != nil {
+		return x.SummaryOnly
+	}
+	return false
 }
 
 type ListPlansReply struct {
@@ -1260,11 +1269,12 @@ const file_plan_v1_plan_proto_rawDesc = "" +
 	"\x0eGetPlanRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"8\n" +
 	"\fGetPlanReply\x12(\n" +
-	"\x04plan\x18\x01 \x01(\v2\x14.plan.v1.PlanMessageR\x04plan\"R\n" +
+	"\x04plan\x18\x01 \x01(\v2\x14.plan.v1.PlanMessageR\x04plan\"u\n" +
 	"\x10ListPlansRequest\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"R\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12!\n" +
+	"\fsummary_only\x18\x04 \x01(\bR\vsummaryOnly\"R\n" +
 	"\x0eListPlansReply\x12*\n" +
 	"\x05plans\x18\x01 \x03(\v2\x14.plan.v1.PlanMessageR\x05plans\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"$\n" +

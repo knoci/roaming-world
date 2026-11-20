@@ -6,10 +6,23 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"os"
 
 	jwt "github.com/golang-jwt/jwt/v5"
-	nacos "github.com/knoci/roaming-world/plan/internal/conf/nacos"
 )
+
+func ValidateJWTSigningKey() error {
+	_, err := jwtSigningKey()
+	return err
+}
+
+func jwtSigningKey() ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(os.Getenv("JWT_SIGNING_KEY"))
+	if err != nil || len(key) < 32 {
+		return nil, errors.New("JWT_SIGNING_KEY must be standard base64 for at least 32 bytes")
+	}
+	return key, nil
+}
 
 // Claims 与 user 服务保持一致，token 由 user 服务签发。
 type Claims struct {
@@ -22,17 +35,19 @@ type Claims struct {
 }
 
 func ParseToken(ua, encryptedToken string) (*Claims, error) {
-	c := nacos.GetConfig()
-	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
+	signingKey, err := jwtSigningKey()
+	if err != nil {
+		return nil, err
+	}
 
 	tokenString, err := decryptToken(encryptedToken, ua)
 	if err != nil {
 		return nil, err
 	}
 
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(_ *jwt.Token) (interface{}, error) {
+		return signingKey, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil {
 		return nil, err
 	}

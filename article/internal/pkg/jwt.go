@@ -3,16 +3,26 @@ package pkg
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"io"
-	"time"
+	"os"
 
 	jwt "github.com/golang-jwt/jwt/v5"
-	nacos "github.com/knoci/roaming-world/article/internal/conf/nacos"
 )
+
+func ValidateJWTSigningKey() error {
+	_, err := jwtSigningKey()
+	return err
+}
+
+func jwtSigningKey() ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(os.Getenv("JWT_SIGNING_KEY"))
+	if err != nil || len(key) < 32 {
+		return nil, errors.New("JWT_SIGNING_KEY must be standard base64 for at least 32 bytes")
+	}
+	return key, nil
+}
 
 // Claims 与 user 服务保持一致，token 由 user 服务签发。
 type Claims struct {
@@ -24,49 +34,20 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(ua, uid, name, email, avatar string) (string, error) {
-	c := nacos.GetConfig()
-	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
-	if jwtSecret == "" {
-		panic("jwt.secret configuration is required")
-	}
-
-	expiration := time.Duration(nacos.GetConfigInt(c, "jwt.expiration"))
-	if expiration == 0 {
-		expiration = time.Hour * 120
-	}
-
-	claims := &Claims{
-		UID:    uid,
-		Name:   name,
-		Email:  email,
-		Avatar: avatar,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	tokenString, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(jwtSecret))
-	if err != nil {
-		return "", err
-	}
-	return encryptToken(tokenString, ua)
-}
-
 func ParseToken(ua, encryptedToken string) (*Claims, error) {
-	c := nacos.GetConfig()
-	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
+	signingKey, err := jwtSigningKey()
+	if err != nil {
+		return nil, err
+	}
 
 	tokenString, err := decryptToken(encryptedToken, ua)
 	if err != nil {
 		return nil, err
 	}
 
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(_ *jwt.Token) (interface{}, error) {
+		return signingKey, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil {
 		return nil, err
 	}
@@ -74,23 +55,6 @@ func ParseToken(ua, encryptedToken string) (*Claims, error) {
 		return claims, nil
 	}
 	return nil, jwt.ErrInvalidKey
-}
-
-func encryptToken(tokenString, ua string) (string, error) {
-	key := deriveKeyFromUA(ua)
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(gcm.Seal(nonce, nonce, []byte(tokenString), nil)), nil
 }
 
 func decryptToken(encryptedToken, ua string) (string, error) {

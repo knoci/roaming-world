@@ -8,11 +8,25 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"os"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
 )
+
+func ValidateJWTSigningKey() error {
+	_, err := jwtSigningKey()
+	return err
+}
+
+func jwtSigningKey() ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(os.Getenv("JWT_SIGNING_KEY"))
+	if err != nil || len(key) < 32 {
+		return nil, errors.New("JWT_SIGNING_KEY must be standard base64 for at least 32 bytes")
+	}
+	return key, nil
+}
 
 // Claims 包含自定义的 JWT 声明
 type Claims struct {
@@ -26,13 +40,12 @@ type Claims struct {
 
 // GenerateToken 生成加密的 JWT token，使用UA作为加密密钥
 func GenerateToken(ua, uid, name, email, avatar, role string) (string, error) {
-	c := nacos.GetConfig()
-	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
-	if jwtSecret == "" {
-		panic("jwt.secret configuration is required")
+	signingKey, err := jwtSigningKey()
+	if err != nil {
+		return "", err
 	}
 
-	expiration := time.Duration(nacos.GetConfigInt(c, "jwt.expiration"))
+	expiration := time.Duration(nacos.GetConfigInt(nacos.GetConfig(), "jwt.expiration"))
 	if expiration == 0 {
 		expiration = time.Hour * 120 // 默认120小时
 	}
@@ -52,7 +65,7 @@ func GenerateToken(ua, uid, name, email, avatar, role string) (string, error) {
 
 	// 生成原始JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(jwtSecret))
+	tokenString, err := token.SignedString(signingKey)
 	if err != nil {
 		return "", err
 	}
@@ -68,8 +81,10 @@ func GenerateToken(ua, uid, name, email, avatar, role string) (string, error) {
 
 // ParseToken 解析加密的 JWT token，使用UA作为解密密钥
 func ParseToken(ua, encryptedToken string) (*Claims, error) {
-	c := nacos.GetConfig()
-	jwtSecret := nacos.GetConfigString(c, "jwt.secret")
+	signingKey, err := jwtSigningKey()
+	if err != nil {
+		return nil, err
+	}
 
 	// 使用UA作为密钥解密令牌
 	tokenString, err := decryptToken(encryptedToken, ua)
@@ -78,9 +93,9 @@ func ParseToken(ua, encryptedToken string) (*Claims, error) {
 	}
 
 	// 然后解析JWT
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(_ *jwt.Token) (interface{}, error) {
+		return signingKey, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 
 	if err != nil {
 		return nil, err

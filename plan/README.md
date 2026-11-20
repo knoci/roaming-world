@@ -9,7 +9,7 @@
 | POST | /v1/plan | 创建行程，自动按日期生成 day |
 | PUT | /v1/plan/{id} | 修改标题/城市/预算/可见性 |
 | GET | /v1/plan/{id} | 行程详情 |
-| GET | /v1/plan?scope=mine|public | 我的行程 / 公开行程 |
+| GET | /v1/plan | 我的行程（`scope=mine`）或公开行程（`scope=public`） |
 | POST | /v1/plan/{id}/publish | 发布行程 |
 | POST | /v1/plan/{id}/items | 添加行程项 |
 | DELETE | /v1/plan/{id}/items/{item_id} | 删除行程项 |
@@ -17,17 +17,21 @@
 
 请求头：`Authorization: Bearer <token>`。公开行程详情可匿名访问。
 
+列表默认返回完整行程。卡片或搜索结果页可传 `summary_only=true`，只读取行程概要并保留分页总数。进入行程详情时，再按 ID 获取每天的安排。
+
 ## 业务规则
 
 - 日期格式 YYYY-MM-DD，结束日期不能早于开始日期；
 - 最长 30 天；
 - 创建时自动生成 travel_plan_days；
-- 只有 draft 行程可编辑/加 item/发布；
+- 只有 draft 行程可编辑、增删条目或发布；
 - item 类型只允许 scene / food / article；
 - 时间格式 HH:MM，且 start < end；
-- 同一天 item 时间不能重叠；
+- 同一天条目不能重叠，相邻时间段可首尾衔接，详情按开始时间展示；
 - 发布前至少有一个 item；
 - 公开列表只返回 published + public。
+
+Kubernetes Ingress 将 `/v1/plan` 转发到 plan-service，与其他业务 API 使用相同入口。
 
 ## 表
 

@@ -1,7 +1,8 @@
 param([switch]$Kubernetes)
 
 $ErrorActionPreference = "Stop"
-$names = @("AI_GATEWAY_TOKEN", "AI_INGEST_TOKEN", "MCP_TOKEN", "ARTICLE_USER_RPC_TOKEN", "COMMENT_USER_RPC_TOKEN")
+$internalNames = @("AI_GATEWAY_TOKEN", "AI_INGEST_TOKEN", "MCP_TOKEN", "ARTICLE_USER_RPC_TOKEN", "COMMENT_USER_RPC_TOKEN")
+$jwtKeyName = "JWT_SIGNING_KEY"
 
 function New-InternalToken {
   $bytes = New-Object byte[] 32
@@ -11,11 +12,10 @@ function New-InternalToken {
   return [Convert]::ToBase64String($bytes)
 }
 
-if ($Kubernetes) {
-  $secretName = "roaming-world-internal-tokens"
+function Initialize-KubernetesSecret([string]$secretName, [string[]]$names) {
   $namespace = "roaming-world"
   $existing = kubectl get secret $secretName -n $namespace --ignore-not-found -o json
-  if ($LASTEXITCODE -ne 0) { throw "Unable to check Kubernetes internal tokens" }
+  if ($LASTEXITCODE -ne 0) { throw "Unable to check Kubernetes Secret $secretName" }
   if ($existing) {
     $data = ($existing -join [Environment]::NewLine | ConvertFrom-Json).data
     foreach ($name in $names) {
@@ -32,7 +32,12 @@ if ($Kubernetes) {
     metadata = @{ name = $secretName; namespace = $namespace }
     stringData = $tokens
   } | ConvertTo-Json -Depth 4 | kubectl create -f -
-  if ($LASTEXITCODE -ne 0) { throw "Unable to create Kubernetes internal tokens" }
+  if ($LASTEXITCODE -ne 0) { throw "Unable to create Kubernetes Secret $secretName" }
+}
+
+if ($Kubernetes) {
+  Initialize-KubernetesSecret "roaming-world-internal-tokens" $internalNames
+  Initialize-KubernetesSecret "roaming-world-jwt-signing" @($jwtKeyName)
   return
 }
 
@@ -41,7 +46,7 @@ Push-Location $project
 try {
   $configured = docker compose config --environment
   if ($LASTEXITCODE -ne 0) { throw "Unable to read Compose environment" }
-  $missing = @($names | Where-Object { -not ($configured -match "^$_=.+") })
+  $missing = @(($internalNames + $jwtKeyName) | Where-Object { -not ($configured -match "^$_=.+") })
   if ($missing.Count -gt 0) {
     $envPath = Join-Path $project ".env"
     $newline = [Environment]::NewLine
@@ -57,7 +62,7 @@ try {
       }
     }
     [IO.File]::WriteAllText($envPath, $contents)
-    Write-Host "Configured missing internal tokens in .env"
+    Write-Host "Configured missing service credentials in .env"
   }
 } finally {
   Pop-Location

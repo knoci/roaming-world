@@ -134,6 +134,8 @@ message ListPlansRequest {
   string scope = 1;
   int32 page = 2;
   int32 limit = 3;
+  // 只返回行程概要，跳过按天行程和条目。
+  bool summary_only = 4;
 }
 
 message ListPlansReply {

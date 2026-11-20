@@ -64,7 +64,7 @@ func (s *PlanService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) (
 	if claims, err := getJwtClaim(ctx); err == nil {
 		uid = claims.UID
 	}
-	plans, total, err := s.uc.List(ctx, uid, req.Scope, int(req.Page), int(req.Limit))
+	plans, total, err := s.uc.List(ctx, uid, req.Scope, int(req.Page), int(req.Limit), req.SummaryOnly)
 	if err != nil {
 		return nil, err
 	}
