@@ -24,7 +24,7 @@ type Food struct {
 // FoodRepo 定义了 Food 数据仓库的接口
 type FoodRepo interface {
 	CreateFood(ctx context.Context, food *Food) (*Food, error)
-	GetFoodList(ctx context.Context) ([]*Food, error)
+	GetFoodList(ctx context.Context, page, limit int) ([]*Food, int64, error)
 	GetRandomFood(ctx context.Context) (*Food, error)
 }
 
@@ -58,13 +58,25 @@ func (uc *FoodUsecase) CreateFood(ctx context.Context, req *v1.CreateFoodRequest
 }
 
 // GetFoodList 获取食物列表的业务逻辑
-func (uc *FoodUsecase) GetFoodList(ctx context.Context) ([]*Food, error) {
-	uc.log.WithContext(ctx).Info("foodUsecase: GetFoodList")
-	foods, err := uc.repo.GetFoodList(ctx)
-	if err != nil {
-		return nil, ErrInternalError
+func (uc *FoodUsecase) GetFoodList(ctx context.Context, page, limit int) ([]*Food, int64, error) {
+	if page < 0 || limit < 0 {
+		return nil, 0, ErrInvalidArgument
 	}
-	return foods, nil
+	if page > 0 && limit == 0 {
+		limit = 20
+	}
+	if page == 0 {
+		page = 1
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	foods, total, err := uc.repo.GetFoodList(ctx, page, limit)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("foodUsecase: list foods failed: %v", err)
+		return nil, 0, ErrInternalError
+	}
+	return foods, total, nil
 }
 
 // GetRandomFood 获取随机食物的业务逻辑

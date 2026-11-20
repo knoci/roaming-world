@@ -48,13 +48,13 @@ func (s *FoodService) CreateFood(ctx context.Context, req *pb.CreateFoodRequest)
 func (s *FoodService) GetFoodList(ctx context.Context, req *pb.GetFoodListRequest) (*pb.GetFoodListReply, error) {
 	s.log.WithContext(ctx).Info("foodService: GetFoodList")
 
-	foods, err := s.food.GetFoodList(ctx)
+	foods, total, err := s.food.GetFoodList(ctx, int(req.Page), int(req.Limit))
 	if err != nil {
 		s.log.WithContext(ctx).Errorf("foodService: GetFoodList error: %v", err)
 		return nil, err
 	}
 
-	reply := &pb.GetFoodListReply{}
+	reply := &pb.GetFoodListReply{Total: total}
 	for _, food := range foods {
 		reply.Foods = append(reply.Foods, &pb.FoodMessage{
 			Fid:       food.FID,

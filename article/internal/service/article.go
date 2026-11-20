@@ -181,7 +181,7 @@ func (s *ArticleService) ReviewArticle(ctx context.Context, req *pb.ReviewArticl
 	if claims.Role != "admin" {
 		return nil, biz.ErrNoPermission
 	}
-	status, err := s.uc.Review(ctx, claims.UID, req.Aid, req.Action, req.Reason)
+	status, err := s.uc.Review(ctx, claims.UID, req.Aid, req.Action, req.Reason, req.ExpectedRevision)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +276,7 @@ func toMessage(a *biz.Article) *pb.ArticleMessage {
 		UpdatedAt:    a.UpdatedAt.Format("2006-01-02 15:04:05"),
 		Status:       a.Status,
 		ReviewReason: a.ReviewReason,
+		Revision:     a.Revision,
 	}
 	if a.PublishedAt != nil {
 		msg.PublishedAt = a.PublishedAt.Format("2006-01-02 15:04:05")

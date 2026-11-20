@@ -16,4 +16,5 @@ var (
 	ErrUpdateArticleFailed = errors.InternalServer(v1.ErrorReason_INTERNAL_ERROR.String(), "update article failed")
 	ErrDeleteArticleFailed = errors.InternalServer(v1.ErrorReason_INTERNAL_ERROR.String(), "delete article failed")
 	ErrInvalidStatus       = errors.BadRequest(v1.ErrorReason_INVALID_ARGUMENT.String(), "invalid article status")
+	ErrArticleChanged      = errors.Conflict("ARTICLE_CHANGED", "article changed, reload before retrying")
 )

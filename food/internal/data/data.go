@@ -8,7 +8,6 @@ import (
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/food/internal/conf"
 	nacos "github.com/knoci/roaming-world/food/internal/conf/nacos"
-	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -19,9 +18,8 @@ var ProviderSet = wire.NewSet(NewData, NewFoodRepo)
 
 // Data .
 type Data struct {
-	db    *gorm.DB
-	redis *redis.Client
-	log   *log.Helper
+	db  *gorm.DB
+	log *log.Helper
 }
 
 // NewData .
@@ -57,26 +55,7 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	redisHost := nacos.GetConfigString(cfg, "redis.host")
-	redisPort := nacos.GetConfigInt(cfg, "redis.port")
-	redisAddr := fmt.Sprintf("%s:%d", redisHost, redisPort)
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: nacos.GetConfigString(cfg, "redis.password"),
-		DB:       nacos.GetConfigInt(cfg, "redis.db"),
-	})
-	// 测试连接
-	ctx := context.Background()
-	if err := client.Ping(ctx).Err(); err != nil {
-		log.Error("foodData: failed to connect redis", err)
-		return nil, nil, err
-	}
-
-	d := &Data{
-		db:    db,
-		redis: client,
-		log:   log,
-	}
+	d := &Data{db: db, log: log}
 
 	cleanup := func() {
 		log.Info("foodData: closing the data resources")

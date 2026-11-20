@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS articles (
     published_at timestamptz,
     reviewed_by varchar(36),
     review_reason text,
+    revision    bigint NOT NULL DEFAULT 1,
     created_at  timestamptz,
     updated_at  timestamptz
 );
@@ -72,6 +73,7 @@ ALTER TABLE articles ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAUL
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS published_at timestamptz;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS reviewed_by varchar(36);
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS review_reason text;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS revision bigint NOT NULL DEFAULT 1;
 CREATE INDEX IF NOT EXISTS idx_articles_uid ON articles (uid);
 CREATE INDEX IF NOT EXISTS idx_articles_video_videoid ON articles (video, videoid);
 CREATE INDEX IF NOT EXISTS idx_articles_created_at ON articles (created_at);

@@ -9,6 +9,8 @@ except ImportError:  # agent/health still run without DB driver
 from .chunking import chunk_text
 from .embeddings import embed_text, vector_literal
 
+INDEXED_SOURCE_TYPES = ["article", "scene", "food", "audiobook"]
+
 
 def _dsn_parts():
     return dict(
@@ -85,8 +87,11 @@ def _documents(conn):
 
 
 def ingest_all(conn) -> dict:
+    with conn.cursor() as cur:
+        cur.execute("SELECT pg_advisory_xact_lock(hashtext('roaming-world.ai.ingest'))")
     ensure_schema(conn)
     docs = _documents(conn)
+    indexed_ids = []
     chunks_total = 0
     with conn.cursor() as cur:
         for source_type, source_id, title, url, content in docs:
@@ -102,6 +107,7 @@ def ingest_all(conn) -> dict:
                 RETURNING id
             """, (source_type, source_id, title, url, content))
             doc_id = cur.fetchone()[0]
+            indexed_ids.append(doc_id)
             cur.execute("DELETE FROM ai_chunks WHERE doc_id = %s", (doc_id,))
             for i, chunk in enumerate(chunks):
                 cur.execute("""
@@ -110,6 +116,11 @@ def ingest_all(conn) -> dict:
                 """, (doc_id, i, chunk, vector_literal(embed_text(chunk)),
                       '{"source_type":"%s","source_id":"%s"}' % (source_type, source_id)))
             chunks_total += len(chunks)
+        # The source scan completed successfully. Document deletion also deletes its chunks.
+        cur.execute("""
+            DELETE FROM ai_documents
+            WHERE source_type = ANY(%s) AND NOT (id = ANY(%s::bigint[]))
+        """, (INDEXED_SOURCE_TYPES, indexed_ids))
     return {"documents": len(docs), "chunks": chunks_total}
 
 
@@ -122,6 +133,11 @@ def search(conn, query: str, top_k: int = 5) -> list[dict]:
                    (1 - (c.embedding <=> %s::vector))::float AS score
             FROM ai_chunks c
             JOIN ai_documents d ON d.id = c.doc_id
+            WHERE d.source_type <> 'article' OR EXISTS (
+                SELECT 1 FROM articles a
+                WHERE a.aid = d.source_id AND a.status = 'published'
+                  AND a.content = d.content AND a.title = d.title
+            )
             ORDER BY c.embedding <=> %s::vector
             LIMIT %s
         """, (vec, vec, top_k))

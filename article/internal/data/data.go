@@ -2,7 +2,9 @@ package data
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,10 +14,10 @@ import (
 	kratosgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
 	"github.com/google/wire"
 	userv1 "github.com/knoci/roaming-world/article/api/user/v1"
-	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 
 	"github.com/knoci/roaming-world/article/internal/conf"
@@ -29,7 +31,6 @@ var ProviderSet = wire.NewSet(NewData, NewArticleRepo, NewNacosEngine)
 // Data 数据层资源。
 type Data struct {
 	db              *gorm.DB
-	redis           *redis.Client
 	commentConsumer *kafka.KafkaReceiver
 	userClient      userv1.UserClient
 	userConn        *grpc.ClientConn
@@ -37,8 +38,7 @@ type Data struct {
 }
 
 type CommentCountEvent struct {
-	AID   string `json:"aid"`
-	Count int64  `json:"count"`
+	AID string `json:"aid"`
 }
 
 func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
@@ -70,18 +70,6 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 	address := nc.GetConfigString(cfg, "kafka.address")
 
-	redisHost := nc.GetConfigString(cfg, "redis.host")
-	redisPort := nc.GetConfigInt(cfg, "redis.port")
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", redisHost, redisPort),
-		Password: nc.GetConfigString(cfg, "redis.password"),
-		DB:       nc.GetConfigInt(cfg, "redis.db"),
-	})
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		l.Errorf("articleData: failed to connect redis: %v", err)
-		return nil, nil, err
-	}
-
 	registry := nc.NewRegistry()
 	conn, err := kratosgrpc.DialInsecure(context.Background(),
 		kratosgrpc.WithEndpoint("discovery:///user.grpc"),
@@ -96,7 +84,6 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 
 	d := &Data{
 		db:         db,
-		redis:      rdb,
 		userClient: userv1.NewUserClient(conn),
 		userConn:   conn,
 		log:        l,
@@ -110,23 +97,19 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 			return nil, nil, err
 		}
 		d.commentConsumer = consumer
-		if err := consumer.Receive(context.Background(), d.handleCommentCountEvent); err != nil {
-			l.Errorf("articleData: failed to start comment consumer: %v", err)
-			return nil, nil, err
-		}
+		consumer.Receive(context.Background(), d.handleCommentCountEvent)
 	}
 
 	cleanup := func() {
 		l.Info("articleData: closing the data resources")
+		if d.commentConsumer != nil {
+			_ = d.commentConsumer.Close()
+		}
 		if sqlDB, err := d.db.DB(); err == nil {
 			_ = sqlDB.Close()
 		}
-		_ = d.redis.Close()
 		if d.userConn != nil {
 			_ = d.userConn.Close()
-		}
-		if d.commentConsumer != nil {
-			_ = d.commentConsumer.Close()
 		}
 	}
 
@@ -148,19 +131,28 @@ func (d *Data) LogError(ctx context.Context, key string, errmsg string, errop st
 	return nil
 }
 
-func (d *Data) handleCommentCountEvent(ctx context.Context, msg *kafka.Message) error {
+func (d *Data) handleCommentCountEvent(ctx context.Context, payload []byte) error {
 	var event CommentCountEvent
-	if err := json.Unmarshal(msg.Value(), &event); err != nil {
-		return err
-	}
-	if event.AID == "" {
+	if err := json.Unmarshal(payload, &event); err != nil || event.AID == "" {
+		d.log.WithContext(ctx).Warn("articleData: discarding invalid comment count event")
 		return nil
 	}
-	if err := d.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", event.AID).UpdateColumn("comments", event.Count).Error; err != nil {
-		return err
-	}
-	if err := d.redis.ZAdd(ctx, keyArticleComments, redis.Z{Score: float64(event.Count), Member: event.AID}).Err(); err != nil {
-		d.log.WithContext(ctx).Errorf("articleData: update comment zset failed: %v", err)
-	}
-	return nil
+	return d.refreshCommentCount(ctx, event.AID)
+}
+
+func (d *Data) refreshCommentCount(ctx context.Context, aid string) error {
+	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var article Article
+		err := tx.Clauses(clause.Locking{Strength: "NO KEY UPDATE"}).
+			Select("aid").Where("aid = ?", aid).Take(&article).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		// Take the count in a new statement after obtaining the article lock.
+		count := tx.Table("comments").Select("COUNT(*)").Where("target = ? AND status = ?", aid, "active")
+		return tx.Model(&article).UpdateColumn("comments", count).Error
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }

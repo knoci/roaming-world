@@ -147,6 +147,7 @@ message ArticleMessage {
   string status = 16;
   string published_at = 17;
   string review_reason = 18;
+  int64 revision = 19;
 }
 
 message CreateArticleRequest {
@@ -263,6 +264,8 @@ message ReviewArticleRequest {
   // approve / reject / offline
   string action = 2;
   string reason = 3;
+  // 审核界面可传入打开文章时的 revision，过期的决定返回冲突。
+  optional int64 expected_revision = 4;
 }
 
 message ReviewArticleReply {

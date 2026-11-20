@@ -174,7 +174,8 @@ func (CommentOutbox) TableName() string { return "comment_outbox" }
 // enqueueCommentCount 在评论事务内写入 outbox，保证“评论写入”和“计数事件”同生共死。
 func (d *Data) enqueueCommentCount(tx *gorm.DB, aid string) error {
 	var count int64
-	if err := tx.Model(&Comment{}).Where("target = ?", aid).Count(&count).Error; err != nil {
+	// The count remains in the payload for older article consumers during rollout.
+	if err := tx.Model(&Comment{}).Where("target = ? AND status = ?", aid, "active").Count(&count).Error; err != nil {
 		return err
 	}
 	body, err := json.Marshal(CommentCountEvent{AID: aid, Count: count})

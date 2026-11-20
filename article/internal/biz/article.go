@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	v1 "github.com/knoci/roaming-world/article/api/article/v1"
@@ -28,6 +29,7 @@ type Article struct {
 	PublishedAt  *time.Time
 	ReviewedBy   string
 	ReviewReason string
+	Revision     int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -40,7 +42,7 @@ type ArticleRepo interface {
 	FindByID(ctx context.Context, aid string) (*Article, error)
 	List(ctx context.Context, page, limit int, way string, reverse bool, status, ownerID string) ([]*Article, int64, error)
 	ListFeed(ctx context.Context, uid string, page, limit int) ([]*Article, int64, error)
-	UpdateStatus(ctx context.Context, aid, status, reviewedBy, reason string) error
+	UpdateStatus(ctx context.Context, current *Article, status, reviewedBy, reason string) error
 	Like(ctx context.Context, uid, aid string) (bool, int, error)
 	Unlike(ctx context.Context, uid, aid string) (int, error)
 	Favorite(ctx context.Context, uid, aid string) (bool, int, error)
@@ -102,6 +104,9 @@ func (uc *ArticleUsecase) Update(ctx context.Context, uid, avatar string, req *v
 
 	updated, err := uc.repo.Update(ctx, article)
 	if err != nil {
+		if errors.Is(err, ErrArticleChanged) {
+			return nil, err
+		}
 		uc.log.WithContext(ctx).Errorf("articleUsecase: update article failed: %v", err)
 		return nil, ErrUpdateArticleFailed
 	}
@@ -177,7 +182,10 @@ func (uc *ArticleUsecase) Submit(ctx context.Context, uid, aid string) (string, 
 	if article.Status != "draft" && article.Status != "rejected" {
 		return "", ErrInvalidStatus
 	}
-	if err := uc.repo.UpdateStatus(ctx, aid, "pending", "", ""); err != nil {
+	if err := uc.repo.UpdateStatus(ctx, article, "pending", "", ""); err != nil {
+		if errors.Is(err, ErrArticleChanged) {
+			return "", err
+		}
 		uc.log.WithContext(ctx).Errorf("articleUsecase: submit article failed: %v", err)
 		return "", ErrUpdateArticleFailed
 	}
@@ -185,16 +193,22 @@ func (uc *ArticleUsecase) Submit(ctx context.Context, uid, aid string) (string, 
 }
 
 // Review 管理员审核/下架。
-func (uc *ArticleUsecase) Review(ctx context.Context, adminID, aid, action, reason string) (string, error) {
+func (uc *ArticleUsecase) Review(ctx context.Context, adminID, aid, action, reason string, expectedRevision *int64) (string, error) {
 	article, err := uc.repo.FindByID(ctx, aid)
 	if err != nil {
 		return "", ErrArticleNotFound
+	}
+	if expectedRevision != nil && *expectedRevision != article.Revision {
+		return "", ErrArticleChanged
 	}
 	to, err := reviewTransition(article.Status, action)
 	if err != nil {
 		return "", err
 	}
-	if err := uc.repo.UpdateStatus(ctx, aid, to, adminID, reason); err != nil {
+	if err := uc.repo.UpdateStatus(ctx, article, to, adminID, reason); err != nil {
+		if errors.Is(err, ErrArticleChanged) {
+			return "", err
+		}
 		uc.log.WithContext(ctx).Errorf("articleUsecase: review article failed: %v", err)
 		return "", ErrUpdateArticleFailed
 	}

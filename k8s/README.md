@@ -16,7 +16,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\k8s-up.ps1
 - 业务镜像 `IfNotPresent`，由脚本构建并 `minikube image load`；
 - 单节点 Kafka 的 controller quorum 用 `localhost:9093`，避免 ClusterIP hairpin；
 - PostgreSQL 迁移 Job + Nacos 配置导入 Job；
-- 脚本初始化 `roaming-world-internal-tokens` Secret，升级已有环境时移除旧的 Nacos NodePort。
+- 脚本初始化 `roaming-world-internal-tokens` 和 `roaming-world-jwt-signing` Secret，升级已有环境时移除旧的 Nacos NodePort。
 
 这是单节点验证，不是生产高可用。
 
@@ -62,13 +62,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\k8s-up.ps1
 | 文件 | 作用 |
 |---|---|
 | namespace.yaml | 三个 Namespace：roaming-world / dev / test |
-| secrets.yaml | MySQL/PostgreSQL/Meili/JWT 密钥（示例值） |
+| secrets.yaml | MySQL/PostgreSQL/Meilisearch 密钥（示例值） |
 | configmaps.yaml | Nacos/MySQL/PostgreSQL 配置 + 服务启动 config.yaml |
 | postgres.yaml | 业务 PostgreSQL |
 | postgres-migration-job.yaml | 一次性 schema 迁移 Job |
 | postgres-migrations/ | K8s 侧 SQL 副本（与 deploy/postgres 保持同步） |
 | infrastructure.yaml | MySQL（Nacos）+ Redis |
-| nacos.yaml | Nacos + NodePort |
+| nacos.yaml | Nacos 和内网 Service |
 | messaging.yaml | Kafka + Meilisearch |
 | etcd.yaml | etcd |
 | deployments.yaml | user/article/food/scene |
@@ -161,9 +161,11 @@ roaming-world-service-config 里只有：
 - Nacos 地址 nacos-service:8848；
 - Data ID / Group。
 
-业务数据库、Redis、Kafka、JWT 等仍在 Nacos 的 roaming-world.yaml 里，符合“配置中心统一管理”的设计。
+数据库、Redis、Kafka 和 JWT 有效期通过 Nacos 配置。8 个 Go 服务从同一份 `roaming-world-jwt-signing` Secret 读取 `JWT_SIGNING_KEY`，要求标准 Base64 编码，解码后至少 32 字节。
 
-手动部署时，先应用 `k8s/namespace.yaml`，再运行 `scripts/configure-internal-tokens.ps1 -Kubernetes` 创建内部服务 Secret，之后应用 Kustomize 清单。升级旧集群时删除 `roaming-world` 命名空间中的旧 `nacos-nodeport` Service。
+手动部署时，先应用 `k8s/namespace.yaml`，再运行 `scripts/configure-internal-tokens.ps1 -Kubernetes` 创建两个 Secret，之后应用 Kustomize 清单。升级旧集群时删除 `roaming-world` 命名空间中的旧 `nacos-nodeport` Service，并从已发布的 Nacos 配置删除旧签名密钥。
+
+升级或轮换密钥时，协调所有签发与验证实例切换到同一新密钥。新旧实例混跑时可能出现暂时的 401。所有实例切换后，原令牌失效，用户需重新登录。
 
 ## 5. 请求怎么走
 

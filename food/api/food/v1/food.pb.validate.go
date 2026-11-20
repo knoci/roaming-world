@@ -469,6 +469,10 @@ func (m *GetFoodListRequest) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for Page
+
+	// no validation rules for Limit
+
 	if len(errors) > 0 {
 		return GetFoodListRequestMultiError(errors)
 	}
@@ -604,6 +608,8 @@ func (m *GetFoodListReply) validate(all bool) error {
 		}
 
 	}
+
+	// no validation rules for Total
 
 	if len(errors) > 0 {
 		return GetFoodListReplyMultiError(errors)

@@ -1,6 +1,6 @@
 # Article Service
 
-文章服务，负责文章 CRUD、点赞、收藏、视频文章和排行榜缓存。
+文章服务，负责文章发布审核、点赞、收藏、视频文章和排序。
 
 ## API
 
@@ -30,35 +30,30 @@
 - `api/article/v1/article.proto`：HTTP + gRPC 契约；
 - `internal/service`：JWT claims、pb 转换；
 - `internal/biz`：Article 实体、ArticleRepo 接口、用例；
-- `internal/data`：GORM、Redis zset、Kafka CDC；
+- `internal/data`：PostgreSQL 持久化和 Kafka 评论计数消费；
 - `cmd/article`：Wire 组装、Nacos 注册。
 
 
 ## 内容生命周期
 
 ```text
-draft -> pending -> published -> offline
-                 -> rejected -> draft
+draft    -> pending -> published -> offline
+rejected -> pending -> rejected
 ```
 
 - 创建文章默认 draft；
 - 作者调 submit 进入 pending；
 - admin 调 review：approve / reject / offline；
+- 编辑、提交和审核都会更新 `revision`。审核界面可把读取时的版本通过 `expected_revision` 提交，文章已变化时收到 HTTP 409，需刷新后重新判断；
 - 公开列表和详情只展示 published；
 - 作者用 `GET /v1/article?mine=true` 查看自己的草稿/驳回；
 - 点赞/收藏只允许 published。
 
-## 缓存
+## 排序与分页
 
-Redis 使用四个 zset：
+列表从 PostgreSQL 查询当前发布状态和计数。支持 `way=time|likes|comments|favorites`，`reverse=true` 为降序，同分时按文章 ID 排序。
 
-- `article:time`
-- `article:likes`
-- `article:comments`
-- `article:favorites`
-
-列表优先读 zset，未命中回源 PostgreSQL 并重建。
-点赞/收藏在事务提交后用 `ZIncrBy` 更新分数。
+评论事件通知文章服务重新统计目标文章的有效评论与回复。处理或提交 Kafka 偏移失败时，消费者会重试当前步骤。同一事件重复或乱序到达时，计数仍取 PostgreSQL 中的当前状态。
 
 ## 生成代码
 

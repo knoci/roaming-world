@@ -61,11 +61,17 @@ message CreateFoodReply {
 }
 
 // GetFoodListRequest 获取食物列表请求
-message GetFoodListRequest {}
+message GetFoodListRequest {
+  // 传入 page 或 limit 时使用分页，页码从 1 开始。
+  int32 page = 1;
+  // 分页默认 20 条，最多 100 条。
+  int32 limit = 2;
+}
 
 // GetFoodListReply 获取食物列表响应
 message GetFoodListReply {
   repeated FoodMessage foods = 1;
+  int64 total = 2;
 }
 
 // GetRandomFoodRequest 获取随机食物请求

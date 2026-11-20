@@ -3,8 +3,132 @@
 
 openapi: 3.0.3
 info:
-    title: ""
+    title: Food API
+    description: FoodService 服务定义
     version: 0.0.1
-paths: {}
+paths:
+    /v1/food:
+        get:
+            tags:
+                - Food
+            description: GetFoodList 获取食物列表
+            operationId: Food_GetFoodList
+            parameters:
+                - name: page
+                  in: query
+                  description: 传入 page 或 limit 时使用分页，页码从 1 开始。
+                  schema:
+                    type: integer
+                    format: int32
+                - name: limit
+                  in: query
+                  description: 分页默认 20 条，最多 100 条。
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/food.v1.GetFoodListReply'
+        post:
+            tags:
+                - Food
+            description: CreateFood 创建食物
+            operationId: Food_CreateFood
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/food.v1.CreateFoodRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/food.v1.CreateFoodReply'
+    /v1/food/random:
+        get:
+            tags:
+                - Food
+            description: GetRandomFood 获取随机食物
+            operationId: Food_GetRandomFood
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/food.v1.GetRandomFoodReply'
 components:
-    schemas: {}
+    schemas:
+        food.v1.CreateFoodReply:
+            type: object
+            properties:
+                food:
+                    $ref: '#/components/schemas/food.v1.FoodMessage'
+            description: CreateFoodReply 创建食物响应
+        food.v1.CreateFoodRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                describe:
+                    type: string
+                recipe:
+                    type: string
+                article:
+                    type: string
+                location:
+                    type: string
+            description: CreateFoodRequest 创建食物请求
+        food.v1.FoodMessage:
+            type: object
+            properties:
+                fid:
+                    type: string
+                view:
+                    type: array
+                    items:
+                        type: string
+                name:
+                    type: string
+                describe:
+                    type: string
+                recipe:
+                    type: string
+                article:
+                    type: string
+                location:
+                    type: string
+                createdAt:
+                    type: string
+                updatedAt:
+                    type: string
+            description: FoodMessage 食物信息
+        food.v1.GetFoodListReply:
+            type: object
+            properties:
+                foods:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/food.v1.FoodMessage'
+                total:
+                    type: string
+            description: GetFoodListReply 获取食物列表响应
+        food.v1.GetRandomFoodReply:
+            type: object
+            properties:
+                food:
+                    $ref: '#/components/schemas/food.v1.FoodMessage'
+            description: GetRandomFoodReply 获取随机食物响应
+tags:
+    - name: Food

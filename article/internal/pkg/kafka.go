@@ -8,19 +8,12 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type Handler func(context.Context, *Message) error
-
-type Message struct {
-	key   string
-	value []byte
-}
-
-func (m *Message) Key() string   { return m.key }
-func (m *Message) Value() []byte { return m.value }
+type Handler func(context.Context, []byte) error
 
 type KafkaReceiver struct {
 	reader *kafka.Reader
-	topic  string
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func NewKafkaReceiver(address []string, topic, groupID string) (*KafkaReceiver, error) {
@@ -32,26 +25,69 @@ func NewKafkaReceiver(address []string, topic, groupID string) (*KafkaReceiver, 
 		MaxBytes: 10e6,
 		MaxWait:  time.Second,
 	})
-	return &KafkaReceiver{reader: r, topic: topic}, nil
+	return &KafkaReceiver{reader: r}, nil
 }
 
-func (k *KafkaReceiver) Receive(ctx context.Context, handler Handler) error {
+func (k *KafkaReceiver) Receive(ctx context.Context, handler Handler) {
+	ctx, k.cancel = context.WithCancel(ctx)
+	k.done = make(chan struct{})
 	go func() {
-		for {
-			m, err := k.reader.FetchMessage(context.Background())
-			if err != nil {
-				break
-			}
-			if err := handler(context.Background(), &Message{key: string(m.Key), value: m.Value}); err != nil {
-				log.Printf("message handling exception: %v", err)
-				continue
-			}
-			if err := k.reader.CommitMessages(ctx, m); err != nil {
-				log.Printf("failed to commit messages: %v", err)
-			}
-		}
+		defer close(k.done)
+		consume(ctx, k.reader, handler)
 	}()
-	return nil
 }
 
-func (k *KafkaReceiver) Close() error { return k.reader.Close() }
+type messageReader interface {
+	FetchMessage(context.Context) (kafka.Message, error)
+	CommitMessages(context.Context, ...kafka.Message) error
+}
+
+func consume(ctx context.Context, reader messageReader, handler Handler) {
+	for ctx.Err() == nil {
+		var event kafka.Message
+		if !retryMessageOperation(ctx, "fetch", func() error {
+			var err error
+			event, err = reader.FetchMessage(ctx)
+			return err
+		}) {
+			return
+		}
+		if !retryMessageOperation(ctx, "handle", func() error {
+			return handler(ctx, event.Value)
+		}) {
+			return
+		}
+		if !retryMessageOperation(ctx, "commit", func() error {
+			return reader.CommitMessages(ctx, event)
+		}) {
+			return
+		}
+	}
+}
+
+func retryMessageOperation(ctx context.Context, operation string, run func() error) bool {
+	for ctx.Err() == nil {
+		if err := run(); err != nil {
+			if ctx.Err() != nil {
+				return false
+			}
+			log.Printf("comment event %s failed, retrying: %v", operation, err)
+		} else {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(time.Second):
+		}
+	}
+	return false
+}
+
+func (k *KafkaReceiver) Close() error {
+	if k.cancel != nil {
+		k.cancel()
+		<-k.done
+	}
+	return k.reader.Close()
+}

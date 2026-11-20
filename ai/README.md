@@ -28,6 +28,8 @@ articles/scenes/foods/audiobooks
   -> extractive answer + citations
 ```
 
+文章检索以 PostgreSQL 中当前发布状态和内容为准，下架或删除后无需等到重新入库。下一次成功入库会清理已移除来源和空内容的历史分块。
+
 ## Embedding
 
 当前默认：

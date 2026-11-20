@@ -43,6 +43,7 @@ type ArticleMessage struct {
 	Status        string                 `protobuf:"bytes,16,opt,name=status,proto3" json:"status,omitempty"`
 	PublishedAt   string                 `protobuf:"bytes,17,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
 	ReviewReason  string                 `protobuf:"bytes,18,opt,name=review_reason,json=reviewReason,proto3" json:"review_reason,omitempty"`
+	Revision      int64                  `protobuf:"varint,19,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -201,6 +202,13 @@ func (x *ArticleMessage) GetReviewReason() string {
 		return x.ReviewReason
 	}
 	return ""
+}
+
+func (x *ArticleMessage) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 type CreateArticleRequest struct {
@@ -1377,10 +1385,12 @@ type ReviewArticleRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Aid   string                 `protobuf:"bytes,1,opt,name=aid,proto3" json:"aid,omitempty"`
 	// approve / reject / offline
-	Action        string `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
-	Reason        string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Action string `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	Reason string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	// 审核界面可传入打开文章时的 revision，过期的决定返回冲突。
+	ExpectedRevision *int64 `protobuf:"varint,4,opt,name=expected_revision,json=expectedRevision,proto3,oneof" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ReviewArticleRequest) Reset() {
@@ -1432,6 +1442,13 @@ func (x *ReviewArticleRequest) GetReason() string {
 		return x.Reason
 	}
 	return ""
+}
+
+func (x *ReviewArticleRequest) GetExpectedRevision() int64 {
+	if x != nil && x.ExpectedRevision != nil {
+		return *x.ExpectedRevision
+	}
+	return 0
 }
 
 type ReviewArticleReply struct {
@@ -1763,7 +1780,7 @@ var File_article_v1_article_proto protoreflect.FileDescriptor
 const file_article_v1_article_proto_rawDesc = "" +
 	"\n" +
 	"\x18article/v1/article.proto\x12\n" +
-	"article.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17validate/validate.proto\"\xd8\x03\n" +
+	"article.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17validate/validate.proto\"\xf4\x03\n" +
 	"\x0eArticleMessage\x12\x10\n" +
 	"\x03aid\x18\x01 \x01(\tR\x03aid\x12\x10\n" +
 	"\x03uid\x18\x02 \x01(\tR\x03uid\x12\x12\n" +
@@ -1785,7 +1802,8 @@ const file_article_v1_article_proto_rawDesc = "" +
 	"updated_at\x18\x0f \x01(\tR\tupdatedAt\x12\x16\n" +
 	"\x06status\x18\x10 \x01(\tR\x06status\x12!\n" +
 	"\fpublished_at\x18\x11 \x01(\tR\vpublishedAt\x12#\n" +
-	"\rreview_reason\x18\x12 \x01(\tR\freviewReason\"\xa8\x01\n" +
+	"\rreview_reason\x18\x12 \x01(\tR\freviewReason\x12\x1a\n" +
+	"\brevision\x18\x13 \x01(\x03R\brevision\"\xa8\x01\n" +
 	"\x14CreateArticleRequest\x12\x1f\n" +
 	"\x05title\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x01\x18dR\x05title\x12\x1e\n" +
 	"\x04view\x18\x02 \x03(\tB\n" +
@@ -1851,11 +1869,13 @@ const file_article_v1_article_proto_rawDesc = "" +
 	"\x14SubmitArticleRequest\x12\x10\n" +
 	"\x03aid\x18\x01 \x01(\tR\x03aid\",\n" +
 	"\x12SubmitArticleReply\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status\"X\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\"\xa0\x01\n" +
 	"\x14ReviewArticleRequest\x12\x10\n" +
 	"\x03aid\x18\x01 \x01(\tR\x03aid\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\",\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x120\n" +
+	"\x11expected_revision\x18\x04 \x01(\x03H\x00R\x10expectedRevision\x88\x01\x01B\x14\n" +
+	"\x12_expected_revision\",\n" +
 	"\x12ReviewArticleReply\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\";\n" +
 	"\x0fListFeedRequest\x12\x12\n" +
@@ -1990,6 +2010,7 @@ func file_article_v1_article_proto_init() {
 	if File_article_v1_article_proto != nil {
 		return
 	}
+	file_article_v1_article_proto_msgTypes[25].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

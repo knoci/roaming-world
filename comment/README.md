@@ -27,7 +27,7 @@
 - 删除是软删除，内容替换为“该评论已删除”；
 - 删除根评论会软删除其回复；
 - 评论计数只统计 active 评论；
-- 计数通过 comment_outbox 发 Kafka，article 消费更新 articles.comments。
+- 评论写入和 outbox 同事务提交。文章服务收到 Kafka 事件后重算当前有效评论数，历史事件可以安全重放。
 - 举报去重：同一用户对同一评论只能举报一次；admin 可 remove（软删除）或 dismiss。
 - 回复时调用 user.CreateNotification，给被回复用户生成 comment_reply 通知；通知失败不影响评论写入。
 

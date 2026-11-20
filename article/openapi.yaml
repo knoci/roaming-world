@@ -32,6 +32,16 @@ paths:
                   in: query
                   schema:
                     type: boolean
+                - name: status
+                  in: query
+                  description: 为空时公开列表只返回 published；指定状态仅 admin 可用。
+                  schema:
+                    type: string
+                - name: mine
+                  in: query
+                  description: 只看自己的文章（可看 draft/rejected/pending）。
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     description: OK
@@ -88,6 +98,30 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/article.v1.GetUserFavoriteListReply'
+    /v1/article/feed:
+        get:
+            tags:
+                - Article
+            description: 关注作者的已发布文章 Feed
+            operationId: Article_ListFeed
+            parameters:
+                - name: page
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.ListFeedReply'
     /v1/article/like/list:
         get:
             tags:
@@ -175,7 +209,7 @@ paths:
         post:
             tags:
                 - Article
-            description: 收藏/取消收藏
+            description: 收藏
             operationId: Article_FavoriteArticle
             parameters:
                 - name: aid
@@ -196,6 +230,24 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/article.v1.FavoriteArticleReply'
+        delete:
+            tags:
+                - Article
+            description: 取消收藏
+            operationId: Article_UnfavoriteArticle
+            parameters:
+                - name: aid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.UnfavoriteArticleReply'
     /v1/article/{aid}/like:
         post:
             tags:
@@ -221,6 +273,74 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/article.v1.LikeArticleReply'
+        delete:
+            tags:
+                - Article
+            description: 取消点赞
+            operationId: Article_UnlikeArticle
+            parameters:
+                - name: aid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.UnlikeArticleReply'
+    /v1/article/{aid}/review:
+        post:
+            tags:
+                - Article
+            description: 管理员审核：pending -> published/rejected；published -> offline
+            operationId: Article_ReviewArticle
+            parameters:
+                - name: aid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/article.v1.ReviewArticleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.ReviewArticleReply'
+    /v1/article/{aid}/submit:
+        post:
+            tags:
+                - Article
+            description: 作者提交审核：draft/rejected -> pending
+            operationId: Article_SubmitArticle
+            parameters:
+                - name: aid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/article.v1.SubmitArticleRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/article.v1.SubmitArticleReply'
 components:
     schemas:
         article.v1.ArticleMessage:
@@ -262,6 +382,14 @@ components:
                 createdAt:
                     type: string
                 updatedAt:
+                    type: string
+                status:
+                    type: string
+                publishedAt:
+                    type: string
+                reviewReason:
+                    type: string
+                revision:
                     type: string
         article.v1.CreateArticleReply:
             type: object
@@ -354,6 +482,55 @@ components:
                         $ref: '#/components/schemas/article.v1.ArticleMessage'
                 total:
                     type: string
+        article.v1.ListFeedReply:
+            type: object
+            properties:
+                articles:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/article.v1.ArticleMessage'
+                total:
+                    type: string
+        article.v1.ReviewArticleReply:
+            type: object
+            properties:
+                status:
+                    type: string
+        article.v1.ReviewArticleRequest:
+            type: object
+            properties:
+                aid:
+                    type: string
+                action:
+                    type: string
+                    description: approve / reject / offline
+                reason:
+                    type: string
+                expectedRevision:
+                    type: string
+                    description: 审核界面可传入打开文章时的 revision，过期的决定返回冲突。
+        article.v1.SubmitArticleReply:
+            type: object
+            properties:
+                status:
+                    type: string
+        article.v1.SubmitArticleRequest:
+            type: object
+            properties:
+                aid:
+                    type: string
+        article.v1.UnfavoriteArticleReply:
+            type: object
+            properties:
+                favorite:
+                    type: integer
+                    format: int32
+        article.v1.UnlikeArticleReply:
+            type: object
+            properties:
+                likes:
+                    type: integer
+                    format: int32
         article.v1.UpdateArticleReply:
             type: object
             properties:
