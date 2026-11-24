@@ -1,0 +1,76 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: user-service-pdb
+  namespace: roaming-world
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: user-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: scene-service-pdb
+  namespace: roaming-world
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: scene-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: food-service-pdb
+  namespace: roaming-world
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: food-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: comment-service-pdb
+  namespace: roaming-world
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: comment-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: article-service-pdb
+  namespace: roaming-world
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: article-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: audiobook-service-pdb
+  namespace: roaming-world
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: audiobook-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plan-service-pdb
+  namespace: roaming-world
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: plan-service

@@ -1,0 +1,108 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Microservices HTTP QPS (Go + AI)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(roaming_http_requests_total[1m]))",
+          "legendFormat": "{{instance}}"
+        },
+        {
+          "expr": "sum by (route) (rate(ai_http_requests_total[1m]))",
+          "legendFormat": "ai {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "AI Engine 5xx Rate & P95 Latency (s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(ai_http_requests_total{status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx RPS"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(ai_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "P95 {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "LLM Requests by Provider & Role",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (provider, role, status) (rate(ai_llm_requests_total[5m]))",
+          "legendFormat": "{{provider}}/{{role}} ({{status}})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "LLM Token Consumption Rate (Tokens/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (provider, type) (rate(ai_llm_tokens_total[5m]))",
+          "legendFormat": "{{provider}} {{type}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "RAG Top-1 Relevance Score & Agent Self-Revisions",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "ai_rag_top1_score",
+          "legendFormat": "RAG Top-1 Score"
+        },
+        {
+          "expr": "rate(ai_agent_revisions_total[5m])",
+          "legendFormat": "Agent Revisions/s"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "MCP Tool Calls & P95 Tool Latency (s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum by (tool, status) (rate(roaming_mcp_tool_calls_total[5m]))",
+          "legendFormat": "{{tool}} ({{status}})"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, tool) (rate(roaming_mcp_tool_duration_seconds_bucket[5m])))",
+          "legendFormat": "P95 {{tool}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["roaming-world", "llm-ops", "agent", "mcp"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Roaming World - Microservices & LLM/Agent Ops",
+  "uid": "roaming-world-llm-ops",
+  "version": 1
+}

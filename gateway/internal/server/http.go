@@ -66,6 +66,14 @@ func NewHTTPServer(c *conf.Server, gateway *service.GatewayService, logger log.L
 		return nil
 	})
 	srv.Route("/").GET("/metrics", metricsHandler)
+	srv.Route("/").POST("/v1/ai/stream", func(ctx http.Context) error {
+		gateway.HandleStream(ctx.Response(), ctx.Request())
+		return nil
+	})
+	srv.Route("/").POST("/v1/ai/threads/{thread_id}/resume", func(ctx http.Context) error {
+		gateway.HandleResumeWithThreadID(ctx.Response(), ctx.Request(), ctx.Vars().Get("thread_id"))
+		return nil
+	})
 	v1.RegisterAiHTTPServer(srv, gateway)
 	return srv
 }

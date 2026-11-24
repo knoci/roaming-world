@@ -1,0 +1,48 @@
+groups:
+  - name: roaming-world-slo
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "Prometheus target {{ $labels.job }} / {{ $labels.instance }} has been unreachable for 1 minute."
+
+      - alert: AIHigh5xxRate
+        expr: |
+          (
+            sum(rate(ai_http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(ai_http_requests_total[5m])), 0.001)
+          ) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Engine 5xx error rate exceeds 5%"
+          description: "AI Engine HTTP 5xx ratio has stayed above 5% for 3 minutes."
+
+      - alert: AILLMHighLatencyP95
+        expr: histogram_quantile(0.95, sum by (le, route) (rate(ai_http_request_duration_seconds_bucket[5m]))) > 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Engine P95 latency above 15s on {{ $labels.route }}"
+          description: "P95 request duration for {{ $labels.route }} exceeded 15 seconds over the last 5 minutes."
+
+      - alert: MCPToolErrors
+        expr: |
+          (
+            sum(rate(roaming_mcp_tool_calls_total{status!="ok"}[5m]))
+            /
+            clamp_min(sum(rate(roaming_mcp_tool_calls_total[5m])), 0.001)
+          ) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MCP tool failure rate above 10%"
+          description: "More than 10% of MCP tool calls failed over the last 5 minutes."

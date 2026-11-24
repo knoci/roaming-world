@@ -24,16 +24,16 @@ kubectl config use-context minikube | Out-Null
 if ($LASTEXITCODE -ne 0) { Fail "kubectl context minikube failed" }
 
 $images = @(
-  @{ Name = "roaming-world/user:latest";      Context = "user" },
-  @{ Name = "roaming-world/scene:latest";     Context = "scene" },
-  @{ Name = "roaming-world/food:latest";      Context = "food" },
-  @{ Name = "roaming-world/comment:latest";   Context = "comment" },
-  @{ Name = "roaming-world/article:latest";   Context = "article" },
-  @{ Name = "roaming-world/audiobook:latest"; Context = "audiobook" },
-  @{ Name = "roaming-world/plan:latest";      Context = "plan" },
+  @{ Name = "roaming-world/user:latest";      Context = "."; Dockerfile = "user/Dockerfile" },
+  @{ Name = "roaming-world/scene:latest";     Context = "."; Dockerfile = "scene/Dockerfile" },
+  @{ Name = "roaming-world/food:latest";      Context = "."; Dockerfile = "food/Dockerfile" },
+  @{ Name = "roaming-world/comment:latest";   Context = "."; Dockerfile = "comment/Dockerfile" },
+  @{ Name = "roaming-world/article:latest";   Context = "."; Dockerfile = "article/Dockerfile" },
+  @{ Name = "roaming-world/audiobook:latest"; Context = "."; Dockerfile = "audiobook/Dockerfile" },
+  @{ Name = "roaming-world/plan:latest";      Context = "."; Dockerfile = "plan/Dockerfile" },
   @{ Name = "roaming-world/ai:latest";        Context = "ai" },
   @{ Name = "roaming-world/mcp:latest";       Context = "mcp" },
-  @{ Name = "roaming-world/gateway:latest";   Context = "gateway" }
+  @{ Name = "roaming-world/gateway:latest";   Context = "."; Dockerfile = "gateway/Dockerfile" }
 )
 
 foreach ($img in $images) {
@@ -41,6 +41,7 @@ foreach ($img in $images) {
   Write-Host ("Building {0}..." -f $buildName)
   $buildArgs = @("build", "-t", $buildName)
   if ($NoCache) { $buildArgs += "--no-cache" }
+  if ($img.Dockerfile) { $buildArgs += @("-f", (Join-Path $PSScriptRoot ("..\" + $img.Dockerfile))) }
   $buildArgs += (Join-Path $PSScriptRoot ("..\" + $img.Context))
   docker @buildArgs
   if ($LASTEXITCODE -ne 0) { Fail ("docker build failed: " + $img.Name) }
@@ -59,22 +60,26 @@ try { & "$PSScriptRoot\configure-internal-tokens.ps1" -Kubernetes }
 catch { Fail $_.Exception.Message }
 kubectl delete service nacos-nodeport -n roaming-world --ignore-not-found
 if ($LASTEXITCODE -ne 0) { Fail "unable to remove the legacy Nacos NodePort" }
-$rendered = Join-Path $env:TEMP "roaming-world-single-node.yaml"
-kubectl kustomize k8s-single-node --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 $rendered
-if ($LASTEXITCODE -ne 0) { Fail "kustomize render failed" }
-$manifest = Get-Content $rendered -Raw
-$manifest = $manifest -replace 'roaming-world/([a-z0-9-]+):latest', ('roaming-world/$1:' + $imageTag)
-$manifest | Out-File -Encoding utf8 $rendered
-kubectl apply -f $rendered
-if ($LASTEXITCODE -ne 0) { Fail "kubectl apply failed" }
+
+$rendered = Join-Path $env:TEMP ("roaming-world-single-node-{0}.yaml" -f [guid]::NewGuid().ToString("N"))
+try {
+  $kustomizeOut = kubectl kustomize k8s-single-node --load-restrictor LoadRestrictionsNone
+  if ($LASTEXITCODE -ne 0) { Fail "kustomize render failed" }
+  $manifest = ($kustomizeOut -join "`n") -replace 'roaming-world/([a-z0-9-]+):latest', ('roaming-world/$1:' + $imageTag)
+  [IO.File]::WriteAllText($rendered, $manifest, [Text.UTF8Encoding]::new($false))
+  kubectl apply -f $rendered
+  if ($LASTEXITCODE -ne 0) { Fail "kubectl apply failed" }
+} finally {
+  Remove-Item -LiteralPath $rendered -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "Waiting for infrastructure..."
 kubectl rollout status deployment/postgres -n roaming-world --timeout=300s
 if ($LASTEXITCODE -ne 0) { Fail "postgres rollout failed" }
 kubectl rollout status deployment/nacos -n roaming-world --timeout=240s
+if ($LASTEXITCODE -ne 0) { Fail "nacos rollout failed" }
 kubectl rollout status deployment/kafka -n roaming-world --timeout=240s
 if ($LASTEXITCODE -ne 0) { Fail "kafka rollout failed" }
-if ($LASTEXITCODE -ne 0) { Fail "nacos rollout failed" }
 kubectl wait --for=condition=complete job/postgres-migrate -n roaming-world --timeout=180s
 if ($LASTEXITCODE -ne 0) { Fail "postgres migration job failed" }
 kubectl wait --for=condition=complete job/nacos-config-init -n roaming-world --timeout=240s
@@ -82,6 +87,7 @@ if ($LASTEXITCODE -ne 0) { Fail "nacos config job failed" }
 
 Write-Host "Restarting app services so they load the imported Nacos config..."
 kubectl rollout restart deployment/user-service deployment/scene-service deployment/food-service deployment/comment-service deployment/article-service deployment/audiobook-service deployment/plan-service deployment/ai-service deployment/mcp-service deployment/gateway-service -n roaming-world
+if ($LASTEXITCODE -ne 0) { Fail "rollout restart failed" }
 
 foreach ($svc in @("user-service","scene-service","food-service","comment-service","article-service","audiobook-service","plan-service","ai-service","mcp-service","gateway-service")) {
   kubectl rollout status deployment/$svc -n roaming-world --timeout=180s

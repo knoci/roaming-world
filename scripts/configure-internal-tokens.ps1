@@ -4,32 +4,49 @@ $ErrorActionPreference = "Stop"
 $internalNames = @("AI_GATEWAY_TOKEN", "AI_INGEST_TOKEN", "MCP_TOKEN", "ARTICLE_USER_RPC_TOKEN", "COMMENT_USER_RPC_TOKEN")
 $jwtKeyName = "JWT_SIGNING_KEY"
 
-function New-InternalToken {
-  $bytes = New-Object byte[] 32
+function New-Base64Secret([int]$ByteLength = 32) {
+  $bytes = New-Object byte[] $ByteLength
   $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
   try { $rng.GetBytes($bytes) }
   finally { $rng.Dispose() }
   return [Convert]::ToBase64String($bytes)
 }
 
-function Initialize-KubernetesSecret([string]$secretName, [string[]]$names) {
+function New-UrlSafeSecret([int]$ByteLength = 32) {
+  return (New-Base64Secret -ByteLength $ByteLength).Replace("+", "-").Replace("/", "_").TrimEnd("=")
+}
+
+function New-InternalToken {
+  return New-Base64Secret -ByteLength 32
+}
+
+function Initialize-KubernetesSecret([string]$secretName, [string[]]$names, [hashtable]$generators = @{}) {
   $namespace = "roaming-world"
   $existing = kubectl get secret $secretName -n $namespace --ignore-not-found -o json
   if ($LASTEXITCODE -ne 0) { throw "Unable to check Kubernetes Secret $secretName" }
   if ($existing) {
     $data = ($existing -join [Environment]::NewLine | ConvertFrom-Json).data
     foreach ($name in $names) {
-      if (-not $data.$name) { throw "$secretName is missing $name" }
+      if (-not $data -or -not ($data.PSObject.Properties.Name -contains $name) -or -not $data.$name) {
+        throw "$secretName is missing $name"
+      }
     }
     return
   }
 
   $tokens = @{}
-  foreach ($name in $names) { $tokens[$name] = New-InternalToken }
+  foreach ($name in $names) {
+    if ($generators.ContainsKey($name)) {
+      $tokens[$name] = & $generators[$name]
+    } else {
+      $tokens[$name] = New-InternalToken
+    }
+  }
   @{
     apiVersion = "v1"
     kind = "Secret"
     metadata = @{ name = $secretName; namespace = $namespace }
+    type = "Opaque"
     stringData = $tokens
   } | ConvertTo-Json -Depth 4 | kubectl create -f -
   if ($LASTEXITCODE -ne 0) { throw "Unable to create Kubernetes Secret $secretName" }
@@ -38,7 +55,33 @@ function Initialize-KubernetesSecret([string]$secretName, [string[]]$names) {
 if ($Kubernetes) {
   Initialize-KubernetesSecret "roaming-world-internal-tokens" $internalNames
   Initialize-KubernetesSecret "roaming-world-jwt-signing" @($jwtKeyName)
+  $infraNames = @("mysql-password", "redis-password", "postgre-password", "meili-master-key")
+  $infraGenerators = @{
+    "mysql-password"   = { New-UrlSafeSecret -ByteLength 32 }
+    "redis-password"   = { New-UrlSafeSecret -ByteLength 32 }
+    "postgre-password" = { New-UrlSafeSecret -ByteLength 32 }
+    "meili-master-key" = { New-UrlSafeSecret -ByteLength 32 }
+  }
+  Initialize-KubernetesSecret "roaming-world-secrets" $infraNames $infraGenerators
   return
+}
+
+$composeSpecs = [ordered]@{
+  "JWT_SIGNING_KEY"            = { New-InternalToken }
+  "AI_GATEWAY_TOKEN"           = { New-InternalToken }
+  "AI_INGEST_TOKEN"            = { New-InternalToken }
+  "MCP_TOKEN"                  = { New-InternalToken }
+  "ARTICLE_USER_RPC_TOKEN"     = { New-InternalToken }
+  "COMMENT_USER_RPC_TOKEN"     = { New-InternalToken }
+  "POSTGRES_PASSWORD"          = { New-UrlSafeSecret -ByteLength 32 }
+  "REDIS_PASSWORD"             = { New-UrlSafeSecret -ByteLength 32 }
+  "MEILI_MASTER_KEY"           = { New-UrlSafeSecret -ByteLength 32 }
+  "GF_SECURITY_ADMIN_PASSWORD" = { New-UrlSafeSecret -ByteLength 32 }
+  "NACOS_AUTH_TOKEN"           = { New-Base64Secret -ByteLength 48 }
+  "NACOS_AUTH_IDENTITY_KEY"    = { "serverIdentity" }
+  "NACOS_AUTH_IDENTITY_VALUE"  = { New-UrlSafeSecret -ByteLength 32 }
+  "NACOS_USERNAME"             = { "nacos" }
+  "NACOS_PASSWORD"             = { "nacos" }
 }
 
 $project = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -46,13 +89,14 @@ Push-Location $project
 try {
   $configured = docker compose config --environment
   if ($LASTEXITCODE -ne 0) { throw "Unable to read Compose environment" }
-  $missing = @(($internalNames + $jwtKeyName) | Where-Object { -not ($configured -match "^$_=.+") })
+  $missing = @($composeSpecs.Keys | Where-Object { -not ($configured -match "^$_=.+") })
   if ($missing.Count -gt 0) {
     $envPath = Join-Path $project ".env"
     $newline = [Environment]::NewLine
     $contents = if (Test-Path -LiteralPath $envPath) { [IO.File]::ReadAllText($envPath) } else { "" }
     foreach ($name in $missing) {
-      $entry = "$name=$(New-InternalToken)"
+      $value = & $composeSpecs[$name]
+      $entry = "$name=$value"
       $existing = [regex]::Matches($contents, "(?m)^[ \t]*(?:export[ \t]+)?$name[ \t]*=[^\r\n]*") | Select-Object -Last 1
       if ($existing) {
         $contents = $contents.Remove($existing.Index, $existing.Length).Insert($existing.Index, $entry)
@@ -62,7 +106,7 @@ try {
       }
     }
     [IO.File]::WriteAllText($envPath, $contents)
-    Write-Host "Configured missing service credentials in .env"
+    Write-Host "Configured missing service and infrastructure credentials in .env"
   }
 } finally {
   Pop-Location

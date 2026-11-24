@@ -6,16 +6,16 @@ param(
 
 $ErrorActionPreference = "Continue"
 
-if ($Email -notmatch '^[^'']+@[^'']+$') {
+if ($Email -notmatch '^[^@\s''"]+@[^@\s''"]+\.[^@\s''"]+$') {
   Write-Host "Invalid email: $Email"
   exit 1
 }
 
-$sql = "UPDATE users SET role='admin', status='active' WHERE email='$Email';"
+$sql = "UPDATE users SET role='admin', status='active' WHERE email=:'email';"
 if ($Kubernetes) {
-  $output = kubectl exec -n roaming-world deployment/postgres -- psql -U roaming -d roaming_world -c $sql 2>&1
+  $output = $sql | kubectl exec -i -n roaming-world deployment/postgres -- psql -U roaming -d roaming_world -v ON_ERROR_STOP=1 -v "email=$Email" 2>&1
 } else {
-  $output = docker compose exec -T postgres psql -U roaming -d roaming_world -c $sql 2>&1
+  $output = $sql | docker compose exec -T postgres psql -U roaming -d roaming_world -v ON_ERROR_STOP=1 -v "email=$Email" 2>&1
 }
 $code = $LASTEXITCODE
 $output | ForEach-Object { Write-Host $_ }

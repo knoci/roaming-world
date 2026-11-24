@@ -30,6 +30,14 @@ spec:
               value: http://food-service:8000
             - name: ARTICLE_API
               value: http://article-service:8000
+            - name: PLAN_API
+              value: http://plan-service:8000
+            - name: AUDIOBOOK_API
+              value: http://audiobook-service:8000
+            - name: COMMENT_API
+              value: http://comment-service:8000
+            - name: AI_API
+              value: http://ai-service:8000
             - name: MCP_TOKEN
               valueFrom:
                 secretKeyRef:

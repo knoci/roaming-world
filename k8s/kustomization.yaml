@@ -22,9 +22,11 @@ resources:
   - mcp.yaml            # MCP server
   - gateway.yaml        # Kratos AI gateway
 
-  # 服务暴露
+  # 服务暴露与策略
   - service.yaml        # 所有微服务的 ClusterIP Service
   - ingress.yaml        # 可选七层入口（需 ingress-nginx）
+  - networkpolicy.yaml  # 默认拒绝入站 + 最小权限内部网格隔离
+  - pdb.yaml            # 多副本核心业务服务中断预算
   - postgres-migration-job.yaml  # 一次性 schema 迁移
   - nacos-config-init.yaml       # 一次性 Nacos 配置导入
   - reconcile-counts-cronjob.yaml # 计数对账
@@ -119,6 +121,90 @@ patches:
           - name: service-config
             configMap:
               name: roaming-world-service-config
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: tmp-dir
+          mountPath: /tmp
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: tmp-dir
+          emptyDir: {}
+      - op: add
+        path: /spec/template/spec/automountServiceAccountToken
+        value: false
+      - op: add
+        path: /spec/template/spec/securityContext
+        value:
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet/path
+        value: /readyz
+      - op: add
+        path: /spec/template/spec/containers/0/lifecycle
+        value:
+          preStop:
+            exec:
+              command:
+                - sh
+                - -c
+                - sleep 5
+  - target:
+      kind: Deployment
+      name: "(gateway-service|ai-service|mcp-service)"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/automountServiceAccountToken
+        value: false
+      - op: add
+        path: /spec/template/spec/securityContext
+        value:
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts
+        value:
+          - name: tmp-dir
+            mountPath: /tmp
+      - op: add
+        path: /spec/template/spec/volumes
+        value:
+          - name: tmp-dir
+            emptyDir: {}
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet/path
+        value: /readyz
+      - op: add
+        path: /spec/template/spec/containers/0/lifecycle
+        value:
+          preStop:
+            exec:
+              command:
+                - sh
+                - -c
+                - sleep 5
   - target:
       kind: Deployment
       labelSelector: "service in (user,article)"

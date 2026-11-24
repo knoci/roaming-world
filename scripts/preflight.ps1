@@ -40,7 +40,7 @@ if ($dockerOK) {
 }
 
 if (-not $stackRunning) {
-foreach ($p in @(5432, 6379, 8848, 9092, 7700, 2379)) {
+foreach ($p in @(5432, 6379, 8848, 9092, 7700)) {
   $conn = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
   if ($conn) {
     Fail "端口 $p 已被占用，先停掉本机同名服务或改 compose 端口"
@@ -54,7 +54,9 @@ foreach ($f in @(
   "docker-compose.yml",
   "deploy/nacos/roaming-world.yaml",
   "deploy/postgres/migrations/001_init.sql",
-  "k8s/postgres-migrations/001_init.sql"
+  "deploy/postgres/migrations/002_phase2_schema_and_indexes.sql",
+  "k8s/postgres-migrations/001_init.sql",
+  "k8s/postgres-migrations/002_phase2_schema_and_indexes.sql"
 )) {
   if (Test-Path $f) { Ok "文件存在：$f" } else { Fail "文件缺失：$f" }
 }

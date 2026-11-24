@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"io"
+	"math"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -15,9 +17,11 @@ import (
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/metadata"
+	"github.com/go-kratos/kratos/v2/transport"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 	"github.com/google/uuid"
 	pb "github.com/knoci/roaming-world/gateway/api/ai/v1"
+	gwpkg "github.com/knoci/roaming-world/gateway/internal/pkg"
 	"github.com/knoci/roaming-world/pkg/auth"
 	grpcmd "google.golang.org/grpc/metadata"
 )
@@ -60,14 +64,34 @@ func WithAIGatewayToken(token string) GatewayOption {
 	}
 }
 
+// WithRateLimiter injects a custom RateLimiter implementation.
+func WithRateLimiter(rl gwpkg.RateLimiter) GatewayOption {
+	return func(s *GatewayService) {
+		if rl != nil {
+			s.rateLimiter = rl
+		}
+	}
+}
+
+// WithCircuitBreaker injects a custom CircuitBreaker instance.
+func WithCircuitBreaker(cb *gwpkg.CircuitBreaker) GatewayOption {
+	return func(s *GatewayService) {
+		if cb != nil {
+			s.breaker = cb
+		}
+	}
+}
+
 type GatewayService struct {
 	pb.UnimplementedAiServer
-	log        *log.Helper
-	httpClient *http.Client
-	aiBaseURL  string
-	aiToken    string
-	baseURLSet bool
-	tokenSet   bool
+	log         *log.Helper
+	httpClient  *http.Client
+	aiBaseURL   string
+	aiToken     string
+	baseURLSet  bool
+	tokenSet    bool
+	rateLimiter gwpkg.RateLimiter
+	breaker     *gwpkg.CircuitBreaker
 }
 
 func newDefaultHTTPClient() *http.Client {
@@ -88,10 +112,12 @@ func NewGatewayService(logger log.Logger) *GatewayService {
 
 func NewGatewayServiceWithOptions(logger log.Logger, opts ...GatewayOption) *GatewayService {
 	s := &GatewayService{
-		log:        log.NewHelper(logger),
-		httpClient: newDefaultHTTPClient(),
-		aiBaseURL:  strings.TrimRight(strings.TrimSpace(os.Getenv("AI_ENGINE_URL")), "/"),
-		aiToken:    os.Getenv("AI_GATEWAY_TOKEN"),
+		log:         log.NewHelper(logger),
+		httpClient:  newDefaultHTTPClient(),
+		aiBaseURL:   strings.TrimRight(strings.TrimSpace(os.Getenv("AI_ENGINE_URL")), "/"),
+		aiToken:     os.Getenv("AI_GATEWAY_TOKEN"),
+		rateLimiter: gwpkg.NewRateLimiterFromEnv(),
+		breaker:     gwpkg.NewCircuitBreaker(gwpkg.DefaultBreakerFailureThreshold, gwpkg.DefaultBreakerOpenTimeout),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -100,6 +126,12 @@ func NewGatewayServiceWithOptions(logger log.Logger, opts ...GatewayOption) *Gat
 	}
 	if s.httpClient == nil {
 		s.httpClient = newDefaultHTTPClient()
+	}
+	if s.rateLimiter == nil {
+		s.rateLimiter = gwpkg.NewMemoryRateLimiter(gwpkg.DefaultRPMLimit, gwpkg.DefaultDailyTokenBudget)
+	}
+	if s.breaker == nil {
+		s.breaker = gwpkg.NewCircuitBreaker(gwpkg.DefaultBreakerFailureThreshold, gwpkg.DefaultBreakerOpenTimeout)
 	}
 	return s
 }
@@ -138,11 +170,67 @@ func (s *GatewayService) resolveBaseURL() string {
 	return base
 }
 
+func (s *GatewayService) checkRateLimit(ctx context.Context, uid string) (retryAfter time.Duration, reason string, msg string, ok bool) {
+	if s.rateLimiter == nil {
+		return 0, "", "", true
+	}
+	allowed, retry, err := s.rateLimiter.AllowRequest(ctx, uid)
+	if err != nil {
+		s.log.WithContext(ctx).Warnf("gateway: rate limiter rpm check failed (uid=%s): %v", uid, err)
+	} else if !allowed {
+		if retry < time.Second {
+			retry = time.Second
+		}
+		return retry, "RATE_LIMITED", "rate limit exceeded", false
+	}
+
+	tokAllowed, _, err := s.rateLimiter.ConsumeTokens(ctx, uid, 0)
+	if err != nil {
+		s.log.WithContext(ctx).Warnf("gateway: rate limiter token check failed (uid=%s): %v", uid, err)
+	} else if !tokAllowed {
+		return gwpkg.TimeUntilNextUTCDay(time.Now()), "TOKEN_BUDGET_EXCEEDED", "daily token budget exceeded", false
+	}
+	return 0, "", "", true
+}
+
+func (s *GatewayService) recordTokensUsed(ctx context.Context, uid string, headerVal string) {
+	if s.rateLimiter == nil {
+		return
+	}
+	raw := strings.TrimSpace(headerVal)
+	if raw == "" {
+		return
+	}
+	tokens, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || tokens <= 0 {
+		return
+	}
+	if _, _, err := s.rateLimiter.ConsumeTokens(ctx, uid, tokens); err != nil {
+		s.log.WithContext(ctx).Warnf("gateway: failed to record token usage (uid=%s, tokens=%d): %v", uid, tokens, err)
+	}
+}
+
+func retryAfterSeconds(d time.Duration) string {
+	secs := int64(math.Ceil(d.Seconds()))
+	if secs < 1 {
+		secs = 1
+	}
+	return strconv.FormatInt(secs, 10)
+}
+
 func (s *GatewayService) proxy(ctx context.Context, path string, req *pb.ChatRequest) (*pb.ProxyReply, error) {
 	claims, err := getJwtClaim(ctx)
 	if err != nil {
 		return nil, errors.Unauthorized("UNAUTHORIZED", "unauthorized")
 	}
+
+	if retryAfter, reason, msg, ok := s.checkRateLimit(ctx, claims.UID); !ok {
+		if tr, hasTr := transport.FromServerContext(ctx); hasTr && tr != nil && tr.ReplyHeader() != nil {
+			tr.ReplyHeader().Set("Retry-After", retryAfterSeconds(retryAfter))
+		}
+		return nil, errors.New(http.StatusTooManyRequests, reason, msg)
+	}
+
 	if req == nil {
 		return nil, errors.BadRequest("INVALID_ARGUMENT", "request is required")
 	}
@@ -165,8 +253,13 @@ func (s *GatewayService) proxy(ctx context.Context, path string, req *pb.ChatReq
 		return nil, errors.New(http.StatusServiceUnavailable, "AI_UNAVAILABLE", "ai engine unavailable")
 	}
 
+	if err := s.breaker.Allow(); err != nil {
+		return nil, errors.New(http.StatusServiceUnavailable, "AI_CIRCUIT_OPEN", "ai engine temporarily unavailable")
+	}
+
 	body, err := json.Marshal(map[string]any{"query": query, "top_k": topK})
 	if err != nil {
+		s.breaker.CancelProbe()
 		s.log.WithContext(ctx).Errorf("gateway: failed to marshal ai request: %v", err)
 		return nil, errors.InternalServer("AI_PROXY_FAILED", "failed to prepare ai request")
 	}
@@ -174,6 +267,7 @@ func (s *GatewayService) proxy(ctx context.Context, path string, req *pb.ChatReq
 	base := s.resolveBaseURL()
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, base+path, bytes.NewReader(body))
 	if err != nil {
+		s.breaker.CancelProbe()
 		s.log.WithContext(ctx).Errorf("gateway: failed to build ai request: %v", err)
 		return nil, errors.InternalServer("AI_PROXY_FAILED", "failed to prepare ai request")
 	}
@@ -195,6 +289,11 @@ func (s *GatewayService) proxy(ctx context.Context, path string, req *pb.ChatReq
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
+		if ctx.Err() != nil {
+			s.breaker.CancelProbe()
+		} else {
+			s.breaker.RecordFailure()
+		}
 		s.log.WithContext(ctx).Errorf("gateway: ai request failed (request_id=%s): %v", requestID, err)
 		return nil, errors.New(http.StatusBadGateway, "AI_UNAVAILABLE", "ai engine unavailable")
 	}
@@ -202,13 +301,26 @@ func (s *GatewayService) proxy(ctx context.Context, path string, req *pb.ChatReq
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxAIResponseBytes+1))
 	if err != nil {
+		if ctx.Err() != nil {
+			s.breaker.CancelProbe()
+		} else {
+			s.breaker.RecordFailure()
+		}
 		s.log.WithContext(ctx).Errorf("gateway: failed to read ai response (status=%d, request_id=%s): %v", resp.StatusCode, requestID, err)
 		return nil, errors.New(http.StatusBadGateway, "AI_UNAVAILABLE", "ai engine unavailable")
 	}
 	if len(raw) > maxAIResponseBytes {
+		s.breaker.RecordSuccess()
 		s.log.WithContext(ctx).Errorf("gateway: ai response too large (status=%d, request_id=%s, limit=%d)", resp.StatusCode, requestID, maxAIResponseBytes)
 		return nil, errors.New(http.StatusBadGateway, "AI_RESPONSE_TOO_LARGE", "ai engine response too large")
 	}
+
+	if resp.StatusCode >= 500 {
+		s.breaker.RecordFailure()
+	} else {
+		s.breaker.RecordSuccess()
+	}
+	s.recordTokensUsed(ctx, claims.UID, resp.Header.Get("X-AI-Tokens-Used"))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		s.log.WithContext(ctx).Errorf("gateway: ai upstream error (status=%d, request_id=%s, body=%q)", resp.StatusCode, requestID, truncateLogBody(raw))

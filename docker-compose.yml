@@ -437,6 +437,10 @@ services:
       SCENE_API: http://scene:8000
       FOOD_API: http://food:8000
       ARTICLE_API: http://article:8000
+      PLAN_API: http://plan:8000
+      AUDIOBOOK_API: http://audiobook:8000
+      COMMENT_API: http://comment:8000
+      AI_API: http://ai:8000
       MCP_TOKEN: ${MCP_TOKEN:-}
     depends_on:
       scene:
@@ -470,6 +474,8 @@ services:
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
       NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
       AI_ENGINE_URL: http://ai:8000
+      GATEWAY_RPM_LIMIT: ${GATEWAY_RPM_LIMIT:-30}
+      GATEWAY_DAILY_TOKEN_BUDGET: ${GATEWAY_DAILY_TOKEN_BUDGET:-100000}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
@@ -484,6 +490,8 @@ services:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
     restart: unless-stopped
 
   grafana:
@@ -495,6 +503,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-}
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
     depends_on:
       prometheus:
         condition: service_started
@@ -506,3 +515,5 @@ volumes:
   kafka_data:
   meili_data:
   nacos_data:
+  prometheus_data:
+  grafana_data:

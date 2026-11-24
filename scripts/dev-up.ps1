@@ -5,7 +5,7 @@ Set-Location (Join-Path $PSScriptRoot "..")
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 Write-Host "Pulling base images..."
-foreach ($img in @("golang:1.24", "debian:bookworm-slim")) {
+foreach ($img in @("golang:1.23.3-bookworm", "debian:bookworm-slim")) {
   $pulled = $false
   for ($i = 1; $i -le 5; $i++) {
     Write-Host ("Pulling {0} ({1}/5)..." -f $img, $i)

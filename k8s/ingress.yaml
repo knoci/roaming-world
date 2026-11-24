@@ -7,8 +7,14 @@ metadata:
   namespace: roaming-world
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - roaming.local
+      secretName: roaming-world-tls
   rules:
     - host: roaming.local
       http:
@@ -60,5 +66,12 @@ spec:
             backend:
               service:
                 name: plan-service
+                port:
+                  number: 8000
+          - path: /v1/ai
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
                 port:
                   number: 8000

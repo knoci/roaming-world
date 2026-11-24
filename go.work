@@ -1,0 +1,13 @@
+go 1.23.3
+
+use (
+	./pkg
+	./user
+	./scene
+	./food
+	./comment
+	./article
+	./audiobook
+	./plan
+	./gateway
+)
