@@ -13,7 +13,8 @@ var (
 	ErrUsernameAlreadyExists = errors.Conflict(v1.ErrorReason_USERNAME_ALREADY_EXISTS.String(), "user name already exists")
 	ErrVerificationExpired   = errors.BadRequest(v1.ErrorReason_VERIFICATION_CODE_EXPIRED.String(), "invalid or expired verification code")
 	ErrVerificationThrottled = errors.New(429, "VERIFICATION_THROTTLED", "please wait before requesting another verification code")
-	ErrIncorrectPassword     = errors.Unauthorized(v1.ErrorReason_INCORRECT_PASSWORD.String(), "incorrect password")
+	ErrIncorrectPassword     = errors.Unauthorized(v1.ErrorReason_INCORRECT_PASSWORD.String(), "invalid email or password")
+	ErrInvalidCredentials    = ErrIncorrectPassword
 	ErrUnauthorized          = errors.Unauthorized(v1.ErrorReason_UNAUTHORIZED.String(), "unauthorized")
 	ErrUserBanned            = errors.Forbidden("USER_BANNED", "user is banned")
 	ErrCannotFollowSelf      = errors.BadRequest("CANNOT_FOLLOW_SELF", "cannot follow yourself")

@@ -17,6 +17,8 @@ var (
 	ErrEmptyPlan         = errors.BadRequest("EMPTY_PLAN", "plan needs at least one item before publishing")
 	ErrInvalidTime       = errors.BadRequest("INVALID_TIME", "start/end time must be HH:MM and start < end")
 	ErrTimeOverlap       = errors.BadRequest("TIME_OVERLAP", "plan items overlap")
+	ErrTooManyItems      = errors.BadRequest("TOO_MANY_ITEMS", "plan item limit exceeded")
 	ErrCreateFailed      = errors.InternalServer("CREATE_PLAN_FAILED", "create plan failed")
 	ErrUpdateFailed      = errors.InternalServer("UPDATE_PLAN_FAILED", "update plan failed")
+	ErrInternalError     = errors.InternalServer("INTERNAL_ERROR", "internal server error")
 )

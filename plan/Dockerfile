@@ -1,7 +1,13 @@
 FROM golang:1.24 AS builder
 
 WORKDIR /src
-COPY . .
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY plan/go.mod plan/go.sum ./plan/
+RUN cd /src/plan && GOPROXY=https://goproxy.cn go mod download
+
+COPY pkg ./pkg
+COPY plan ./plan
+WORKDIR /src/plan
 RUN GOPROXY=https://goproxy.cn make build VERSION=dev
 
 FROM debian:bookworm-slim
@@ -15,8 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         && apt-get autoremove -y && apt-get autoclean -y
 
 WORKDIR /app
-COPY --from=builder /src/bin/plan /app/plan
-COPY --from=builder /src/configs /app/configs
+COPY --from=builder /src/plan/bin/plan /app/plan
+COPY --from=builder /src/plan/configs /app/configs
 
 EXPOSE 8000
 EXPOSE 9000

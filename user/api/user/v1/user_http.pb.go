@@ -28,7 +28,9 @@ const OperationUserGetFollowers = "/user.v1.User/GetFollowers"
 const OperationUserGetFollowing = "/user.v1.User/GetFollowing"
 const OperationUserGetNotifications = "/user.v1.User/GetNotifications"
 const OperationUserLogin = "/user.v1.User/Login"
+const OperationUserLogout = "/user.v1.User/Logout"
 const OperationUserMarkNotificationRead = "/user.v1.User/MarkNotificationRead"
+const OperationUserRefreshToken = "/user.v1.User/RefreshToken"
 const OperationUserRegister = "/user.v1.User/Register"
 const OperationUserResetPassword = "/user.v1.User/ResetPassword"
 const OperationUserSendVerificationCode = "/user.v1.User/SendVerificationCode"
@@ -55,8 +57,12 @@ type UserHTTPServer interface {
 	GetNotifications(context.Context, *GetNotificationsRequest) (*GetNotificationsReply, error)
 	// Login 用户登录
 	Login(context.Context, *LoginRequest) (*LoginReply, error)
+	// Logout 退出登录
+	Logout(context.Context, *LogoutRequest) (*LogoutReply, error)
 	// MarkNotificationRead 标记通知已读
 	MarkNotificationRead(context.Context, *MarkNotificationReadRequest) (*MarkNotificationReadReply, error)
+	// RefreshToken 刷新令牌
+	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenReply, error)
 	// Register 用户注册
 	Register(context.Context, *RegisterRequest) (*RegisterReply, error)
 	// ResetPassword 重置密码
@@ -74,8 +80,10 @@ type UserHTTPServer interface {
 func RegisterUserHTTPServer(s *http.Server, srv UserHTTPServer) {
 	r := s.Route("/")
 	r.POST("/v1/user/register", _User_Register0_HTTP_Handler(srv))
-	r.GET("/v1/user/verify", _User_SendVerificationCode0_HTTP_Handler(srv))
+	r.POST("/v1/user/verify", _User_SendVerificationCode0_HTTP_Handler(srv))
 	r.POST("/v1/user/login", _User_Login0_HTTP_Handler(srv))
+	r.POST("/v1/user/refresh", _User_RefreshToken0_HTTP_Handler(srv))
+	r.POST("/v1/user/logout", _User_Logout0_HTTP_Handler(srv))
 	r.GET("/v1/user/find", _User_FindUser0_HTTP_Handler(srv))
 	r.DELETE("/v1/user", _User_DeleteUser0_HTTP_Handler(srv))
 	r.PUT("/v1/user/info", _User_UpdateUserInfo0_HTTP_Handler(srv))
@@ -116,6 +124,9 @@ func _User_Register0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) err
 func _User_SendVerificationCode0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in SendVerificationCodeRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -150,6 +161,50 @@ func _User_Login0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error 
 			return err
 		}
 		reply := out.(*LoginReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _User_RefreshToken0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in RefreshTokenRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserRefreshToken)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.RefreshToken(ctx, req.(*RefreshTokenRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*RefreshTokenReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _User_Logout0_HTTP_Handler(srv UserHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in LogoutRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserLogout)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.Logout(ctx, req.(*LogoutRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*LogoutReply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -441,7 +496,9 @@ type UserHTTPClient interface {
 	GetFollowing(ctx context.Context, req *GetFollowingRequest, opts ...http.CallOption) (rsp *GetFollowingReply, err error)
 	GetNotifications(ctx context.Context, req *GetNotificationsRequest, opts ...http.CallOption) (rsp *GetNotificationsReply, err error)
 	Login(ctx context.Context, req *LoginRequest, opts ...http.CallOption) (rsp *LoginReply, err error)
+	Logout(ctx context.Context, req *LogoutRequest, opts ...http.CallOption) (rsp *LogoutReply, err error)
 	MarkNotificationRead(ctx context.Context, req *MarkNotificationReadRequest, opts ...http.CallOption) (rsp *MarkNotificationReadReply, err error)
+	RefreshToken(ctx context.Context, req *RefreshTokenRequest, opts ...http.CallOption) (rsp *RefreshTokenReply, err error)
 	Register(ctx context.Context, req *RegisterRequest, opts ...http.CallOption) (rsp *RegisterReply, err error)
 	ResetPassword(ctx context.Context, req *ResetPasswordRequest, opts ...http.CallOption) (rsp *ResetPasswordReply, err error)
 	SendVerificationCode(ctx context.Context, req *SendVerificationCodeRequest, opts ...http.CallOption) (rsp *SendVerificationCodeReply, err error)
@@ -575,6 +632,19 @@ func (c *UserHTTPClientImpl) Login(ctx context.Context, in *LoginRequest, opts .
 	return &out, nil
 }
 
+func (c *UserHTTPClientImpl) Logout(ctx context.Context, in *LogoutRequest, opts ...http.CallOption) (*LogoutReply, error) {
+	var out LogoutReply
+	pattern := "/v1/user/logout"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationUserLogout))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *UserHTTPClientImpl) MarkNotificationRead(ctx context.Context, in *MarkNotificationReadRequest, opts ...http.CallOption) (*MarkNotificationReadReply, error) {
 	var out MarkNotificationReadReply
 	pattern := "/v1/user/notifications/{id}/read"
@@ -582,6 +652,19 @@ func (c *UserHTTPClientImpl) MarkNotificationRead(ctx context.Context, in *MarkN
 	opts = append(opts, http.Operation(OperationUserMarkNotificationRead))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserHTTPClientImpl) RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...http.CallOption) (*RefreshTokenReply, error) {
+	var out RefreshTokenReply
+	pattern := "/v1/user/refresh"
+	path := binding.EncodeURL(pattern, in, false)
+	opts = append(opts, http.Operation(OperationUserRefreshToken))
+	opts = append(opts, http.PathTemplate(pattern))
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -617,10 +700,10 @@ func (c *UserHTTPClientImpl) ResetPassword(ctx context.Context, in *ResetPasswor
 func (c *UserHTTPClientImpl) SendVerificationCode(ctx context.Context, in *SendVerificationCodeRequest, opts ...http.CallOption) (*SendVerificationCodeReply, error) {
 	var out SendVerificationCodeReply
 	pattern := "/v1/user/verify"
-	path := binding.EncodeURL(pattern, in, true)
+	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationUserSendVerificationCode))
 	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

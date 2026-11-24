@@ -37,5 +37,8 @@ class MCPClient:
 
     def call_tool(self, name: str, arguments: dict) -> list | dict:
         result = self.request("tools/call", {"name": name, "arguments": arguments})
-        text = result.get("content", [{}])[0].get("text", "[]")
+        content = result.get("content") or []
+        text = content[0].get("text", "[]") if content and isinstance(content[0], dict) else "[]"
+        if result.get("isError"):
+            raise RuntimeError(text or "mcp tool error")
         return json.loads(text)

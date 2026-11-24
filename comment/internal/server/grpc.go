@@ -5,7 +5,9 @@ import (
 	"github.com/knoci/roaming-world/comment/internal/service"
 
 	"github.com/go-kratos/kratos/v2/log"
+	mmd "github.com/go-kratos/kratos/v2/middleware/metadata"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
+	"github.com/go-kratos/kratos/v2/middleware/validate"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 	v1 "github.com/knoci/roaming-world/comment/api/comment/v1"
 )
@@ -15,6 +17,8 @@ func NewGRPCServer(c *conf.Server, comment *service.CommentService, logger log.L
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
+			mmd.Server(mmd.WithPropagatedPrefix("")),
+			validate.Validator(),
 		),
 	}
 	if c.Grpc.Network != "" {

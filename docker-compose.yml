@@ -13,7 +13,7 @@ services:
     environment:
       POSTGRES_DB: roaming_world
       POSTGRES_USER: roaming
-      POSTGRES_PASSWORD: roaming
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -28,33 +28,18 @@ services:
 
   redis:
     image: redis:7-alpine
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:-}
     ports:
       - "127.0.0.1:6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", 'if [ -n "$$REDISCLI_AUTH" ]; then redis-cli --no-auth-warning ping; else env -u REDISCLI_AUTH redis-cli ping; fi']
       interval: 5s
       timeout: 3s
       retries: 20
-
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.15
-    command:
-      - /usr/local/bin/etcd
-      - --name=etcd
-      - --data-dir=/etcd-data
-      - --listen-client-urls=http://0.0.0.0:2379
-      - --advertise-client-urls=http://etcd:2379
-      - --listen-peer-urls=http://0.0.0.0:2380
-      - --initial-advertise-peer-urls=http://etcd:2380
-      - --initial-cluster=etcd=http://etcd:2380
-      - --initial-cluster-state=new
-    ports:
-      - "127.0.0.1:2379:2379"
-    volumes:
-      - etcd_data:/etcd-data
 
   kafka:
     image: apache/kafka:3.9.0
@@ -84,7 +69,7 @@ services:
     environment:
       MEILI_ENV: "development"
       MEILI_NO_ANALYTICS: "true"
-      MEILI_MASTER_KEY: roaming-meili-master-key
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-}
     ports:
       - "127.0.0.1:7700:7700"
     volumes:
@@ -94,7 +79,10 @@ services:
     image: nacos/nacos-server:v2.2.3
     environment:
       MODE: "standalone"
-      NACOS_AUTH_ENABLE: "false"
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-serverIdentity}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-}
     ports:
       - "127.0.0.1:8848:8848"
       - "127.0.0.1:9848:9848"
@@ -106,6 +94,12 @@ services:
     depends_on:
       nacos:
         condition: service_started
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
     volumes:
       - ./deploy/nacos/roaming-world.yaml:/config/roaming-world.yaml:ro
     command:
@@ -113,34 +107,104 @@ services:
       - -c
       - |
         set -eu
+        awk '
+        function yaml_escape(s,    out, i, c) {
+          out = ""
+          for (i = 1; i <= length(s); i++) {
+            c = substr(s, i, 1)
+            if (c == "\\" || c == "\"") out = out "\\" c
+            else out = out c
+          }
+          return out
+        }
+        function replace_all(str, pat, rep,    idx, res, plen) {
+          res = ""
+          plen = length(pat)
+          while ((idx = index(str, pat)) > 0) {
+            res = res substr(str, 1, idx - 1) rep
+            str = substr(str, idx + plen)
+          }
+          return res str
+        }
+        BEGIN {
+          pg = yaml_escape(ENVIRON["POSTGRES_PASSWORD"])
+          rd = yaml_escape(ENVIRON["REDIS_PASSWORD"])
+          mk = yaml_escape(ENVIRON["MEILI_MASTER_KEY"])
+        }
+        {
+          line = $$0
+          line = replace_all(line, "__POSTGRES_PASSWORD__", pg)
+          line = replace_all(line, "__REDIS_PASSWORD__", rd)
+          line = replace_all(line, "__MEILI_MASTER_KEY__", mk)
+          print line
+        }
+        ' /config/roaming-world.yaml > /tmp/roaming-world.yaml
+
         until curl -fsS "http://nacos:8848/nacos/v1/console/health/readiness" >/dev/null 2>&1 || \
               curl -fsS "http://nacos:8848/nacos/actuator/health" >/dev/null 2>&1; do
           echo "waiting for nacos..."
           sleep 2
         done
+
+        token=""
+        for i in 1 2 3 4 5; do
+          if curl -fsS -X POST "http://nacos:8848/nacos/v1/auth/login" \
+            --data-urlencode "username=$$NACOS_USERNAME" \
+            --data-urlencode "password=$$NACOS_PASSWORD" \
+            -o /tmp/login.out; then
+            token=$$(sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/login.out)
+            if [ -n "$$token" ]; then
+              break
+            fi
+          fi
+          echo "nacos login failed (attempt $$i/5), retry..."
+          sleep 2
+        done
+        if [ -z "$$token" ]; then
+          echo "nacos login failed after 5 attempts" >&2
+          exit 1
+        fi
+
+        imported=0
         for i in 1 2 3 4 5; do
           if curl -fsS -X POST "http://nacos:8848/nacos/v1/cs/configs" \
             -H "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "accessToken=$$token" \
             -d "dataId=roaming-world.yaml" \
             -d "group=DEFAULT_GROUP" \
             -d "type=yaml" \
-            --data-urlencode "content@/config/roaming-world.yaml" \
-            -o /tmp/import.out; then
-            echo "import response: $(cat /tmp/import.out)"
+            --data-urlencode "content@/tmp/roaming-world.yaml" \
+            -o /tmp/import.out && [ "$$(tr -d '\r\n' < /tmp/import.out)" = "true" ]; then
+            echo "import response: $$(cat /tmp/import.out)"
+            imported=1
             break
           fi
-          echo "import failed, retry..."
+          echo "import failed (attempt $$i/5), retry..."
           sleep 2
         done
-        curl -fsS "http://nacos:8848/nacos/v1/cs/configs?dataId=roaming-world.yaml&group=DEFAULT_GROUP&tenant=" -o /tmp/imported.yaml
+        if [ "$$imported" -ne 1 ]; then
+          echo "nacos config import failed after 5 attempts" >&2
+          exit 1
+        fi
+
+        curl -fsS --get "http://nacos:8848/nacos/v1/cs/configs" \
+          --data-urlencode "accessToken=$$token" \
+          -d "dataId=roaming-world.yaml" \
+          -d "group=DEFAULT_GROUP" \
+          -d "tenant=" \
+          -o /tmp/imported.yaml
         test -s /tmp/imported.yaml
+        rm -f /tmp/roaming-world.yaml /tmp/login.out /tmp/import.out /tmp/imported.yaml
         echo "nacos config imported"
 
   user:
-    build: ./user
+    build:
+      context: .
+      dockerfile: user/Dockerfile
     ports:
       - "127.0.0.1:18000:8000"
     environment:
+      ROAMING_AUTO_MIGRATE: "false"
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       ARTICLE_USER_RPC_TOKEN: ${ARTICLE_USER_RPC_TOKEN:-}
       COMMENT_USER_RPC_TOKEN: ${COMMENT_USER_RPC_TOKEN:-}
@@ -149,6 +213,9 @@ services:
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
@@ -156,24 +223,26 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      etcd:
-        condition: service_started
-      kafka:
-        condition: service_started
     restart: on-failure
     healthcheck: *app-healthcheck
 
   scene:
-    build: ./scene
+    build:
+      context: .
+      dockerfile: scene/Dockerfile
     ports:
       - "127.0.0.1:18001:8000"
     environment:
+      ROAMING_AUTO_MIGRATE: "false"
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
@@ -181,41 +250,44 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      kafka:
-        condition: service_started
       meilisearch:
         condition: service_started
     restart: on-failure
     healthcheck: *app-healthcheck
 
   food:
-    build: ./food
+    build:
+      context: .
+      dockerfile: food/Dockerfile
     ports:
       - "127.0.0.1:18002:8000"
     environment:
+      ROAMING_AUTO_MIGRATE: "false"
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_started
     restart: on-failure
     healthcheck: *app-healthcheck
 
   comment:
-    build: ./comment
+    build:
+      context: .
+      dockerfile: comment/Dockerfile
     ports:
       - "127.0.0.1:18003:8000"
     environment:
+      ROAMING_AUTO_MIGRATE: "false"
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       COMMENT_USER_RPC_TOKEN: ${COMMENT_USER_RPC_TOKEN:-}
       NACOS_ADDR: nacos
@@ -223,12 +295,13 @@ services:
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       kafka:
         condition: service_started
@@ -240,10 +313,13 @@ services:
     healthcheck: *app-healthcheck
 
   article:
-    build: ./article
+    build:
+      context: .
+      dockerfile: article/Dockerfile
     ports:
       - "127.0.0.1:18004:8000"
     environment:
+      ROAMING_AUTO_MIGRATE: "false"
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       ARTICLE_USER_RPC_TOKEN: ${ARTICLE_USER_RPC_TOKEN:-}
       NACOS_ADDR: nacos
@@ -251,29 +327,38 @@ services:
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       kafka:
+        condition: service_started
+      user:
         condition: service_started
     restart: on-failure
     healthcheck: *app-healthcheck
 
   audiobook:
-    build: ./audiobook
+    build:
+      context: .
+      dockerfile: audiobook/Dockerfile
     ports:
       - "127.0.0.1:18005:8000"
     environment:
+      ROAMING_AUTO_MIGRATE: "false"
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
@@ -281,22 +366,26 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      kafka:
-        condition: service_started
     restart: on-failure
     healthcheck: *app-healthcheck
 
   plan:
-    build: ./plan
+    build:
+      context: .
+      dockerfile: plan/Dockerfile
     ports:
       - "127.0.0.1:18006:8000"
     environment:
+      ROAMING_AUTO_MIGRATE: "false"
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       NACOS_ADDR: nacos
       NACOS_PORT: "8848"
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
     depends_on:
       nacos-init:
         condition: service_completed_successfully
@@ -312,9 +401,13 @@ services:
       AI_DB_HOST: postgres
       AI_DB_PORT: "5432"
       AI_DB_USER: roaming
-      AI_DB_PASSWORD: roaming
+      AI_DB_PASSWORD: ${POSTGRES_PASSWORD:-}
       AI_DB_NAME: roaming_world
       AI_INGEST_TOKEN: ${AI_INGEST_TOKEN:-}
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-hash}
+      AI_EMBEDDING_API_URL: ${AI_EMBEDDING_API_URL:-}
+      AI_EMBEDDING_API_KEY: ${AI_EMBEDDING_API_KEY:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
       MCP_URL: http://mcp:8000/mcp
       MCP_TOKEN: ${MCP_TOKEN:-}
       QWEN_API_KEY: ${QWEN_API_KEY:-}
@@ -328,6 +421,8 @@ services:
       XIAOMI_MODEL: ${XIAOMI_MODEL:-mimo-v2.6-pro}
     depends_on:
       postgres:
+        condition: service_healthy
+      mcp:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)\""]
@@ -343,6 +438,13 @@ services:
       FOOD_API: http://food:8000
       ARTICLE_API: http://article:8000
       MCP_TOKEN: ${MCP_TOKEN:-}
+    depends_on:
+      scene:
+        condition: service_started
+      food:
+        condition: service_started
+      article:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\""]
       interval: 10s
@@ -351,7 +453,9 @@ services:
     restart: unless-stopped
 
   gateway:
-    build: ./gateway
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
     ports:
       - "127.0.0.1:18009:8000"
     environment:
@@ -362,6 +466,9 @@ services:
       NACOS_NAMESPACE_ID: ""
       NACOS_DATA_ID: roaming-world.yaml
       NACOS_GROUP_ID: DEFAULT_GROUP
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      NACOS_LOG_LEVEL: ${NACOS_LOG_LEVEL:-warn}
       AI_ENGINE_URL: http://ai:8000
     depends_on:
       nacos-init:
@@ -385,7 +492,7 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-}
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
@@ -396,7 +503,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  etcd_data:
   kafka_data:
   meili_data:
   nacos_data:

@@ -1,26 +1,19 @@
 module github.com/knoci/roaming-world/comment
 
-go 1.21.0
-
-toolchain go1.24.4
+go 1.23.3
 
 require (
 	github.com/envoyproxy/protoc-gen-validate v1.1.0
-	github.com/go-kratos/kratos/contrib/config/nacos/v2 v2.0.0-20250527152916-d6f5f00cf562
 	github.com/go-kratos/kratos/contrib/registry/nacos/v2 v2.0.0-20250527152916-d6f5f00cf562
 	github.com/go-kratos/kratos/v2 v2.8.4
-	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.6.0
-	github.com/nacos-group/nacos-sdk-go v1.1.5
-	github.com/redis/go-redis/v9 v9.10.0
+	github.com/knoci/roaming-world/pkg v0.0.0
 	github.com/segmentio/kafka-go v0.4.48
-	github.com/spf13/viper v1.20.1
 	go.uber.org/automaxprocs v1.5.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576
-	google.golang.org/grpc v1.67.3
-	google.golang.org/protobuf v1.36.1
-	gorm.io/driver/postgres v1.6.0
+	google.golang.org/grpc v1.72.2
+	google.golang.org/protobuf v1.36.5
 	gorm.io/gorm v1.30.0
 )
 
@@ -74,3 +67,5 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/knoci/roaming-world/pkg => ../pkg

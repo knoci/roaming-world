@@ -17,8 +17,8 @@ func NewSceneService(scene *biz.SceneUsecase, logger log.Logger) *SceneService {
 }
 
 func (s *SceneService) CreateScene(ctx context.Context, req *pb.CreateSceneRequest) (*pb.CreateSceneReply, error) {
-	if !isAdmin(ctx) {
-		return nil, biz.ErrUnauthorized
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
 	}
 
 	s.log.WithContext(ctx).Infof("sceneService: CreateScene received: Name=%s", req.Name)
@@ -31,8 +31,8 @@ func (s *SceneService) CreateScene(ctx context.Context, req *pb.CreateSceneReque
 }
 
 func (s *SceneService) DeleteScene(ctx context.Context, req *pb.DeleteSceneRequest) (*pb.DeleteSceneReply, error) {
-	if !isAdmin(ctx) {
-		return nil, biz.ErrUnauthorized
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
 	}
 
 	s.log.WithContext(ctx).Infof("sceneService: DeleteScene received: SID=%s", req.Sid)
@@ -44,8 +44,8 @@ func (s *SceneService) DeleteScene(ctx context.Context, req *pb.DeleteSceneReque
 }
 
 func (s *SceneService) UpdateScene(ctx context.Context, req *pb.UpdateSceneRequest) (*pb.UpdateSceneReply, error) {
-	if !isAdmin(ctx) {
-		return nil, biz.ErrUnauthorized
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
 	}
 
 	s.log.WithContext(ctx).Infof("sceneService: UpdateScene received: SID=%s", req.Sid)
@@ -58,16 +58,8 @@ func (s *SceneService) UpdateScene(ctx context.Context, req *pb.UpdateSceneReque
 }
 
 func (s *SceneService) SearchScene(ctx context.Context, req *pb.SearchSceneRequest) (*pb.SearchSceneReply, error) {
-	s.log.WithContext(ctx).Infof("sceneService: SearchScene received: Keyword=%s, Page=%d, PageSize=%d", req.Keyword, req.Page, req.Pagesize)
-
-	page := int(req.Page)
-	if page < 1 {
-		page = 1
-	}
-	pagesize := int(req.Pagesize)
-	if pagesize < 1 {
-		pagesize = 10
-	}
+	page, pagesize := biz.NormalizePagination(int(req.Page), int(req.Pagesize))
+	s.log.WithContext(ctx).Infof("sceneService: SearchScene received: Keyword=%s, Page=%d, PageSize=%d", req.Keyword, page, pagesize)
 
 	scenes, total, err := s.uc.SearchScene(ctx, req.Keyword, page, pagesize)
 	if err != nil {
@@ -78,14 +70,7 @@ func (s *SceneService) SearchScene(ctx context.Context, req *pb.SearchSceneReque
 }
 
 func (s *SceneService) ListScenes(ctx context.Context, req *pb.ListScenesRequest) (*pb.ListScenesReply, error) {
-	page := int(req.Page)
-	if page < 1 {
-		page = 1
-	}
-	pagesize := int(req.Pagesize)
-	if pagesize < 1 {
-		pagesize = 10
-	}
+	page, pagesize := biz.NormalizePagination(int(req.Page), int(req.Pagesize))
 	s.log.WithContext(ctx).Infof("sceneService: ListScenes received: Page=%d, Pagesize=%d", page, pagesize)
 
 	scenes, total, err := s.uc.ListScenes(ctx, page, pagesize)

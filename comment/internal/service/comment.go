@@ -5,11 +5,9 @@ import (
 	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/metadata"
-	"github.com/go-kratos/kratos/v2/transport/http"
 	pb "github.com/knoci/roaming-world/comment/api/comment/v1"
 	"github.com/knoci/roaming-world/comment/internal/biz"
-	"github.com/knoci/roaming-world/comment/internal/pkg"
+	"github.com/knoci/roaming-world/pkg/auth"
 )
 
 func NewCommentService(comment *biz.CommentUsecase, logger log.Logger) *CommentService {
@@ -33,24 +31,8 @@ func (s *CommentService) CreateComment(ctx context.Context, req *pb.CreateCommen
 		return nil, err
 	}
 
-	createdAt := comment.CreatedAt.Format("2006-01-02 15:04:05")
-	updatedAt := comment.UpdatedAt.Format("2006-01-02 15:04:05")
-
 	return &pb.CreateCommentReply{
-		Comment: &pb.CommentMessage{
-			Cid:       comment.CID,
-			Target:    comment.Target,
-			Content:   comment.Content,
-			Likes:     int32(comment.Likes),
-			Uid:       comment.UID,
-			Name:      comment.Name,
-			Avatar:    comment.Avatar,
-			Replycid:  comment.Replycid,
-			Replyname: comment.Replyname,
-			Time:      comment.Time,
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
-		},
+		Comment: toMessage(comment),
 	}, nil
 }
 func (s *CommentService) DeleteComment(ctx context.Context, req *pb.DeleteCommentRequest) (*pb.DeleteCommentReply, error) {
@@ -139,14 +121,20 @@ func (s *CommentService) GetReplyList(ctx context.Context, req *pb.GetReplyListR
 	return &pb.GetReplyListReply{Comments: result, Total: total}, nil
 }
 
+const deletedCommentContent = "该评论已删除"
+
 func toMessage(comment *biz.Comment) *pb.CommentMessage {
 	if comment == nil {
 		return nil
 	}
+	content := comment.Content
+	if comment.Status != "active" {
+		content = deletedCommentContent
+	}
 	return &pb.CommentMessage{
 		Cid:       comment.CID,
 		Target:    comment.Target,
-		Content:   comment.Content,
+		Content:   content,
 		Likes:     int32(comment.Likes),
 		Uid:       comment.UID,
 		Name:      comment.Name,
@@ -209,26 +197,9 @@ func (s *CommentService) ResolveCommentReport(ctx context.Context, req *pb.Resol
 	return &pb.ResolveCommentReportReply{Status: report.Status}, nil
 }
 
-func GetJwtClaim(ctx context.Context) (*pkg.Claims, error) {
-	var authHeader, ua string
-	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
-		authHeader = req.Header.Get("Authorization")
-		ua = req.Header.Get("User-Agent")
-	} else if md, ok := metadata.FromServerContext(ctx); ok {
-		authHeader = md.Get("authorization")
-		ua = md.Get("user-agent")
-	}
-
-	if len(authHeader) == 0 {
-		return nil, biz.ErrUnauthorized
-	}
-	parts := strings.SplitN(authHeader, " ", 2)
-	if !(len(parts) == 2 && parts[0] == "Bearer") {
-		return nil, biz.ErrUnauthorized
-	}
-
-	claims, err := pkg.ParseToken(ua, parts[1])
-	if err != nil {
+func GetJwtClaim(ctx context.Context) (*auth.Claims, error) {
+	claims, err := auth.ParseClaimsFromContext(ctx, nil)
+	if err != nil || claims == nil || strings.TrimSpace(claims.UID) == "" {
 		return nil, biz.ErrUnauthorized
 	}
 	return claims, nil

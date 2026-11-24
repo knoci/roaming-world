@@ -1,24 +1,24 @@
 module github.com/knoci/roaming-world/food
 
-go 1.21.0
-
-toolchain go1.23.3
+go 1.23.3
 
 require (
 	github.com/envoyproxy/protoc-gen-validate v1.1.0
-	github.com/go-kratos/kratos/contrib/config/nacos/v2 v2.0.0-20250527152916-d6f5f00cf562
+	github.com/go-kratos/kratos/contrib/registry/nacos/v2 v2.0.0-20250527152916-d6f5f00cf562
 	github.com/go-kratos/kratos/v2 v2.8.4
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.6.0
-	github.com/nacos-group/nacos-sdk-go v1.1.5
-	github.com/spf13/viper v1.20.1
+	github.com/knoci/roaming-world/pkg v0.0.0
 	go.uber.org/automaxprocs v1.5.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576
-	google.golang.org/grpc v1.67.3
-	google.golang.org/protobuf v1.36.1
+	google.golang.org/grpc v1.72.2
+	google.golang.org/protobuf v1.36.5
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.30.0
 )
+
+replace github.com/knoci/roaming-world/pkg => ../pkg
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -28,12 +28,10 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-kratos/aegis v0.2.0 // indirect
-	github.com/go-kratos/kratos/contrib/registry/nacos/v2 v2.0.0-20250527152916-d6f5f00cf562 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/form/v4 v4.2.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

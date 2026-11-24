@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	v1 "github.com/knoci/roaming-world/audiobook/api/audiobook/v1"
@@ -103,6 +104,9 @@ func (uc *AudiobookUsecase) CreateAudiobookDetail(ctx context.Context, req *v1.C
 	createdDetail, err := uc.repo.CreateAudiobookDetail(ctx, detail)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("audiobookUsecase: CreateAudiobookDetail failed: %v", err)
+		if errors.Is(err, ErrAudiobookNotFound) {
+			return nil, ErrAudiobookNotFound
+		}
 		return nil, ErrCreateDetailFailed
 	}
 
@@ -154,7 +158,10 @@ func (uc *AudiobookUsecase) GetAudiobookDetails(ctx context.Context, bid string)
 	details, err := uc.repo.GetAudiobookDetails(ctx, bid)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("audiobookUsecase: GetAudiobookDetails failed: %v", err)
-		return nil, ErrDetailNotFound
+		if errors.Is(err, ErrAudiobookNotFound) || errors.Is(err, ErrDetailNotFound) {
+			return nil, err
+		}
+		return nil, ErrDatabaseError
 	}
 
 	result := make([]*v1.AudiobookDetailMessage, 0, len(details))

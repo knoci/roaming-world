@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -17,9 +17,8 @@ import (
 	"github.com/knoci/roaming-world/comment/internal/conf"
 	nc "github.com/knoci/roaming-world/comment/internal/conf/nacos"
 	"github.com/knoci/roaming-world/comment/internal/pkg"
-	kafka "github.com/knoci/roaming-world/comment/internal/pkg"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/postgres"
+	"github.com/knoci/roaming-world/pkg/dbx"
+	"github.com/knoci/roaming-world/pkg/health"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
@@ -28,25 +27,141 @@ import (
 // ProviderSet is data providers.
 var ProviderSet = wire.NewSet(NewData, NewCommentRepo)
 
+const (
+	outboxBatchSize         = 50
+	outboxMaxBatchesPerTick = 20
+	outboxLeaseDuration     = 60 * time.Second
+	outboxPublishTimeout    = 5 * time.Second
+	outboxMaxRetries        = 10
+	outboxMaxBackoffSec     = 64
+
+	outboxStatusPending    = "pending"
+	outboxStatusProcessing = "processing"
+	outboxStatusPublished  = "published"
+	outboxStatusDeadLetter = "dead_letter"
+)
+
+type outboxOutcome struct {
+	ID          uint64
+	Published   bool
+	Status      string
+	RetryCount  int
+	NextRetryAt time.Time
+	PublishedAt time.Time
+}
+
+type outboxStore interface {
+	Claim(ctx context.Context, limit int, lease time.Duration) ([]CommentOutbox, error)
+	ApplyOutcomes(ctx context.Context, outcomes []outboxOutcome) error
+}
+
+type eventPublisher interface {
+	Send(ctx context.Context, message *pkg.Message) error
+	Close() error
+}
+
+type gormOutboxStore struct {
+	db *gorm.DB
+}
+
+func (s *gormOutboxStore) Claim(ctx context.Context, limit int, lease time.Duration) ([]CommentOutbox, error) {
+	var events []CommentOutbox
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("status IN ('pending', 'processing') AND next_retry_at <= ?", now).
+			Order("id").
+			Limit(limit).
+			Find(&events).Error; err != nil {
+			return err
+		}
+		if len(events) == 0 {
+			return nil
+		}
+		ids := make([]uint64, len(events))
+		for i := range events {
+			ids[i] = events[i].ID
+		}
+		return tx.Model(&CommentOutbox{}).
+			Where("id IN ?", ids).
+			Updates(map[string]any{
+				"status":        outboxStatusProcessing,
+				"next_retry_at": now.Add(lease),
+			}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+func (s *gormOutboxStore) ApplyOutcomes(ctx context.Context, outcomes []outboxOutcome) error {
+	if len(outcomes) == 0 {
+		return nil
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		publishedIDs := make([]uint64, 0, len(outcomes))
+		var publishedAt time.Time
+		for _, out := range outcomes {
+			if out.Published {
+				publishedIDs = append(publishedIDs, out.ID)
+				if publishedAt.IsZero() {
+					publishedAt = out.PublishedAt
+				}
+				continue
+			}
+			if out.Status == outboxStatusDeadLetter {
+				if err := tx.Model(&CommentOutbox{}).Where("id = ?", out.ID).Updates(map[string]any{
+					"status":      outboxStatusDeadLetter,
+					"retry_count": out.RetryCount,
+				}).Error; err != nil {
+					return err
+				}
+				continue
+			}
+			if err := tx.Model(&CommentOutbox{}).Where("id = ?", out.ID).Updates(map[string]any{
+				"status":        outboxStatusPending,
+				"retry_count":   out.RetryCount,
+				"next_retry_at": out.NextRetryAt,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		if len(publishedIDs) > 0 {
+			if publishedAt.IsZero() {
+				publishedAt = time.Now()
+			}
+			if err := tx.Model(&CommentOutbox{}).Where("id IN ?", publishedIDs).Updates(map[string]any{
+				"status":       outboxStatusPublished,
+				"published_at": publishedAt,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // Data 数据层结构体
 type Data struct {
-	db           *gorm.DB
-	redis        *redis.Client
-	event        *pkg.KafkaSender
-	log          *log.Helper
-	nacos        *nacos.Registry
-	userClient   pd.UserClient
-	eventTopic   string
-	outboxCancel context.CancelFunc
-	outboxWG     sync.WaitGroup
+	db             *gorm.DB
+	event          eventPublisher
+	outboxStore    outboxStore
+	log            *log.Helper
+	nacos          *nacos.Registry
+	userClient     pd.UserClient
+	eventTopic     string
+	outboxCancel   context.CancelFunc
+	outboxWG       sync.WaitGroup
+	outboxInterval time.Duration
 }
 
 // NewData 初始化数据层资源
 func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
-	log := log.NewHelper(logger)
+	helper := log.NewHelper(logger)
 
 	cfg := nc.GetConfig()
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
+	dsn := dbx.BuildPostgresDSN(
 		nc.GetConfigString(cfg, "postgre.host"),
 		nc.GetConfigString(cfg, "postgre.user"),
 		nc.GetConfigString(cfg, "postgre.password"),
@@ -56,43 +171,41 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	)
 
 	// 连接数据库
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := dbx.OpenPostgres(dsn, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			NameReplacer: nil,
 		},
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
+	}, dbx.DefaultPoolConfig())
 	if err != nil {
-		log.Errorf("commentData: failed to connect database: %v", err)
+		helper.Errorf("commentData: failed to connect database: %v", err)
 		return nil, nil, err
 	}
 
-	// 自动迁移表结构
-	err = db.AutoMigrate(&Comment{}, &Commentlike{}, &CommentOutbox{}, &CommentReport{})
-	if err != nil {
-		log.Errorf("commentData: failed to auto migrate: %v", err)
-		return nil, nil, err
+	closeDB := func() error {
+		sqlDB, dbErr := db.DB()
+		if dbErr != nil {
+			helper.Errorf("commentData: failed to get sqlDB: %v", dbErr)
+			return dbErr
+		}
+		return sqlDB.Close()
+	}
+
+	// 按需自动迁移表结构（默认关闭，需显式设置 ROAMING_AUTO_MIGRATE=true）
+	if dbx.ShouldAutoMigrate() {
+		if err = db.AutoMigrate(&Comment{}, &Commentlike{}, &CommentOutbox{}, &CommentReport{}); err != nil {
+			helper.Errorf("commentData: failed to auto migrate: %v", err)
+			_ = closeDB()
+			return nil, nil, err
+		}
 	}
 
 	address := nc.GetConfigString(cfg, "kafka.address")
 	eventTopic := nc.GetConfigString(cfg, "kafka.topic.comment-event")
-	event, err := kafka.NewKafkaSyncSender([]string{address}, eventTopic)
+	event, err := pkg.NewKafkaSyncSender(pkg.ParseBrokers(address), eventTopic)
 	if err != nil {
-		panic(err)
-	}
-
-	redisHost := nc.GetConfigString(cfg, "redis.host")
-	redisPort := nc.GetConfigInt(cfg, "redis.port")
-	redisAddr := fmt.Sprintf("%s:%d", redisHost, redisPort)
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: nc.GetConfigString(cfg, "redis.password"),
-		DB:       nc.GetConfigInt(cfg, "redis.db"),
-	})
-	// 测试连接
-	ctx := context.Background()
-	if err = client.Ping(ctx).Err(); err != nil {
-		log.Error("commentData: failed to connect redis", err)
+		helper.Errorf("commentData: failed to create kafka sender: %v", err)
+		_ = closeDB()
 		return nil, nil, err
 	}
 
@@ -105,39 +218,79 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		grpc.WithMiddleware(recovery.Recovery()),
 	)
 	if err != nil {
+		_ = event.Close()
+		_ = closeDB()
 		return nil, nil, err
 	}
 	userClient := pd.NewUserClient(conn)
 
 	d := &Data{
-		db:         db,
-		log:        log,
-		redis:      client,
-		event:      event,
-		eventTopic: eventTopic,
-		nacos:      nacosRegistry,
-		userClient: userClient,
+		db:          db,
+		log:         helper,
+		event:       event,
+		outboxStore: &gormOutboxStore{db: db},
+		eventTopic:  eventTopic,
+		nacos:       nacosRegistry,
+		userClient:  userClient,
 	}
 
 	cleanup := func() {
-		log.Info("commentData: closing the data resources")
-		sqlDB, err := d.db.DB()
-		if err != nil {
-			log.Errorf("commentData: failed to get sqlDB: %v", err)
-			return
-		}
-		sqlDB.Close()
-		_ = conn.Close()
-		if d.outboxCancel != nil {
-			d.outboxCancel()
-			d.outboxWG.Wait()
-		}
-		_ = d.event.Close()
+		helper.Info("commentData: closing the data resources")
+		d.shutdown(conn.Close, closeDB)
 	}
 
 	d.startOutbox()
 
 	return d, cleanup, nil
+}
+
+// shutdown enforces graceful teardown order:
+// 1. Stop outbox background worker and wait for in-flight cycle to finish
+// 2. Close Kafka writer
+// 3. Close gRPC connection
+// 4. Close PostgreSQL connection pool
+func (d *Data) shutdown(closeGRPC func() error, closeDB func() error) {
+	if d.outboxCancel != nil {
+		d.outboxCancel()
+		d.outboxWG.Wait()
+	}
+	if d.event != nil {
+		if err := d.event.Close(); err != nil && d.log != nil {
+			d.log.Errorf("commentData: failed to close kafka writer: %v", err)
+		}
+	}
+	if closeGRPC != nil {
+		if err := closeGRPC(); err != nil && d.log != nil {
+			d.log.Errorf("commentData: failed to close grpc conn: %v", err)
+		}
+	}
+	if closeDB != nil {
+		if err := closeDB(); err != nil && d.log != nil {
+			d.log.Errorf("commentData: failed to close sqlDB: %v", err)
+		}
+	}
+}
+
+// PingDB verifies PostgreSQL connectivity for readiness probes.
+func (d *Data) PingDB(ctx context.Context) error {
+	if d == nil || d.db == nil {
+		return errors.New("commentData: database is not initialized")
+	}
+	sqlDB, err := d.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
+}
+
+// ReadinessChecks returns dependency readiness checks for /readyz.
+func (d *Data) ReadinessChecks() []health.Check {
+	return []health.Check{
+		{
+			Name: "postgres",
+			Fn:   d.PingDB,
+		},
+	}
 }
 
 func (d *Data) LogSQLAudit(ctx context.Context, key string, sql string, params []interface{}) error {
@@ -187,25 +340,29 @@ func (d *Data) enqueueCommentCount(tx *gorm.DB, aid string) error {
 		Topic:       d.eventTopic,
 		EventKey:    aid,
 		Payload:     body,
-		Status:      "pending",
+		Status:      outboxStatusPending,
 		NextRetryAt: time.Now(),
 	}).Error
 }
 
 func (d *Data) startOutbox() {
+	interval := d.outboxInterval
+	if interval <= 0 {
+		interval = time.Second
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	d.outboxCancel = cancel
 	d.outboxWG.Add(1)
 	go func() {
 		defer d.outboxWG.Done()
-		ticker := time.NewTicker(time.Second)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := d.publishOutbox(ctx); err != nil {
+				if err := d.publishOutbox(ctx); err != nil && d.log != nil {
 					d.log.WithContext(ctx).Errorf("commentData: publish outbox failed: %v", err)
 				}
 			}
@@ -213,40 +370,110 @@ func (d *Data) startOutbox() {
 	}()
 }
 
+func (d *Data) getOutboxStore() outboxStore {
+	if d.outboxStore != nil {
+		return d.outboxStore
+	}
+	if d.db != nil {
+		return &gormOutboxStore{db: d.db}
+	}
+	return nil
+}
+
+// publishOutbox decouples short DB transactions from Kafka network I/O:
+// 1. Short DB TX: claim up to 50 due rows with FOR UPDATE SKIP LOCKED and set 60s lease.
+// 2. Outside DB TX: publish each claimed event to Kafka with a 5s per-message timeout.
+// 3. Short DB TX: mark succeeded rows published; increment retry_count on failures with
+//    exponential backoff min(2^retry, 64)s or transition to dead_letter at retry_count >= 10.
+// Loops up to 20 batches per tick while full batches are returned and ctx is active.
 func (d *Data) publishOutbox(ctx context.Context) error {
-	if d.event == nil || d.eventTopic == "" {
+	store := d.getOutboxStore()
+	if d.event == nil || d.eventTopic == "" || store == nil {
 		return nil
 	}
-	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var events []CommentOutbox
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
-			Where("status = ? AND next_retry_at <= ?", "pending", time.Now()).
-			Order("id").Limit(50).Find(&events).Error; err != nil {
+
+	for iter := 0; iter < outboxMaxBatchesPerTick; iter++ {
+		if ctx.Err() != nil {
+			return nil
+		}
+
+		claimed, err := store.Claim(ctx, outboxBatchSize, outboxLeaseDuration)
+		if err != nil {
 			return err
 		}
-		for _, event := range events {
-			if err := d.event.Send(ctx, kafka.NewMessage(event.EventKey, event.Payload)); err != nil {
+		if len(claimed) == 0 {
+			return nil
+		}
+
+		outcomes := make([]outboxOutcome, 0, len(claimed))
+		for _, event := range claimed {
+			if ctx.Err() != nil {
+				break
+			}
+			sendCtx, cancel := context.WithTimeout(ctx, outboxPublishTimeout)
+			sendErr := d.event.Send(sendCtx, pkg.NewMessage(event.EventKey, event.Payload))
+			cancel()
+
+			now := time.Now()
+			if sendErr != nil {
 				retry := event.RetryCount + 1
-				delay := time.Duration(1<<minInt(retry, 6)) * time.Second
-				if err := tx.Model(&CommentOutbox{}).Where("id = ?", event.ID).Updates(map[string]any{
-					"retry_count":   retry,
-					"next_retry_at": time.Now().Add(delay),
-				}).Error; err != nil {
-					return err
+				if retry >= outboxMaxRetries {
+					if d.log != nil {
+						d.log.WithContext(ctx).Errorf("commentData: outbox event %d (%s) moved to dead_letter after %d retries: %v",
+							event.ID, event.EventID, retry, sendErr)
+					}
+					outcomes = append(outcomes, outboxOutcome{
+						ID:         event.ID,
+						Published:  false,
+						Status:     outboxStatusDeadLetter,
+						RetryCount: retry,
+					})
+				} else {
+					outcomes = append(outcomes, outboxOutcome{
+						ID:          event.ID,
+						Published:   false,
+						Status:      outboxStatusPending,
+						RetryCount:  retry,
+						NextRetryAt: now.Add(outboxBackoff(retry)),
+					})
 				}
 				continue
 			}
-			now := time.Now()
-			if err := tx.Model(&CommentOutbox{}).Where("id = ?", event.ID).Updates(map[string]any{
-				"status":       "published",
-				"retry_count":  0,
-				"published_at": now,
-			}).Error; err != nil {
-				return err
+
+			outcomes = append(outcomes, outboxOutcome{
+				ID:          event.ID,
+				Published:   true,
+				Status:      outboxStatusPublished,
+				PublishedAt: now,
+			})
+		}
+
+		if len(outcomes) > 0 {
+			markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), outboxPublishTimeout)
+			applyErr := store.ApplyOutcomes(markCtx, outcomes)
+			cancel()
+			if applyErr != nil {
+				return applyErr
 			}
 		}
-		return nil
-	})
+
+		if len(claimed) < outboxBatchSize {
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func outboxBackoff(retry int) time.Duration {
+	if retry < 1 {
+		retry = 1
+	}
+	sec := 1 << minInt(retry, 6)
+	if sec > outboxMaxBackoffSec {
+		sec = outboxMaxBackoffSec
+	}
+	return time.Duration(sec) * time.Second
 }
 
 func minInt(a, b int) int {

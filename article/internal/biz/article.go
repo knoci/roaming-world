@@ -145,16 +145,14 @@ func (uc *ArticleUsecase) Favorite(ctx context.Context, uid, aid string) (bool, 
 }
 
 func (uc *ArticleUsecase) Unlike(ctx context.Context, uid, aid string) (int, error) {
-	article, err := uc.repo.FindByID(ctx, aid)
-	if err != nil || article.Status != "published" {
+	if _, err := uc.repo.FindByID(ctx, aid); err != nil {
 		return 0, ErrArticleNotFound
 	}
 	return uc.repo.Unlike(ctx, uid, aid)
 }
 
 func (uc *ArticleUsecase) Unfavorite(ctx context.Context, uid, aid string) (int, error) {
-	article, err := uc.repo.FindByID(ctx, aid)
-	if err != nil || article.Status != "published" {
+	if _, err := uc.repo.FindByID(ctx, aid); err != nil {
 		return 0, ErrArticleNotFound
 	}
 	return uc.repo.Unfavorite(ctx, uid, aid)
@@ -164,8 +162,11 @@ func (uc *ArticleUsecase) List(ctx context.Context, page, limit int, way string,
 	if page < 1 {
 		page = 1
 	}
-	if limit < 0 {
-		limit = 0
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
 	}
 	return uc.repo.List(ctx, page, limit, way, reverse, status, ownerID)
 }

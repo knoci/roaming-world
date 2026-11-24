@@ -5,8 +5,7 @@ resources:
   # 命名空间
   - namespace.yaml
 
-  # 配置和密钥
-  - secrets.yaml
+  # 配置（密钥由 scripts/configure-internal-tokens.ps1 -Kubernetes 或本地 k8s/secrets.yaml 注入）
   - configmaps.yaml
 
   # 基础设施服务
@@ -14,7 +13,6 @@ resources:
   - infrastructure.yaml # MySQL（Nacos 配置存储）& Redis
   - nacos.yaml          # Nacos 注册/配置中心
   - messaging.yaml      # Kafka + Meilisearch
-  - etcd.yaml           # 验证码 etcd
 
   # 微服务部署
   - deployments.yaml    # User, Article, Food, Scene
@@ -92,8 +90,6 @@ replicas:
     count: 1
   - name: meilisearch
     count: 1
-  - name: etcd
-    count: 1
 
 # 业务服务统一挂载 Nacos 连接配置，单独注入 JWT 签名密钥。
 # 业务数据库/Redis/Kafka 等仍在 Nacos 的 roaming-world.yaml 中管理。
@@ -152,6 +148,7 @@ configMapGenerator:
     namespace: roaming-world
     files:
       - 001_init.sql=./postgres-migrations/001_init.sql
+      - 002_phase2_schema_and_indexes.sql=./postgres-migrations/002_phase2_schema_and_indexes.sql
   - name: nacos-config
     namespace: roaming-world
     files:

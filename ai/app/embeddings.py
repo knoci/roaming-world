@@ -35,15 +35,23 @@ def hash_embed(text: str, dim: int = DIM) -> list[float]:
     return [v / norm for v in vec]
 
 
+def _env_first(*names: str, default: str = "") -> str:
+    for name in names:
+        val = os.getenv(name)
+        if val is not None and val.strip() != "":
+            return val.strip()
+    return default
+
+
 def embed_text(text: str) -> list[float]:
     """Use an OpenAI-compatible embedding API when configured, else hash fallback."""
-    provider = os.getenv("EMBEDDING_PROVIDER", "hash").lower()
+    provider = _env_first("AI_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER", default="hash").lower()
     if provider == "openai":
-        url = os.getenv("EMBEDDING_API_URL", "https://api.openai.com/v1/embeddings")
-        key = os.getenv("EMBEDDING_API_KEY", "")
-        model = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+        url = _env_first("AI_EMBEDDING_API_URL", "EMBEDDING_API_URL", default="https://api.openai.com/v1/embeddings")
+        key = _env_first("AI_EMBEDDING_API_KEY", "EMBEDDING_API_KEY", default="")
+        model = _env_first("AI_EMBEDDING_MODEL", "EMBEDDING_MODEL", default="BAAI/bge-m3")
         if not key:
-            raise RuntimeError("EMBEDDING_API_KEY is required for openai provider")
+            raise RuntimeError("AI_EMBEDDING_API_KEY or EMBEDDING_API_KEY is required for openai provider")
         req = urllib.request.Request(
             url,
             data=json.dumps({"model": model, "input": text}).encode("utf-8"),

@@ -2,14 +2,18 @@ package data
 
 import (
 	"context"
+	"errors"
 	"os"
 	"time"
 
+	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
 	pd "github.com/knoci/roaming-world/comment/api/user/v1"
 	"github.com/knoci/roaming-world/comment/internal/biz"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -87,7 +91,7 @@ func (r *commentRepo) Create(ctx context.Context, comment *biz.Comment) (*biz.Co
 		Likes:     comment.Likes,
 	}
 
-	if err := r.data.db.Transaction(func(tx *gorm.DB) error {
+	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(c).Error; err != nil {
 			return err
 		}
@@ -133,11 +137,14 @@ func (r *commentRepo) Create(ctx context.Context, comment *biz.Comment) (*biz.Co
 	}, nil
 }
 
-// Delete 软删除评论：保留行用于审计和回复链，列表只展示 active。
+// Delete 软删除评论：保留行与原文用于审计和回复链，列表只展示 active。
 func (r *commentRepo) Delete(ctx context.Context, uid, cid string) error {
 	var comment Comment
 	if err := r.data.db.WithContext(ctx).Where("cid = ?", cid).First(&comment).Error; err != nil {
-		return biz.ErrCommentNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return biz.ErrCommentNotFound
+		}
+		return err
 	}
 	if comment.UID != uid {
 		return biz.ErrNoPermission
@@ -150,13 +157,13 @@ func (r *commentRepo) Delete(ctx context.Context, uid, cid string) error {
 	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if comment.Replycid == "" {
 			if err := tx.Model(&Comment{}).Where("replycid = ? AND status = ?", cid, "active").Updates(map[string]any{
-				"status": "deleted", "content": "该评论已删除", "deleted_at": now,
+				"status": "deleted", "deleted_at": now,
 			}).Error; err != nil {
 				return err
 			}
 		}
 		if err := tx.Model(&Comment{}).Where("cid = ?", cid).Updates(map[string]any{
-			"status": "deleted", "content": "该评论已删除", "deleted_at": now,
+			"status": "deleted", "deleted_at": now,
 		}).Error; err != nil {
 			return err
 		}
@@ -168,40 +175,57 @@ func (r *commentRepo) Delete(ctx context.Context, uid, cid string) error {
 	return nil
 }
 
-// Like 点赞评论：幂等，重复点赞不重复加计数。
+// Like 点赞评论：幂等，重复点赞不重复加计数；关系写入与计数更新在同一事务中完成。
 func (r *commentRepo) Like(ctx context.Context, uid, cid string) error {
-	res := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&Commentlike{UID: uid, CID: cid})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected > 0 {
-		return r.data.db.WithContext(ctx).Model(&Comment{}).Where("cid = ?", cid).
-			UpdateColumn("likes", gorm.Expr("likes + 1")).Error
-	}
-	return nil
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&Commentlike{UID: uid, CID: cid})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			return tx.Model(&Comment{}).Where("cid = ?", cid).
+				UpdateColumn("likes", gorm.Expr("likes + 1")).Error
+		}
+		return nil
+	})
 }
 
-// Unlike 取消点赞：幂等，没点过也返回成功。
+// Unlike 取消点赞：幂等，没点过也返回成功；关系删除与计数更新在同一事务中完成。
 func (r *commentRepo) Unlike(ctx context.Context, uid, cid string) error {
-	res := r.data.db.WithContext(ctx).Where("uid = ? AND cid = ?", uid, cid).Delete(&Commentlike{})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected > 0 {
-		return r.data.db.WithContext(ctx).Model(&Comment{}).Where("cid = ?", cid).
-			UpdateColumn("likes", gorm.Expr("GREATEST(likes - 1, 0)")).Error
-	}
-	return nil
+	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("uid = ? AND cid = ?", uid, cid).Delete(&Commentlike{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected > 0 {
+			return tx.Model(&Comment{}).Where("cid = ?", cid).
+				UpdateColumn("likes", gorm.Expr("GREATEST(likes - 1, 0)")).Error
+		}
+		return nil
+	})
 }
 
-// GetCommentList 获取一级评论列表（分页）。
 // FindComment 按 CID 查一条评论。
 func (r *commentRepo) FindComment(ctx context.Context, cid string) (*biz.Comment, error) {
 	var c Comment
 	if err := r.data.db.WithContext(ctx).Where("cid = ?", cid).First(&c).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, biz.ErrCommentNotFound
+		}
 		return nil, err
 	}
 	return toBizComment(&c), nil
+}
+
+// IsArticlePublished 检查目标文章是否存在且已发布。
+func (r *commentRepo) IsArticlePublished(ctx context.Context, aid string) (bool, error) {
+	var exists bool
+	if err := r.data.db.WithContext(ctx).
+		Raw("SELECT EXISTS(SELECT 1 FROM articles WHERE aid = ? AND status = 'published')", aid).
+		Scan(&exists).Error; err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
 func (r *commentRepo) GetCommentList(ctx context.Context, aid string, page, limit int) ([]*biz.Comment, int64, error) {
@@ -260,28 +284,41 @@ func (r *commentRepo) GetCommentListWithReplies(ctx context.Context, aid string,
 		ids = append(ids, roots[i].CID)
 	}
 	var replies []Comment
-	if err := r.data.db.WithContext(ctx).Where("replycid IN ? AND status = ?", ids, "active").
-		Order("created_at DESC").Find(&replies).Error; err != nil {
+	const topRepliesSQL = `
+WITH ranked AS (
+	SELECT cid, target, content, likes, uid, name, avatar, replycid, replyname, status, deleted_at, created_at, updated_at,
+	       ROW_NUMBER() OVER (PARTITION BY replycid ORDER BY created_at DESC) AS rn
+	FROM comments
+	WHERE replycid IN ? AND status = 'active'
+)
+SELECT cid, target, content, likes, uid, name, avatar, replycid, replyname, status, deleted_at, created_at, updated_at
+FROM ranked
+WHERE rn <= 2
+ORDER BY replycid, created_at DESC`
+	if err := r.data.db.WithContext(ctx).Raw(topRepliesSQL, ids).Scan(&replies).Error; err != nil {
 		return nil, 0, err
 	}
-	byRoot := make(map[string][]Comment)
+	byRoot := make(map[string][]Comment, len(roots))
 	for i := range replies {
-		if len(byRoot[replies[i].Replycid]) >= 2 {
-			continue
-		}
 		byRoot[replies[i].Replycid] = append(byRoot[replies[i].Replycid], replies[i])
 	}
 	for i := range roots {
-		for _, reply := range byRoot[roots[i].CID] {
-			result = append(result, toBizComment(&reply))
+		for j := range byRoot[roots[i].CID] {
+			result = append(result, toBizComment(&byRoot[roots[i].CID][j]))
 		}
 	}
 	return result, total, nil
 }
 
+const deletedCommentContent = "该评论已删除"
+
 func toBizComment(c *Comment) *biz.Comment {
+	content := c.Content
+	if c.Status != "active" {
+		content = deletedCommentContent
+	}
 	return &biz.Comment{
-		CID: c.CID, Target: c.Target, Content: c.Content, Likes: c.Likes,
+		CID: c.CID, Target: c.Target, Content: content, Likes: c.Likes,
 		UID: c.UID, Name: c.Name, Avatar: c.Avatar,
 		Replycid: c.Replycid, Replyname: c.Replyname,
 		Status: c.Status, DeletedAt: c.DeletedAt,
@@ -289,21 +326,32 @@ func toBizComment(c *Comment) *biz.Comment {
 	}
 }
 
+type sqlStateError interface {
+	SQLState() string
+}
+
+func isUniqueViolation(err error) bool {
+	var sse sqlStateError
+	if errors.As(err, &sse) && sse.SQLState() == "23505" {
+		return true
+	}
+	return errors.Is(err, gorm.ErrDuplicatedKey)
+}
+
 func (r *commentRepo) CreateReport(ctx context.Context, report *biz.CommentReport) (*biz.CommentReport, error) {
-	var count int64
-	if err := r.data.db.WithContext(ctx).Model(&CommentReport{}).
-		Where("cid = ? AND reporter_uid = ?", report.CID, report.ReporterUID).Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count > 0 {
-		return nil, biz.ErrReportExists
-	}
 	row := &CommentReport{
 		ID: uuid.New().String(), CID: report.CID, ReporterUID: report.ReporterUID,
 		Reason: report.Reason, Status: "pending",
 	}
-	if err := r.data.db.WithContext(ctx).Create(row).Error; err != nil {
-		return nil, err
+	res := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(row)
+	if res.Error != nil {
+		if isUniqueViolation(res.Error) {
+			return nil, biz.ErrReportExists
+		}
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, biz.ErrReportExists
 	}
 	return toBizReport(row), nil
 }
@@ -327,28 +375,45 @@ func (r *commentRepo) ListReports(ctx context.Context, status string, page, limi
 
 func (r *commentRepo) ResolveReport(ctx context.Context, id, adminID, action, note string) (*biz.CommentReport, error) {
 	var report CommentReport
-	if err := r.data.db.WithContext(ctx).Where("id = ?", id).First(&report).Error; err != nil {
-		return nil, biz.ErrReportNotFound
-	}
-	if report.Status != "pending" {
-		return toBizReport(&report), nil
-	}
 	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", id).First(&report).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return biz.ErrReportNotFound
+			}
+			return err
+		}
+		if report.Status != "pending" {
+			return biz.ErrReportAlreadyResolved
+		}
+
 		if action == "remove" {
+			res := tx.Model(&CommentReport{}).Where("id = ? AND status = ?", id, "pending").Updates(map[string]any{
+				"status": "resolved", "reviewed_by": adminID, "review_note": note,
+			})
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				return biz.ErrReportAlreadyResolved
+			}
+
 			var comment Comment
 			if err := tx.Where("cid = ?", report.CID).First(&comment).Error; err != nil {
-				return biz.ErrCommentNotFound
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return biz.ErrCommentNotFound
+				}
+				return err
 			}
 			now := time.Now()
 			if comment.Replycid == "" {
 				if err := tx.Model(&Comment{}).Where("replycid = ? AND status = ?", comment.CID, "active").Updates(map[string]any{
-					"status": "deleted", "content": "该评论已删除", "deleted_at": now,
+					"status": "deleted", "deleted_at": now,
 				}).Error; err != nil {
 					return err
 				}
 			}
 			if err := tx.Model(&Comment{}).Where("cid = ?", comment.CID).Updates(map[string]any{
-				"status": "deleted", "content": "该评论已删除", "deleted_at": now,
+				"status": "deleted", "deleted_at": now,
 			}).Error; err != nil {
 				return err
 			}
@@ -361,17 +426,18 @@ func (r *commentRepo) ResolveReport(ctx context.Context, id, adminID, action, no
 				return err
 			}
 		} else {
-			if err := tx.Model(&CommentReport{}).Where("id = ?", id).Updates(map[string]any{
+			res := tx.Model(&CommentReport{}).Where("id = ? AND status = ?", id, "pending").Updates(map[string]any{
 				"status": "rejected", "reviewed_by": adminID, "review_note": note,
-			}).Error; err != nil {
-				return err
+			})
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				return biz.ErrReportAlreadyResolved
 			}
 		}
-		return nil
+		return tx.Where("id = ?", id).First(&report).Error
 	}); err != nil {
-		return nil, err
-	}
-	if err := r.data.db.WithContext(ctx).Where("id = ?", id).First(&report).Error; err != nil {
 		return nil, err
 	}
 	return toBizReport(&report), nil
@@ -388,8 +454,14 @@ func toBizReport(row *CommentReport) *biz.CommentReport {
 func (r *commentRepo) FindUser(ctx context.Context, uid string) (*biz.User, error) {
 	rsp, err := r.data.userClient.FindUser(ctx, &pd.FindUserRequest{Keyword: uid})
 	if err != nil {
+		if kerrors.IsNotFound(err) || status.Code(err) == codes.NotFound {
+			return nil, biz.ErrUserNotFound
+		}
 		r.log.WithContext(ctx).Errorf("commentRepo: call user.FindUser failed: %v", err)
 		return nil, biz.ErrInternalError
+	}
+	if rsp == nil || rsp.Uid == "" {
+		return nil, biz.ErrUserNotFound
 	}
 
 	return &biz.User{

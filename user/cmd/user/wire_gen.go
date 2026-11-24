@@ -29,12 +29,14 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 		return nil, nil, err
 	}
 	userRepo := data.NewUserRepo(dataData, logger)
-	userUsecase := biz.NewUserUsecase(userRepo, logger)
+	sessionStore := data.ProvideSessionStore(dataData)
+	userUsecase := biz.NewUserUsecase(userRepo, sessionStore, logger)
 	socialRepo := data.NewSocialRepo(dataData, logger)
 	socialUsecase := biz.NewSocialUsecase(socialRepo, userRepo, logger)
-	userService := service.NewUserService(userUsecase, socialUsecase, logger)
+	userService := service.NewUserService(userUsecase, socialUsecase, sessionStore, logger)
 	grpcServer := server.NewGRPCServer(confServer, userService, logger)
-	httpServer := server.NewHTTPServer(confServer, userService, logger)
+	readinessChecks := data.ProvideReadinessChecks(dataData)
+	httpServer := server.NewHTTPServer(confServer, userService, readinessChecks, logger)
 	nacosRegistry := data.NewNacosEngine(confData)
 	app := newApp(logger, grpcServer, httpServer, nacosRegistry)
 	return app, func() {

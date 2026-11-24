@@ -16,6 +16,8 @@ var (
 	ErrCreateDetailFailed = errors.InternalServer(v1.ErrorReason_CREATE_DETAIL_FAILED.String(), "create detail failed")
 	// ErrDatabaseError 数据库错误
 	ErrDatabaseError = errors.InternalServer(v1.ErrorReason_DATABASE_ERROR.String(), "database error")
-	// ErrCacheError 缓存错误
-	ErrUnauthorized = errors.InternalServer(v1.ErrorReason_UNAUTHORIZED.String(), "auth error")
+	// ErrUnauthorized 未授权访问
+	ErrUnauthorized = errors.Unauthorized(v1.ErrorReason_UNAUTHORIZED.String(), "unauthorized")
+	// ErrForbidden 禁止访问
+	ErrForbidden = errors.Forbidden("FORBIDDEN", "forbidden")
 )

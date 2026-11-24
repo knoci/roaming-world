@@ -3,15 +3,24 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 
 	"github.com/knoci/roaming-world/audiobook/internal/biz"
+)
+
+const (
+	audiobookListCacheKey     = "audiobook:list"
+	audiobookDetailsKeyPrefix = "audiobook:details:"
+	audiobookNotFoundSentinel = "__NOT_FOUND__"
+	audiobookNotFoundTTL      = 60 * time.Second
 )
 
 // Audiobook 有声书模型
@@ -57,6 +66,7 @@ func (d *AudiobookDetail) BeforeCreate(tx *gorm.DB) error {
 type audiobookRepo struct {
 	data *Data
 	log  *log.Helper
+	sf   singleflight.Group
 }
 
 // NewAudiobookRepo 创建有声书仓库实例
@@ -80,19 +90,31 @@ func (r *audiobookRepo) CreateAudiobook(ctx context.Context, a *biz.Audiobook) (
 	}
 
 	// 开启事务
-	tx := r.data.db.Begin()
+	tx := r.data.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		r.log.WithContext(ctx).Errorf("begin transaction error: %v", tx.Error)
+		return nil, tx.Error
+	}
 	defer func() {
-		if r := recover(); r != nil {
+		if rec := recover(); rec != nil {
 			tx.Rollback()
+			panic(rec)
 		}
 	}()
 
-	if err := tx.Create(audiobook).Error; err != nil {
+	if err := tx.WithContext(ctx).Create(audiobook).Error; err != nil {
 		tx.Rollback()
 		r.log.WithContext(ctx).Errorf("create audiobook error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Create", *audiobook)
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
+		if logErr := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Create", *audiobook); logErr != nil {
+			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", logErr)
+		}
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		r.log.WithContext(ctx).Errorf("audiobook: commit transaction error: %v", err)
+		if logErr := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Commit", time.Now()); logErr != nil {
+			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", logErr)
 		}
 		return nil, err
 	}
@@ -100,30 +122,19 @@ func (r *audiobookRepo) CreateAudiobook(ctx context.Context, a *biz.Audiobook) (
 	// 发送SQL日志到Kafka
 	sql := `INSERT INTO audiobooks (bid, view, author, name, playcount, chapternum, rating, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	params := []any{audiobook.BID, audiobook.View, audiobook.Author, audiobook.Name, audiobook.Playcount, audiobook.Chapternum, audiobook.Rating, audiobook.Description}
-	error := r.data.LogSQLAudit(ctx, "audiobook", sql, params)
-	if error != nil {
-		r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send sqllog error: %v", error)
+	if logErr := r.data.LogSQLAudit(ctx, "audiobook", sql, params); logErr != nil {
+		r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send sqllog error: %v", logErr)
 	}
 
-	// 删除缓存
-	cacheKey := "audiobook:list"
-	if err := r.data.redis.Del(ctx, cacheKey).Err(); err != nil {
-		tx.Rollback()
-		r.log.WithContext(ctx).Errorf("audiobookRepo: delete cache error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "redis.Del", cacheKey)
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
+	// 事务提交后再删除缓存；缓存删除失败仅记录日志，不回滚已提交事务
+	if r.data.redis != nil {
+		cacheKey := "audiobook:list"
+		if err := r.data.redis.Del(ctx, cacheKey).Err(); err != nil {
+			r.log.WithContext(ctx).Warnf("audiobookRepo: delete cache error after commit: %v", err)
+			if logErr := r.data.LogError(ctx, "audiobook", err.Error(), "redis.Del", cacheKey); logErr != nil {
+				r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", logErr)
+			}
 		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
-		r.log.WithContext(ctx).Errorf("audiobook: error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Commit", time.Now())
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
-		}
-		return nil, err
 	}
 
 	return &biz.Audiobook{
@@ -143,10 +154,15 @@ func (r *audiobookRepo) CreateAudiobook(ctx context.Context, a *biz.Audiobook) (
 // CreateAudiobookDetail 创建有声书章节
 func (r *audiobookRepo) CreateAudiobookDetail(ctx context.Context, d *biz.AudiobookDetail) (*biz.AudiobookDetail, error) {
 	// 开启事务
-	tx := r.data.db.Begin()
+	tx := r.data.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		r.log.WithContext(ctx).Errorf("audiobookRepo: begin transaction error: %v", tx.Error)
+		return nil, tx.Error
+	}
 	defer func() {
-		if r := recover(); r != nil {
+		if rec := recover(); rec != nil {
 			tx.Rollback()
+			panic(rec)
 		}
 	}()
 
@@ -159,23 +175,36 @@ func (r *audiobookRepo) CreateAudiobookDetail(ctx context.Context, d *biz.Audiob
 	}
 
 	// 创建章节记录
-	if err := tx.Create(detail).Error; err != nil {
+	if err := tx.WithContext(ctx).Create(detail).Error; err != nil {
 		tx.Rollback()
 		r.log.WithContext(ctx).Errorf("audiobook: create audiobook detail error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Create", detail)
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
+		if logErr := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Create", detail); logErr != nil {
+			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", logErr)
 		}
 		return nil, err
 	}
 
-	// 更新有声书章节数
-	if err := tx.Model(&Audiobook{}).Where("bid = ?", detail.BID).UpdateColumn("chapternum", gorm.Expr("chapternum + ?", 1)).Error; err != nil {
+	// 更新有声书章节数，并校验目标有声书存在以防产生孤儿章节
+	res := tx.WithContext(ctx).Model(&Audiobook{}).Where("bid = ?", detail.BID).UpdateColumn("chapternum", gorm.Expr("chapternum + ?", 1))
+	if res.Error != nil {
 		tx.Rollback()
-		r.log.WithContext(ctx).Errorf("audiobookRepo: update audiobook chapternum error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), ".Where('bid = ?', detail.BID).UpdateColumn('chapternum', gorm.Expr('chapternum + ?', 1)", detail.BID)
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
+		r.log.WithContext(ctx).Errorf("audiobookRepo: update audiobook chapternum error: %v", res.Error)
+		if logErr := r.data.LogError(ctx, "audiobook", res.Error.Error(), ".Where('bid = ?', detail.BID).UpdateColumn('chapternum', gorm.Expr('chapternum + ?', 1)", detail.BID); logErr != nil {
+			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", logErr)
+		}
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		tx.Rollback()
+		r.log.WithContext(ctx).Warnf("audiobookRepo: audiobook not found for detail: BID=%s", detail.BID)
+		return nil, biz.ErrAudiobookNotFound
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		r.log.WithContext(ctx).Errorf("audiobookRepo: commit transaction error: %v", err)
+		if logErr := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Commit", time.Now()); logErr != nil {
+			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", logErr)
 		}
 		return nil, err
 	}
@@ -183,46 +212,27 @@ func (r *audiobookRepo) CreateAudiobookDetail(ctx context.Context, d *biz.Audiob
 	// 发送SQL日志到Kafka
 	sql1 := `INSERT INTO audiobook_details (did, bid, chapter, audio, name, duration) VALUES ($1, $2, $3, $4, $5, $6)`
 	params1 := []any{detail.DID, detail.BID, detail.Chapter, detail.Audio, detail.Name, detail.Duration}
-	error := r.data.LogSQLAudit(ctx, "audiobook", sql1, params1)
-	if error != nil {
-		r.log.WithContext(ctx).Errorf("audiobookRepo: audiobookRepo: kafka send sqllog error: %v", error)
+	if logErr := r.data.LogSQLAudit(ctx, "audiobook", sql1, params1); logErr != nil {
+		r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send sqllog error: %v", logErr)
 	}
 
 	sql2 := `UPDATE audiobooks SET chapternum = chapternum + 1 WHERE bid = $1`
 	params2 := []any{detail.BID}
-	error = r.data.LogSQLAudit(ctx, "audiobook", sql2, params2)
-	if error != nil {
-		r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send sqllog error: %v", error)
+	if logErr := r.data.LogSQLAudit(ctx, "audiobook", sql2, params2); logErr != nil {
+		r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send sqllog error: %v", logErr)
 	}
 
-	// 删除相关缓存
-	pipeline := r.data.redis.Pipeline()
-
-	// 删除有声书列表缓存
-	pipeline.Del(ctx, "audiobook:list")
-	// 删除该有声书的章节列表缓存
-	pipeline.Del(ctx, fmt.Sprintf("audiobook:details:%s", detail.BID))
-
-	_, err := pipeline.Exec(ctx)
-	if err != nil {
-		tx.Rollback()
-		r.log.WithContext(ctx).Errorf("audiobookRepo: delete cache error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "pipeline.Del", time.Now())
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
+	// 事务提交后再删除相关缓存；缓存删除失败仅记录日志，不回滚已提交事务
+	if r.data.redis != nil {
+		pipeline := r.data.redis.Pipeline()
+		pipeline.Del(ctx, "audiobook:list")
+		pipeline.Del(ctx, fmt.Sprintf("audiobook:details:%s", detail.BID))
+		if _, err := pipeline.Exec(ctx); err != nil {
+			r.log.WithContext(ctx).Warnf("audiobookRepo: delete cache error after commit: %v", err)
+			if logErr := r.data.LogError(ctx, "audiobook", err.Error(), "pipeline.Del", time.Now()); logErr != nil {
+				r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", logErr)
+			}
 		}
-		return nil, err
-	}
-
-	// 提交事务
-	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
-		r.log.WithContext(ctx).Errorf("audiobookRepo: commit transaction error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "tx.Commit", time.Now())
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
-		}
-		return nil, err
 	}
 
 	return &biz.AudiobookDetail{
@@ -237,82 +247,116 @@ func (r *audiobookRepo) CreateAudiobookDetail(ctx context.Context, d *biz.Audiob
 	}, nil
 }
 
-// GetAudiobooks 获取所有有声书
+// GetAudiobooks 获取所有有声书（Cache-Aside + singleflight，按评分和创建时间倒序）
 func (r *audiobookRepo) GetAudiobooks(ctx context.Context) ([]*biz.Audiobook, error) {
-	var audiobooks []*Audiobook
-
-	// 尝试从缓存获取
-	cacheKey := "audiobook:list"
-	cacheData, err := r.data.redis.Get(ctx, cacheKey).Result()
-	if err == nil {
-		if err := json.Unmarshal([]byte(cacheData), &audiobooks); err == nil {
-			return convertToBizAudiobooks(audiobooks), nil
-		}
-	}
-
-	// 从数据库获取
-	if err := r.data.db.Order("rating asc").Find(&audiobooks).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("audiobookRepo: get audiobooks error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "db.Order('rating asc').Find(&audiobooks)", audiobooks)
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
-		}
-		return nil, err
-	}
-
-	// 更新缓存
-	if cacheData, err := json.Marshal(audiobooks); err == nil {
-		if err := r.data.redis.Set(ctx, cacheKey, string(cacheData), cacheTTL(24*time.Hour)).Err(); err != nil {
-			// Cache failures are non-fatal; do not let error logging panic the request.
-			r.log.WithContext(ctx).Errorf("audiobookRepo: set cache error: %v", err)
-		}
-
-	}
-
-	return convertToBizAudiobooks(audiobooks), nil
-}
-
-// GetAudiobookDetails 获取指定有声书的所有章节
-func (r *audiobookRepo) GetAudiobookDetails(ctx context.Context, bid string) ([]*biz.AudiobookDetail, error) {
-	// 先检查有声书是否存在
-	var audiobook Audiobook
-	if err := r.data.db.Where("bid = ?", bid).First(&audiobook).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("audiobookRepo: audiobook not found: %v", err)
-		return nil, err
-	}
-
-	var details []*AudiobookDetail
-
-	// 尝试从缓存获取
-	cacheKey := fmt.Sprintf("audiobook:details:%s", bid)
-	cacheData, err := r.data.redis.Get(ctx, cacheKey).Result()
-	if err == nil {
-		if err := json.Unmarshal([]byte(cacheData), &details); err == nil {
-			return convertToBizAudiobookDetails(details), nil
-		}
-	}
-
-	// 从数据库获取
-	if err := r.data.db.Where("bid = ?", bid).Order("chapter asc").Find(&details).Error; err != nil {
-		r.log.WithContext(ctx).Errorf("audiobookRepo: get audiobook details error: %v", err)
-		error := r.data.LogError(ctx, "audiobook", err.Error(), "db.Where('bid = ?', bid).Order('chapter asc').Find(&details)", details)
-		if error != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
-		}
-		return nil, err
-	}
-
-	// 更新缓存
-	if cacheData, err := json.Marshal(details); err == nil {
-		if err := r.data.redis.Set(ctx, cacheKey, string(cacheData), cacheTTL(48*time.Hour)).Err(); err != nil {
-			r.log.WithContext(ctx).Errorf("audiobookRepo: set cache error: %v", err)
-			error := r.data.LogError(ctx, "audiobook", err.Error(), "redis.Set", cacheData)
-			if error != nil {
-				r.log.WithContext(ctx).Errorf("audiobookRepo: kafka send errorlog error: %v", error)
+	// 1. 尝试从缓存获取
+	if r.data.redis != nil {
+		cacheData, err := r.data.redis.Get(ctx, audiobookListCacheKey).Result()
+		if err == nil {
+			var audiobooks []*Audiobook
+			if unmarshalErr := json.Unmarshal([]byte(cacheData), &audiobooks); unmarshalErr == nil {
+				return convertToBizAudiobooks(audiobooks), nil
 			}
 		}
 	}
 
+	// 2. 缓存未命中：singleflight 合并回源请求
+	val, err, _ := r.sf.Do(audiobookListCacheKey, func() (interface{}, error) {
+		sfCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+
+		var audiobooks []*Audiobook
+		if err := r.data.db.WithContext(sfCtx).Order("rating DESC, created_at DESC").Find(&audiobooks).Error; err != nil {
+			r.log.WithContext(ctx).Errorf("audiobookRepo: get audiobooks error: %v", err)
+			if logErr := r.data.LogError(sfCtx, "audiobook", err.Error(), "db.Order('rating DESC, created_at DESC').Find(&audiobooks)", nil); logErr != nil {
+				r.log.WithContext(ctx).Errorf("audiobookRepo: log error failed: %v", logErr)
+			}
+			return nil, err
+		}
+
+		if r.data.redis != nil {
+			if cacheData, marshalErr := json.Marshal(audiobooks); marshalErr == nil {
+				if setErr := r.data.redis.Set(sfCtx, audiobookListCacheKey, string(cacheData), cacheTTL(24*time.Hour)).Err(); setErr != nil {
+					r.log.WithContext(ctx).Errorf("audiobookRepo: set cache error: %v", setErr)
+				}
+			}
+		}
+
+		return audiobooks, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	audiobooks, _ := val.([]*Audiobook)
+	return convertToBizAudiobooks(audiobooks), nil
+}
+
+// GetAudiobookDetails 获取指定有声书的所有章节（缓存优先 + singleflight + 短 TTL 负缓存）
+func (r *audiobookRepo) GetAudiobookDetails(ctx context.Context, bid string) ([]*biz.AudiobookDetail, error) {
+	cacheKey := audiobookDetailsKeyPrefix + bid
+
+	// 1. 先查 Redis 缓存（包含短 TTL 空值负缓存）
+	if r.data.redis != nil {
+		cacheData, err := r.data.redis.Get(ctx, cacheKey).Result()
+		if err == nil {
+			if cacheData == audiobookNotFoundSentinel {
+				return nil, biz.ErrAudiobookNotFound
+			}
+			var details []*AudiobookDetail
+			if unmarshalErr := json.Unmarshal([]byte(cacheData), &details); unmarshalErr == nil {
+				return convertToBizAudiobookDetails(details), nil
+			}
+		}
+	}
+
+	// 2. 缓存未命中：使用 singleflight 回源查询数据库
+	val, err, _ := r.sf.Do(cacheKey, func() (interface{}, error) {
+		sfCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+
+		// 先校验有声书是否存在，区分 404 与 500
+		var audiobook Audiobook
+		if err := r.data.db.WithContext(sfCtx).Where("bid = ?", bid).First(&audiobook).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if r.data.redis != nil {
+					if setErr := r.data.redis.Set(sfCtx, cacheKey, audiobookNotFoundSentinel, audiobookNotFoundTTL).Err(); setErr != nil {
+						r.log.WithContext(ctx).Warnf("audiobookRepo: set negative sentinel error for %s: %v", bid, setErr)
+					}
+				}
+				return nil, biz.ErrAudiobookNotFound
+			}
+			r.log.WithContext(ctx).Errorf("audiobookRepo: check audiobook existence error: %v", err)
+			return nil, err
+		}
+
+		var details []*AudiobookDetail
+		if err := r.data.db.WithContext(sfCtx).Where("bid = ?", bid).Order("chapter asc").Find(&details).Error; err != nil {
+			r.log.WithContext(ctx).Errorf("audiobookRepo: get audiobook details error: %v", err)
+			if logErr := r.data.LogError(sfCtx, "audiobook", err.Error(), "db.Where('bid = ?', bid).Order('chapter asc').Find(&details)", bid); logErr != nil {
+				r.log.WithContext(ctx).Errorf("audiobookRepo: log error failed: %v", logErr)
+			}
+			return nil, err
+		}
+
+		if r.data.redis != nil {
+			if cacheData, marshalErr := json.Marshal(details); marshalErr == nil {
+				if setErr := r.data.redis.Set(sfCtx, cacheKey, string(cacheData), cacheTTL(48*time.Hour)).Err(); setErr != nil {
+					r.log.WithContext(ctx).Errorf("audiobookRepo: set cache error: %v", setErr)
+					if logErr := r.data.LogError(sfCtx, "audiobook", setErr.Error(), "redis.Set", cacheKey); logErr != nil {
+						r.log.WithContext(ctx).Errorf("audiobookRepo: log error failed: %v", logErr)
+					}
+				}
+			}
+		}
+
+		return details, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	details, _ := val.([]*AudiobookDetail)
 	return convertToBizAudiobookDetails(details), nil
 }
 

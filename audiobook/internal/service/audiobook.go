@@ -18,8 +18,8 @@ func NewAudiobookService(audiobook *biz.AudiobookUsecase, logger log.Logger) *Au
 func (s *AudiobookService) CreateAudiobook(ctx context.Context, req *pb.CreateAudiobookRequest) (*pb.CreateAudiobookReply, error) {
 	s.log.WithContext(ctx).Infof("audiobookService: CreateAudiobook received: Name=%s, Author=%s", req.Name, req.Author)
 
-	if !isAdmin(ctx) {
-		return nil, biz.ErrUnauthorized
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
 	}
 
 	audiobook, err := s.audiobook.CreateAudiobook(ctx, req)
@@ -33,8 +33,8 @@ func (s *AudiobookService) CreateAudiobook(ctx context.Context, req *pb.CreateAu
 func (s *AudiobookService) CreateAudiobookDetail(ctx context.Context, req *pb.CreateAudiobookDetailRequest) (*pb.CreateAudiobookDetailReply, error) {
 	s.log.WithContext(ctx).Infof("audiobookService: CreateAudiobookDetail received: BID=%s, Chapter=%d", req.Bid, req.Chapter)
 
-	if !isAdmin(ctx) {
-		return nil, biz.ErrUnauthorized
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
 	}
 
 	detail, err := s.audiobook.CreateAudiobookDetail(ctx, req)

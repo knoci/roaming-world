@@ -19,12 +19,32 @@ type EmailConfig struct {
 // SendVerificationCode 发送验证码邮件
 func SendVerificationCode(to string, code string) error {
 	cfg := nacos.GetConfig()
+	host, err := nacos.GetString(cfg, "email.host")
+	if err != nil {
+		return fmt.Errorf("email config host: %w", err)
+	}
+	port, err := nacos.GetInt(cfg, "email.port")
+	if err != nil {
+		return fmt.Errorf("email config port: %w", err)
+	}
+	username, err := nacos.GetString(cfg, "email.username")
+	if err != nil {
+		return fmt.Errorf("email config username: %w", err)
+	}
+	password, err := nacos.GetString(cfg, "email.password")
+	if err != nil {
+		return fmt.Errorf("email config password: %w", err)
+	}
+	from, err := nacos.GetString(cfg, "email.from")
+	if err != nil {
+		return fmt.Errorf("email config from: %w", err)
+	}
 	config := EmailConfig{
-		Host:     nacos.GetConfigString(cfg, "email.host"),
-		Port:     nacos.GetConfigInt(cfg, "email.port"),
-		Username: nacos.GetConfigString(cfg, "email.username"),
-		Password: nacos.GetConfigString(cfg, "email.password"),
-		From:     nacos.GetConfigString(cfg, "email.from"),
+		Host:     host,
+		Port:     port,
+		Username: username,
+		Password: password,
+		From:     from,
 	}
 	// 创建新的邮件消息
 	m := gomail.NewMessage()

@@ -75,23 +75,22 @@ func (r *foodRepo) CreateFood(ctx context.Context, g *biz.Food) (*biz.Food, erro
 }
 
 func (r *foodRepo) GetFoodList(ctx context.Context, page, limit int) ([]*biz.Food, int64, error) {
+	page, limit = biz.NormalizeFoodPagination(page, limit)
+
 	query := r.data.db.WithContext(ctx).Model(&Food{})
 	var total int64
-	if limit > 0 {
-		if err := query.Count(&total).Error; err != nil {
-			return nil, 0, err
-		}
-		query = query.Order("created_at DESC NULLS LAST, fid DESC").Offset((page - 1) * limit).Limit(limit)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
 	var foods []Food
-	if err := query.Find(&foods).Error; err != nil {
+	if err := query.Order("created_at DESC NULLS LAST, fid DESC").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Find(&foods).Error; err != nil {
 		return nil, 0, err
 	}
-	if limit == 0 {
-		total = int64(len(foods))
-		rand.Shuffle(len(foods), func(i, j int) { foods[i], foods[j] = foods[j], foods[i] })
-	}
+
 	items := make([]*biz.Food, 0, len(foods))
 	for i := range foods {
 		items = append(items, toBizFood(&foods[i]))
@@ -100,8 +99,17 @@ func (r *foodRepo) GetFoodList(ctx context.Context, page, limit int) ([]*biz.Foo
 }
 
 func (r *foodRepo) GetRandomFood(ctx context.Context) (*biz.Food, error) {
+	var total int64
+	if err := r.data.db.WithContext(ctx).Model(&Food{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+	if total <= 0 {
+		return nil, nil
+	}
+
+	offset := int(rand.Int63n(total))
 	var food Food
-	err := r.data.db.WithContext(ctx).Order("random()").Take(&food).Error
+	err := r.data.db.WithContext(ctx).Order("fid").Offset(offset).Limit(1).Take(&food).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}

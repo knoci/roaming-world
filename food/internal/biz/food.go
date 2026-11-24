@@ -57,20 +57,29 @@ func (uc *FoodUsecase) CreateFood(ctx context.Context, req *v1.CreateFoodRequest
 	return food, nil
 }
 
+const (
+	defaultFoodPage  = 1
+	defaultFoodLimit = 20
+	maxFoodLimit     = 100
+)
+
+// NormalizeFoodPagination 校验并规范分页参数：page <= 0 -> 1，limit <= 0 -> 20，limit > 100 -> 100。
+func NormalizeFoodPagination(page, limit int) (int, int) {
+	if page <= 0 {
+		page = defaultFoodPage
+	}
+	if limit <= 0 {
+		limit = defaultFoodLimit
+	}
+	if limit > maxFoodLimit {
+		limit = maxFoodLimit
+	}
+	return page, limit
+}
+
 // GetFoodList 获取食物列表的业务逻辑
 func (uc *FoodUsecase) GetFoodList(ctx context.Context, page, limit int) ([]*Food, int64, error) {
-	if page < 0 || limit < 0 {
-		return nil, 0, ErrInvalidArgument
-	}
-	if page > 0 && limit == 0 {
-		limit = 20
-	}
-	if page == 0 {
-		page = 1
-	}
-	if limit > 100 {
-		limit = 100
-	}
+	page, limit = NormalizeFoodPagination(page, limit)
 	foods, total, err := uc.repo.GetFoodList(ctx, page, limit)
 	if err != nil {
 		uc.log.WithContext(ctx).Errorf("foodUsecase: list foods failed: %v", err)

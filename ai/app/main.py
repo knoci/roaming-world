@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .agent import run_agent
 from .answer import extractive_answer
@@ -66,8 +66,8 @@ def metrics():
 
 
 class ChatRequest(BaseModel):
-    query: str
-    top_k: int = 5
+    query: str = Field(..., min_length=1, max_length=2000)
+    top_k: int = Field(5, ge=1, le=10)
 
 
 class Citation(BaseModel):
@@ -84,7 +84,7 @@ class ChatResponse(BaseModel):
 
 
 @app.get("/healthz")
-def healthz():
+async def healthz():
     return {"status": "ok"}
 
 
@@ -95,8 +95,13 @@ def readyz():
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
         return {"status": "ready"}
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"db not ready: {exc}")
+    except Exception:
+        log.exception("readyz failed")
+        raise HTTPException(status_code=503, detail="database not ready")
+
+
+def _hdr(val: object) -> str:
+    return val if isinstance(val, str) and val else "-"
 
 
 def require_token(name: str, provided: str | None):
@@ -121,9 +126,9 @@ def ingest():
         with connection() as conn:
             result = ingest_all(conn)
         return {"status": "ok", **result}
-    except Exception as exc:
+    except Exception:
         log.exception("ingest failed")
-        raise HTTPException(status_code=503, detail=f"ingest failed: {exc}")
+        raise HTTPException(status_code=503, detail="ingest failed")
 
 
 class AgentResponse(BaseModel):
@@ -144,10 +149,19 @@ def providers():
 
 
 @app.post("/v1/ai/multi", response_model=AgentResponse, dependencies=[Depends(require_gateway)])
-def multi_chat(req: ChatRequest):
+def multi_chat(
+    req: ChatRequest,
+    x_user_id: str | None = Header(default=None, alias="X-User-ID"),
+    x_user_role: str | None = Header(default=None, alias="X-User-Role"),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+):
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
+    log.info(
+        "endpoint=/v1/ai/multi request_id=%s user_id=%s user_role=%s",
+        _hdr(x_request_id), _hdr(x_user_id), _hdr(x_user_role),
+    )
     try:
         out = MultiAgent(MCPClient()).run(query)
         return AgentResponse(
@@ -162,19 +176,34 @@ def multi_chat(req: ChatRequest):
         )
     except MultiAgentError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    except ProviderError as exc:
-        log.warning("multi-agent provider failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"provider failed: {exc}")
-    except Exception as exc:
-        log.exception("multi-agent failed")
-        raise HTTPException(status_code=503, detail=f"multi-agent failed: {exc}")
+    except ProviderError:
+        log.exception(
+            "multi-agent provider failed request_id=%s user_id=%s",
+            _hdr(x_request_id), _hdr(x_user_id),
+        )
+        raise HTTPException(status_code=502, detail="upstream provider error")
+    except Exception:
+        log.exception(
+            "multi-agent failed request_id=%s user_id=%s",
+            _hdr(x_request_id), _hdr(x_user_id),
+        )
+        raise HTTPException(status_code=503, detail="multi-agent service unavailable")
 
 
 @app.post("/v1/ai/graph", response_model=AgentResponse, dependencies=[Depends(require_gateway)])
-def graph_chat(req: ChatRequest):
+def graph_chat(
+    req: ChatRequest,
+    x_user_id: str | None = Header(default=None, alias="X-User-ID"),
+    x_user_role: str | None = Header(default=None, alias="X-User-Role"),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+):
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
+    log.info(
+        "endpoint=/v1/ai/graph request_id=%s user_id=%s user_role=%s",
+        _hdr(x_request_id), _hdr(x_user_id), _hdr(x_user_role),
+    )
     try:
         state = LangGraphAgent(MCPClient()).run(query)
         result = state.get("result")
@@ -187,16 +216,28 @@ def graph_chat(req: ChatRequest):
             ok=bool(state.get("ok", False)),
             backend=state.get("backend", "fallback"),
         )
-    except Exception as exc:
-        log.exception("graph failed")
-        raise HTTPException(status_code=503, detail=f"graph failed: {exc}")
+    except Exception:
+        log.exception(
+            "graph failed request_id=%s user_id=%s",
+            _hdr(x_request_id), _hdr(x_user_id),
+        )
+        raise HTTPException(status_code=503, detail="graph service unavailable")
 
 
 @app.post("/v1/ai/agent", response_model=AgentResponse, dependencies=[Depends(require_gateway)])
-def agent_chat(req: ChatRequest):
+def agent_chat(
+    req: ChatRequest,
+    x_user_id: str | None = Header(default=None, alias="X-User-ID"),
+    x_user_role: str | None = Header(default=None, alias="X-User-Role"),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+):
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
+    log.info(
+        "endpoint=/v1/ai/agent request_id=%s user_id=%s user_role=%s",
+        _hdr(x_request_id), _hdr(x_user_id), _hdr(x_user_role),
+    )
     try:
         result = run_agent(query, MCPClient())
         return AgentResponse(
@@ -205,16 +246,28 @@ def agent_chat(req: ChatRequest):
             tool_calls=result.tool_calls,
             plan=result.plan,
         )
-    except Exception as exc:
-        log.exception("agent failed")
-        raise HTTPException(status_code=503, detail=f"agent failed: {exc}")
+    except Exception:
+        log.exception(
+            "agent failed request_id=%s user_id=%s",
+            _hdr(x_request_id), _hdr(x_user_id),
+        )
+        raise HTTPException(status_code=503, detail="agent service unavailable")
 
 
 @app.post("/v1/ai/chat", response_model=ChatResponse, dependencies=[Depends(require_gateway)])
-def chat(req: ChatRequest):
+def chat(
+    req: ChatRequest,
+    x_user_id: str | None = Header(default=None, alias="X-User-ID"),
+    x_user_role: str | None = Header(default=None, alias="X-User-Role"),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+):
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
+    log.info(
+        "endpoint=/v1/ai/chat request_id=%s user_id=%s user_role=%s",
+        _hdr(x_request_id), _hdr(x_user_id), _hdr(x_user_role),
+    )
     try:
         with connection() as conn:
             rows = search(conn, query, max(1, min(req.top_k, 10)))
@@ -223,6 +276,9 @@ def chat(req: ChatRequest):
             answer=answer,
             citations=[Citation(**c.__dict__) for c in citations],
         )
-    except Exception as exc:
-        log.exception("chat failed")
-        raise HTTPException(status_code=503, detail=f"retrieval failed: {exc}")
+    except Exception:
+        log.exception(
+            "chat failed request_id=%s user_id=%s",
+            _hdr(x_request_id), _hdr(x_user_id),
+        )
+        raise HTTPException(status_code=503, detail="retrieval failed")

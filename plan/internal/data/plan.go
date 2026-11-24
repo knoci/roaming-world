@@ -57,6 +57,10 @@ func NewPlanRepo(data *Data, logger log.Logger) biz.PlanRepo {
 	return &planRepo{data: data, log: log.NewHelper(logger)}
 }
 
+func (r *planRepo) Ping(ctx context.Context) error {
+	return r.data.Ping(ctx)
+}
+
 func (r *planRepo) Create(ctx context.Context, plan *biz.Plan) (*biz.Plan, error) {
 	row := &TravelPlan{
 		ID: plan.ID, UID: plan.UID, Title: plan.Title, City: plan.City,
@@ -93,6 +97,9 @@ func withPlanDetails(db *gorm.DB) *gorm.DB {
 func findPlan(db *gorm.DB, id string) (*biz.Plan, error) {
 	var row TravelPlan
 	if err := withPlanDetails(db).Where("id = ?", id).Take(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, biz.ErrPlanNotFound
+		}
 		return nil, err
 	}
 	return toBizPlan(&row), nil
@@ -129,7 +136,8 @@ func (r *planRepo) withLockedPlan(ctx context.Context, uid, id string, draftOnly
 	return r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row TravelPlan
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id", "uid", "status").Where("id = ?", id).Take(&row).Error
+			Select("id", "uid", "status", "title", "city", "budget", "visibility", "cover").
+			Where("id = ?", id).Take(&row).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return biz.ErrPlanNotFound
 		}
@@ -148,17 +156,14 @@ func (r *planRepo) withLockedPlan(ctx context.Context, uid, id string, draftOnly
 
 func (r *planRepo) Update(ctx context.Context, patch *biz.Plan) (*biz.Plan, error) {
 	var updated *biz.Plan
-	err := r.withLockedPlan(ctx, patch.UID, patch.ID, true, func(tx *gorm.DB, row *TravelPlan) error {
-		fields := map[string]any{
-			"title": patch.Title, "city": patch.City, "budget": patch.Budget, "cover": patch.Cover,
-		}
-		if patch.Visibility != "" {
-			fields["visibility"] = patch.Visibility
+	err := r.withLockedPlan(ctx, patch.UID, patch.ID, false, func(tx *gorm.DB, row *TravelPlan) error {
+		fields, err := biz.BuildUpdateFields(toBizPlan(row), patch)
+		if err != nil {
+			return err
 		}
 		if err := tx.Model(row).Updates(fields).Error; err != nil {
 			return err
 		}
-		var err error
 		updated, err = findPlan(tx, row.ID)
 		return err
 	})
@@ -201,14 +206,22 @@ func (r *planRepo) AddItem(ctx context.Context, uid string, dayNo int, item *biz
 		var stats struct {
 			NextSortOrder int
 			Overlap       bool
+			DayItemCount  int64
 		}
 		if err := tx.Model(&TravelPlanItem{}).Where("day_id = ?", day.ID).
-			Select("COALESCE(MAX(sort_order), 0) + 1 AS next_sort_order, COALESCE(bool_or(start_time < ? AND end_time > ?), false) AS overlap",
+			Select("COALESCE(MAX(sort_order), 0) + 1 AS next_sort_order, COALESCE(bool_or(start_time < ? AND end_time > ?), false) AS overlap, COUNT(*) AS day_item_count",
 				item.EndTime, item.StartTime).Scan(&stats).Error; err != nil {
 			return err
 		}
 		if stats.Overlap {
 			return biz.ErrTimeOverlap
+		}
+		var totalItems int64
+		if err := tx.Model(&TravelPlanItem{}).Where("plan_id = ?", plan.ID).Count(&totalItems).Error; err != nil {
+			return err
+		}
+		if err := biz.CheckItemLimits(stats.DayItemCount, totalItems); err != nil {
+			return err
 		}
 		if err := tx.Create(&TravelPlanItem{
 			ID: item.ID, PlanID: plan.ID, DayID: day.ID,

@@ -1,7 +1,7 @@
 # Roaming World Kubernetes 部署配置
 
 > 这是一套开发/演示用的 K8s 编排：8 个 Kratos 业务服务 + AI Engine + MCP + PostgreSQL + MySQL（仅 Nacos 使用）+ Redis + Nacos
-> + Kafka + Meilisearch + etcd。生产环境请把数据库/中间件换成托管服务或 Operator，不要直接照搬。
+> + Kafka + Meilisearch。生产环境请把数据库/中间件换成托管服务或 Operator，不要直接照搬。
 
 ## 单机 minikube
 
@@ -55,7 +55,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\k8s-up.ps1
 | Nacos | 注册/配置中心 | nacos-service:8848 |
 | Kafka | 评论计数事件 comment-events（不接日志） | kafka-service:9092，单节点 KRaft |
 | Meilisearch | 场景搜索 | meilisearch-service:7700 |
-| etcd | 验证码 | etcd-service:2379 |
 
 ## 2. 文件说明
 
@@ -70,7 +69,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\k8s-up.ps1
 | infrastructure.yaml | MySQL（Nacos）+ Redis |
 | nacos.yaml | Nacos 和内网 Service |
 | messaging.yaml | Kafka + Meilisearch |
-| etcd.yaml | etcd |
 | deployments.yaml | user/article/food/scene |
 | deployments-2.yaml | comment/audiobook |
 | plan.yaml | plan-service |
@@ -103,7 +101,7 @@ kubectl apply -k k8s
 
 ### 3.2.1 初始化 PostgreSQL
 
-本地 Compose 会自动执行 `deploy/postgres/migrations/001_init.sql`；K8s 由 `postgres-migrate` Job 执行 `k8s/postgres-migrations/001_init.sql`，服务里的 AutoMigrate 只作为兜底。
+本地 Compose 会自动执行 `deploy/postgres/migrations/*.sql`；K8s 由 `postgres-migrate` Job 按版本顺序执行 `k8s/postgres-migrations/*.sql`（并记录到 `schema_migrations`），服务里的 AutoMigrate 只作为兜底。
 
 迁移 SQL 改动后，Job 的 ConfigMap hash 会变化，而 Job template 不可变；需要先 `kubectl delete job postgres-migrate -n roaming-world` 再重新 `kubectl apply -k k8s`。
 
@@ -216,7 +214,7 @@ kubectl get endpoints user-service -n roaming-world
 - 多副本 + 滚动更新；
 - readiness/liveness；
 - requests/limits；
-- PostgreSQL/Redis/Nacos/Kafka/Meili/etcd 单节点编排；
+- PostgreSQL/Redis/Nacos/Kafka/Meili 单节点编排；
 - PostgreSQL schema 迁移 Job；
 - ConfigMap 挂载 Nacos 启动配置。
 
@@ -245,7 +243,7 @@ kubectl get endpoints user-service -n roaming-world
 
 ### CrashLoopBackOff
 
-- 配置缺失（Nacos/COS/etcd）；
+- 配置缺失（Nacos/COS）；
 - 依赖没起来；
 - 看 kubectl logs --previous。
 

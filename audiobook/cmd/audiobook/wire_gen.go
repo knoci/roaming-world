@@ -32,7 +32,8 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	audiobookUsecase := biz.NewAudiobookUsecase(audiobookRepo, logger)
 	audiobookService := service.NewAudiobookService(audiobookUsecase, logger)
 	grpcServer := server.NewGRPCServer(confServer, audiobookService, logger)
-	httpServer := server.NewHTTPServer(confServer, audiobookService, logger)
+	checks := data.NewHealthChecks(dataData)
+	httpServer := server.ProvideHTTPServer(confServer, audiobookService, logger, checks)
 	app := newApp(logger, grpcServer, httpServer)
 	return app, func() {
 		cleanup()

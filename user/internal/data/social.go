@@ -105,10 +105,17 @@ func (r *socialRepo) Following(ctx context.Context, uid string, page, limit int)
 	return result, total, nil
 }
 
+const maxFollowingUIDsLimit = 5000
+
 func (r *socialRepo) FollowingUIDs(ctx context.Context, uid string) ([]string, error) {
 	var uids []string
-	if err := r.data.db.WithContext(ctx).Model(&Follow{}).
-		Where("follower_uid = ?", uid).Pluck("followee_uid", &uids).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).
+		Table("follows").
+		Joins("JOIN users ON users.uid = follows.followee_uid AND users.status = ?", "active").
+		Where("follows.follower_uid = ?", uid).
+		Order("follows.created_at DESC").
+		Limit(maxFollowingUIDsLimit).
+		Pluck("follows.followee_uid", &uids).Error; err != nil {
 		return nil, err
 	}
 	return uids, nil
@@ -123,16 +130,24 @@ func (r *socialRepo) CreateNotification(ctx context.Context, n *biz.Notification
 }
 
 func (r *socialRepo) ListNotifications(ctx context.Context, uid string, page, limit int) ([]*biz.Notification, int64, int64, error) {
-	q := r.data.db.WithContext(ctx).Model(&Notification{}).Where("uid = ?", uid)
-	var total, unread int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, 0, err
+	var counts struct {
+		Total  int64
+		Unread int64
 	}
-	if err := r.data.db.WithContext(ctx).Model(&Notification{}).Where("uid = ? AND read_at IS NULL", uid).Count(&unread).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).
+		Model(&Notification{}).
+		Select("COUNT(*) AS total, COUNT(*) FILTER (WHERE read_at IS NULL) AS unread").
+		Where("uid = ?", uid).
+		Scan(&counts).Error; err != nil {
 		return nil, 0, 0, err
 	}
 	var rows []Notification
-	if err := q.Order("created_at DESC").Offset((page - 1) * limit).Limit(limit).Find(&rows).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).
+		Model(&Notification{}).
+		Where("uid = ?", uid).
+		Order("created_at DESC").
+		Offset((page - 1) * limit).Limit(limit).
+		Find(&rows).Error; err != nil {
 		return nil, 0, 0, err
 	}
 	result := make([]*biz.Notification, 0, len(rows))
@@ -143,7 +158,7 @@ func (r *socialRepo) ListNotifications(ctx context.Context, uid string, page, li
 			Payload: row.Payload, Read: row.ReadAt != nil, CreatedAt: row.CreatedAt,
 		})
 	}
-	return result, total, unread, nil
+	return result, counts.Total, counts.Unread, nil
 }
 
 func (r *socialRepo) MarkNotificationRead(ctx context.Context, uid, id string) error {

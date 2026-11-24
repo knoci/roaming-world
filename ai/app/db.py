@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import contextmanager
 
@@ -114,14 +115,14 @@ def ingest_all(conn) -> dict:
                     INSERT INTO ai_chunks (doc_id, chunk_no, content, embedding, metadata)
                     VALUES (%s, %s, %s, %s::vector, %s::jsonb)
                 """, (doc_id, i, chunk, vector_literal(embed_text(chunk)),
-                      '{"source_type":"%s","source_id":"%s"}' % (source_type, source_id)))
+                      json.dumps({"source_type": source_type, "source_id": source_id})))
             chunks_total += len(chunks)
         # The source scan completed successfully. Document deletion also deletes its chunks.
         cur.execute("""
             DELETE FROM ai_documents
             WHERE source_type = ANY(%s) AND NOT (id = ANY(%s::bigint[]))
         """, (INDEXED_SOURCE_TYPES, indexed_ids))
-    return {"documents": len(docs), "chunks": chunks_total}
+    return {"documents": len(indexed_ids), "chunks": chunks_total}
 
 
 def search(conn, query: str, top_k: int = 5) -> list[dict]:

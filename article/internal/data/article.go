@@ -244,9 +244,16 @@ func (r *articleRepo) List(ctx context.Context, page, limit int, way string, rev
 			{Column: clause.Column{Name: "aid"}, Desc: reverse},
 		},
 	})
-	if limit > 0 {
-		q = q.Offset((page - 1) * limit).Limit(limit)
+	if page < 1 {
+		page = 1
 	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	q = q.Offset((page - 1) * limit).Limit(limit)
 	var rows []Article
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, 0, err
@@ -259,97 +266,159 @@ func (r *articleRepo) List(ctx context.Context, page, limit int, way string, rev
 }
 
 func (r *articleRepo) Like(ctx context.Context, uid, aid string) (bool, int, error) {
-	res := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&Like{UID: uid, AID: aid})
-	if res.Error != nil {
-		return false, 0, res.Error
-	}
-	if res.RowsAffected > 0 {
-		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
-			UpdateColumn("likes", gorm.Expr("likes + 1")).Error; err != nil {
-			return false, 0, err
+	var likes int
+	var updated bool
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&Like{UID: uid, AID: aid})
+		if res.Error != nil {
+			return res.Error
 		}
+		if res.RowsAffected > 0 {
+			if err := tx.Model(&Article{}).Where("aid = ?", aid).
+				UpdateColumn("likes", gorm.Expr("likes + 1")).Error; err != nil {
+				return err
+			}
+			updated = true
+		}
+		var err error
+		likes, err = articleLikesTx(tx, aid)
+		return err
+	})
+	if err != nil {
+		return false, 0, err
+	}
+	if updated {
 		r.sendSQL(ctx, "UPDATE articles SET likes = likes + 1 WHERE aid=$1", aid)
 	}
-	return true, r.articleLikes(ctx, aid), nil
+	return true, likes, nil
 }
 
 func (r *articleRepo) Unlike(ctx context.Context, uid, aid string) (int, error) {
-	res := r.data.db.WithContext(ctx).Where("uid = ? AND aid = ?", uid, aid).Delete(&Like{})
-	if res.Error != nil {
-		return 0, res.Error
-	}
-	if res.RowsAffected > 0 {
-		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
-			UpdateColumn("likes", gorm.Expr("GREATEST(likes - 1, 0)")).Error; err != nil {
-			return 0, err
+	var likes int
+	var updated bool
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("uid = ? AND aid = ?", uid, aid).Delete(&Like{})
+		if res.Error != nil {
+			return res.Error
 		}
+		if res.RowsAffected > 0 {
+			if err := tx.Model(&Article{}).Where("aid = ?", aid).
+				UpdateColumn("likes", gorm.Expr("GREATEST(likes - 1, 0)")).Error; err != nil {
+				return err
+			}
+			updated = true
+		}
+		var err error
+		likes, err = articleLikesTx(tx, aid)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	if updated {
 		r.sendSQL(ctx, "UPDATE articles SET likes = GREATEST(likes - 1, 0) WHERE aid=$1", aid)
 	}
-	return r.articleLikes(ctx, aid), nil
+	return likes, nil
 }
 
-func (r *articleRepo) articleLikes(ctx context.Context, aid string) int {
+func articleLikesTx(tx *gorm.DB, aid string) (int, error) {
 	var row struct{ Likes int }
-	_ = r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).Select("likes").Scan(&row).Error
-	return row.Likes
+	if err := tx.Model(&Article{}).Where("aid = ?", aid).Select("likes").Scan(&row).Error; err != nil {
+		return 0, err
+	}
+	return row.Likes, nil
 }
 
 func (r *articleRepo) Favorite(ctx context.Context, uid, aid string) (bool, int, error) {
-	res := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&Favorite{UID: uid, AID: aid})
-	if res.Error != nil {
-		return false, 0, res.Error
-	}
-	if res.RowsAffected > 0 {
-		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
-			UpdateColumn("favorite", gorm.Expr("favorite + 1")).Error; err != nil {
-			return false, 0, err
+	var favorite int
+	var updated bool
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&Favorite{UID: uid, AID: aid})
+		if res.Error != nil {
+			return res.Error
 		}
+		if res.RowsAffected > 0 {
+			if err := tx.Model(&Article{}).Where("aid = ?", aid).
+				UpdateColumn("favorite", gorm.Expr("favorite + 1")).Error; err != nil {
+				return err
+			}
+			updated = true
+		}
+		var err error
+		favorite, err = articleFavoritesTx(tx, aid)
+		return err
+	})
+	if err != nil {
+		return false, 0, err
+	}
+	if updated {
 		r.sendSQL(ctx, "UPDATE articles SET favorite = favorite + 1 WHERE aid=$1", aid)
 	}
-	return true, r.articleFavorites(ctx, aid), nil
+	return true, favorite, nil
 }
 
 func (r *articleRepo) Unfavorite(ctx context.Context, uid, aid string) (int, error) {
-	res := r.data.db.WithContext(ctx).Where("uid = ? AND aid = ?", uid, aid).Delete(&Favorite{})
-	if res.Error != nil {
-		return 0, res.Error
-	}
-	if res.RowsAffected > 0 {
-		if err := r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).
-			UpdateColumn("favorite", gorm.Expr("GREATEST(favorite - 1, 0)")).Error; err != nil {
-			return 0, err
+	var favorite int
+	var updated bool
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("uid = ? AND aid = ?", uid, aid).Delete(&Favorite{})
+		if res.Error != nil {
+			return res.Error
 		}
+		if res.RowsAffected > 0 {
+			if err := tx.Model(&Article{}).Where("aid = ?", aid).
+				UpdateColumn("favorite", gorm.Expr("GREATEST(favorite - 1, 0)")).Error; err != nil {
+				return err
+			}
+			updated = true
+		}
+		var err error
+		favorite, err = articleFavoritesTx(tx, aid)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	if updated {
 		r.sendSQL(ctx, "UPDATE articles SET favorite = GREATEST(favorite - 1, 0) WHERE aid=$1", aid)
 	}
-	return r.articleFavorites(ctx, aid), nil
+	return favorite, nil
 }
 
-func (r *articleRepo) articleFavorites(ctx context.Context, aid string) int {
+func articleFavoritesTx(tx *gorm.DB, aid string) (int, error) {
 	var row struct{ Favorite int }
-	_ = r.data.db.WithContext(ctx).Model(&Article{}).Where("aid = ?", aid).Select("favorite").Scan(&row).Error
-	return row.Favorite
+	if err := tx.Model(&Article{}).Where("aid = ?", aid).Select("favorite").Scan(&row).Error; err != nil {
+		return 0, err
+	}
+	return row.Favorite, nil
 }
 
 func (r *articleRepo) GetUserLikeList(ctx context.Context, uid string) ([]string, error) {
-	var likes []Like
-	if err := r.data.db.WithContext(ctx).Where("uid = ?", uid).Find(&likes).Error; err != nil {
+	var aids []string
+	if err := r.data.db.WithContext(ctx).
+		Model(&Like{}).
+		Joins("JOIN articles ON articles.aid = likes.aid").
+		Where("likes.uid = ? AND articles.status = ?", uid, "published").
+		Pluck("likes.aid", &aids).Error; err != nil {
 		return nil, err
 	}
-	aids := make([]string, 0, len(likes))
-	for _, l := range likes {
-		aids = append(aids, l.AID)
+	if aids == nil {
+		aids = []string{}
 	}
 	return aids, nil
 }
 
 func (r *articleRepo) GetUserFavoriteList(ctx context.Context, uid string) ([]string, error) {
-	var favorites []Favorite
-	if err := r.data.db.WithContext(ctx).Where("uid = ?", uid).Find(&favorites).Error; err != nil {
+	var aids []string
+	if err := r.data.db.WithContext(ctx).
+		Model(&Favorite{}).
+		Joins("JOIN articles ON articles.aid = favorites.aid").
+		Where("favorites.uid = ? AND articles.status = ?", uid, "published").
+		Pluck("favorites.aid", &aids).Error; err != nil {
 		return nil, err
 	}
-	aids := make([]string, 0, len(favorites))
-	for _, f := range favorites {
-		aids = append(aids, f.AID)
+	if aids == nil {
+		aids = []string{}
 	}
 	return aids, nil
 }

@@ -1,20 +1,21 @@
-# 示例：导入 Nacos 的 roaming-world.yaml（不要直接提交真实密钥）
+# 示例模板：导入 Nacos 的 roaming-world.yaml（不要直接提交真实密钥）
 # Data ID: roaming-world.yaml
 # Group: DEFAULT_GROUP
 # Namespace: 与 k8s/configmaps.yaml 中 service-config 的 namespaceId 一致（演示环境为空）
+# 占位符（__POSTGRES_PASSWORD__、__REDIS_PASSWORD__、__MEILI_MASTER_KEY__）由 nacos-config-init Job 从 roaming-world-secrets 注入替换。
 
 postgre:
   host: postgres-service
   port: 5432
   user: roaming
-  password: roaming
+  password: "__POSTGRES_PASSWORD__"
   dbname: roaming_world
   sslmode: disable
 
 redis:
   host: redis-service
   port: 6379
-  password: ""
+  password: "__REDIS_PASSWORD__"
   db: 0
 
 kafka:
@@ -22,17 +23,14 @@ kafka:
   topic:
     comment-event: comment-events
 
-etcd:
-  endpoints: etcd-service:2379
-  dialTimeout: 5
-
 jwt:
-  # 单位：纳秒；432000000000000 = 120 小时
-  expiration: 432000000000000
+  # 单位：纳秒；1800000000000 = 30 分钟，604800000000000 = 7 天
+  expiration: 1800000000000
+  refresh_expiration: 604800000000000
 
 meili:
   host: http://meilisearch-service:7700
-  key: roaming-meili-master-key
+  key: "__MEILI_MASTER_KEY__"
 
 email:
   host: smtp.example.com

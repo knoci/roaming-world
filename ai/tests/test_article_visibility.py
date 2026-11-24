@@ -3,12 +3,18 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
-import psycopg
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
 
 from ai.app.db import ingest_all, search
 
 
-@unittest.skipUnless(os.getenv("ROAMING_TEST_AI_POSTGRES_DSN"), "requires a migrated pgvector test database")
+@unittest.skipUnless(
+    psycopg is not None and os.getenv("ROAMING_TEST_AI_POSTGRES_DSN"),
+    "requires psycopg and a migrated pgvector test database",
+)
 class ArticleVisibilityTest(unittest.TestCase):
     def test_live_article_visibility_and_index_cleanup(self):
         dsn = os.environ["ROAMING_TEST_AI_POSTGRES_DSN"]

@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	v1 "github.com/knoci/roaming-world/scene/api/scene/v1"
@@ -60,16 +61,7 @@ func (uc *SceneUsecase) CreateScene(ctx context.Context, req *v1.CreateSceneRequ
 		return nil, ErrCreateSceneFailed
 	}
 
-	return &v1.SceneMessage{
-		Sid:       createdScene.SID,
-		Name:      createdScene.Name,
-		Describe:  createdScene.Describe,
-		View:      createdScene.View,
-		Location:  createdScene.Location,
-		Article:   createdScene.Article,
-		CreatedAt: createdScene.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: createdScene.UpdatedAt.Format(time.RFC3339),
-	}, nil
+	return toSceneMessage(createdScene), nil
 }
 
 // DeleteScene 删除场景
@@ -78,6 +70,9 @@ func (uc *SceneUsecase) DeleteScene(ctx context.Context, sid string) error {
 
 	err := uc.repo.DeleteScene(ctx, sid)
 	if err != nil {
+		if errors.Is(err, ErrSceneNotFound) {
+			return ErrSceneNotFound
+		}
 		uc.log.WithContext(ctx).Errorf("sceneUsecase: DeleteScene failed: %v", err)
 		return ErrDeleteSceneFailed
 	}
@@ -89,17 +84,6 @@ func (uc *SceneUsecase) DeleteScene(ctx context.Context, sid string) error {
 func (uc *SceneUsecase) UpdateScene(ctx context.Context, req *v1.UpdateSceneRequest) (*v1.SceneMessage, error) {
 	uc.log.WithContext(ctx).Infof("sceneUsecase: UpdateScene: SID=%s", req.Sid)
 
-	// 检查场景是否存在
-	existingScene, err := uc.repo.GetSceneByID(ctx, req.Sid)
-	if err != nil {
-		uc.log.WithContext(ctx).Errorf("sceneUsecase: GetSceneByID failed: %v", err)
-		return nil, ErrSceneNotFound
-	}
-	if existingScene == nil {
-		return nil, ErrSceneNotFound
-	}
-
-	// 更新场景
 	scene := &Scene{
 		SID:      req.Sid,
 		Name:     req.Name,
@@ -111,44 +95,53 @@ func (uc *SceneUsecase) UpdateScene(ctx context.Context, req *v1.UpdateSceneRequ
 
 	updatedScene, err := uc.repo.UpdateScene(ctx, scene)
 	if err != nil {
+		if errors.Is(err, ErrSceneNotFound) {
+			return nil, ErrSceneNotFound
+		}
 		uc.log.WithContext(ctx).Errorf("sceneUsecase: UpdateScene failed: %v", err)
 		return nil, ErrUpdateSceneFailed
 	}
 
-	return &v1.SceneMessage{
-		Sid:       updatedScene.SID,
-		Name:      updatedScene.Name,
-		Describe:  updatedScene.Describe,
-		View:      updatedScene.View,
-		Location:  updatedScene.Location,
-		Article:   updatedScene.Article,
-		CreatedAt: updatedScene.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: updatedScene.UpdatedAt.Format(time.RFC3339),
-	}, nil
+	return toSceneMessage(updatedScene), nil
+}
+
+const (
+	defaultScenePage     = 1
+	defaultScenePageSize = 20
+	maxScenePageSize     = 100
+)
+
+// NormalizePagination 校验并规范分页参数：page >= 1（默认 1），1 <= pagesize <= 100（默认 20）。
+func NormalizePagination(page, pagesize int) (int, int) {
+	if page < 1 {
+		page = defaultScenePage
+	}
+	if pagesize < 1 {
+		pagesize = defaultScenePageSize
+	}
+	if pagesize > maxScenePageSize {
+		pagesize = maxScenePageSize
+	}
+	return page, pagesize
 }
 
 // SearchScene 搜索场景
 func (uc *SceneUsecase) SearchScene(ctx context.Context, keyword string, page int, pagesize int) ([]*v1.SceneMessage, int, error) {
+	page, pagesize = NormalizePagination(page, pagesize)
 	uc.log.WithContext(ctx).Infof("sceneUsecase: SearchScene: keyword=%s, page=%d, pagesize=%d", keyword, page, pagesize)
 
 	scenes, total, err := uc.repo.SearchScene(ctx, keyword, page, pagesize)
 	if err != nil {
+		if errors.Is(err, ErrInvalidArgument) {
+			return nil, 0, ErrInvalidArgument
+		}
 		uc.log.WithContext(ctx).Errorf("sceneUsecase: SearchScene failed: %v", err)
 		return nil, 0, ErrSearchSceneFailed
 	}
 
 	result := make([]*v1.SceneMessage, 0, len(scenes))
 	for _, s := range scenes {
-		result = append(result, &v1.SceneMessage{
-			Sid:       s.SID,
-			Name:      s.Name,
-			Describe:  s.Describe,
-			View:      s.View,
-			Location:  s.Location,
-			Article:   s.Article,
-			CreatedAt: s.CreatedAt.Format(time.RFC3339),
-			UpdatedAt: s.UpdatedAt.Format(time.RFC3339),
-		})
+		result = append(result, toSceneMessage(s))
 	}
 
 	return result, total, nil
@@ -156,6 +149,7 @@ func (uc *SceneUsecase) SearchScene(ctx context.Context, keyword string, page in
 
 // ListScenes 获取场景列表
 func (uc *SceneUsecase) ListScenes(ctx context.Context, page int, pagesize int) ([]*v1.SceneMessage, int, error) {
+	page, pagesize = NormalizePagination(page, pagesize)
 	uc.log.WithContext(ctx).Infof("sceneUsecase: ListScenes: page=%d, pagesize=%d", page, pagesize)
 
 	scenes, total, err := uc.repo.ListScenes(ctx, page, pagesize)
@@ -166,16 +160,7 @@ func (uc *SceneUsecase) ListScenes(ctx context.Context, page int, pagesize int) 
 
 	result := make([]*v1.SceneMessage, 0, len(scenes))
 	for _, s := range scenes {
-		result = append(result, &v1.SceneMessage{
-			Sid:       s.SID,
-			Name:      s.Name,
-			Describe:  s.Describe,
-			View:      s.View,
-			Location:  s.Location,
-			Article:   s.Article,
-			CreatedAt: s.CreatedAt.Format(time.RFC3339),
-			UpdatedAt: s.UpdatedAt.Format(time.RFC3339),
-		})
+		result = append(result, toSceneMessage(s))
 	}
 
 	return result, total, nil
@@ -187,6 +172,9 @@ func (uc *SceneUsecase) GetSceneByID(ctx context.Context, sid string) (*v1.Scene
 
 	scene, err := uc.repo.GetSceneByID(ctx, sid)
 	if err != nil {
+		if errors.Is(err, ErrSceneNotFound) {
+			return nil, ErrSceneNotFound
+		}
 		uc.log.WithContext(ctx).Errorf("sceneUsecase: GetSceneByID failed: %v", err)
 		return nil, ErrDatabaseError
 	}
@@ -195,14 +183,18 @@ func (uc *SceneUsecase) GetSceneByID(ctx context.Context, sid string) (*v1.Scene
 		return nil, ErrSceneNotFound
 	}
 
+	return toSceneMessage(scene), nil
+}
+
+func toSceneMessage(s *Scene) *v1.SceneMessage {
 	return &v1.SceneMessage{
-		Sid:       scene.SID,
-		Name:      scene.Name,
-		Describe:  scene.Describe,
-		View:      scene.View,
-		Location:  scene.Location,
-		Article:   scene.Article,
-		CreatedAt: scene.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: scene.UpdatedAt.Format(time.RFC3339),
-	}, nil
+		Sid:       s.SID,
+		Name:      s.Name,
+		Describe:  s.Describe,
+		View:      s.View,
+		Location:  s.Location,
+		Article:   s.Article,
+		CreatedAt: s.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: s.UpdatedAt.Format(time.RFC3339),
+	}
 }

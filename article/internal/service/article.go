@@ -5,11 +5,9 @@ import (
 	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/metadata"
-	"github.com/go-kratos/kratos/v2/transport/http"
 	pb "github.com/knoci/roaming-world/article/api/article/v1"
 	"github.com/knoci/roaming-world/article/internal/biz"
-	"github.com/knoci/roaming-world/article/internal/pkg"
+	"github.com/knoci/roaming-world/pkg/auth"
 )
 
 func NewArticleService(uc *biz.ArticleUsecase, logger log.Logger) *ArticleService {
@@ -228,27 +226,10 @@ func (s *ArticleService) GetMaxVideoID(ctx context.Context, req *pb.GetMaxVideoI
 	return &pb.GetMaxVideoIDReply{Videoid: int32(maxID)}, nil
 }
 
-// GetJwtClaim 同时兼容 HTTP 和 gRPC：HTTP 从请求头取 token，gRPC 从 metadata 取。
-// 网关会把 Authorization 和 User-Agent 透传到内部服务。
-func GetJwtClaim(ctx context.Context) (*pkg.Claims, error) {
-	var authHeader, ua string
-	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
-		authHeader = req.Header.Get("Authorization")
-		ua = req.Header.Get("User-Agent")
-	} else if md, ok := metadata.FromServerContext(ctx); ok {
-		authHeader = md.Get("authorization")
-		ua = md.Get("user-agent")
-	}
-
-	if authHeader == "" {
-		return nil, biz.ErrUnauthorized
-	}
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return nil, biz.ErrUnauthorized
-	}
-	claims, err := pkg.ParseToken(ua, parts[1])
-	if err != nil {
+// GetJwtClaim 同时兼容 HTTP 和 gRPC：委托给 pkg/auth 从请求头或 metadata 解析标准 HS256 JWT。
+func GetJwtClaim(ctx context.Context) (*auth.Claims, error) {
+	claims, err := auth.ParseClaimsFromContext(ctx, nil)
+	if err != nil || claims == nil || strings.TrimSpace(claims.UID) == "" {
 		return nil, biz.ErrUnauthorized
 	}
 	return claims, nil

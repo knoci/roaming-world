@@ -22,4 +22,6 @@ var (
 	ErrInvalidArgument = errors.BadRequest(v1.ErrorReason_INVALID_ARGUMENT.String(), "invalid argument")
 	// ErrUnauthorized 未授权访问
 	ErrUnauthorized = errors.Unauthorized(v1.ErrorReason_UNAUTHORIZED.String(), "unauthorized")
+	// ErrForbidden 禁止访问
+	ErrForbidden = errors.Forbidden("FORBIDDEN", "forbidden")
 )

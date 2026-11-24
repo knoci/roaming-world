@@ -2,15 +2,13 @@ package service
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/metadata"
-	"github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/knoci/roaming-world/pkg/auth"
 	pb "github.com/knoci/roaming-world/plan/api/plan/v1"
 	"github.com/knoci/roaming-world/plan/internal/biz"
-	"github.com/knoci/roaming-world/plan/internal/pkg"
 )
 
 type PlanService struct {
@@ -21,6 +19,14 @@ type PlanService struct {
 
 func NewPlanService(uc *biz.PlanUsecase, logger log.Logger) *PlanService {
 	return &PlanService{uc: uc, log: log.NewHelper(logger)}
+}
+
+// ReadyCheck verifies underlying PostgreSQL connectivity for /readyz probes.
+func (s *PlanService) ReadyCheck(ctx context.Context) error {
+	if s == nil || s.uc == nil {
+		return errors.New("plan service is not initialized")
+	}
+	return s.uc.Ping(ctx)
 }
 
 func (s *PlanService) CreatePlan(ctx context.Context, req *pb.CreatePlanRequest) (*pb.CreatePlanReply, error) {
@@ -48,8 +54,12 @@ func (s *PlanService) UpdatePlan(ctx context.Context, req *pb.UpdatePlanRequest)
 }
 
 func (s *PlanService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb.GetPlanReply, error) {
+	claims, err := getOptionalJwtClaim(ctx)
+	if err != nil {
+		return nil, biz.ErrUnauthorized
+	}
 	uid := ""
-	if claims, err := getJwtClaim(ctx); err == nil {
+	if claims != nil {
 		uid = claims.UID
 	}
 	plan, err := s.uc.Get(ctx, req.Id, uid)
@@ -60,8 +70,12 @@ func (s *PlanService) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb.
 }
 
 func (s *PlanService) ListPlans(ctx context.Context, req *pb.ListPlansRequest) (*pb.ListPlansReply, error) {
+	claims, err := getOptionalJwtClaim(ctx)
+	if err != nil {
+		return nil, biz.ErrUnauthorized
+	}
 	uid := ""
-	if claims, err := getJwtClaim(ctx); err == nil {
+	if claims != nil {
 		uid = claims.UID
 	}
 	plans, total, err := s.uc.List(ctx, uid, req.Scope, int(req.Page), int(req.Limit), req.SummaryOnly)
@@ -121,23 +135,27 @@ func (s *PlanService) DeletePlan(ctx context.Context, req *pb.DeletePlanRequest)
 	return &pb.DeletePlanReply{Status: "deleted"}, nil
 }
 
-func getJwtClaim(ctx context.Context) (*pkg.Claims, error) {
-	var authHeader, ua string
-	if req, ok := http.RequestFromServerContext(ctx); ok && req != nil {
-		authHeader = req.Header.Get("Authorization")
-		ua = req.Header.Get("User-Agent")
-	} else if md, ok := metadata.FromServerContext(ctx); ok {
-		authHeader = md.Get("authorization")
-		ua = md.Get("user-agent")
+func getOptionalJwtClaim(ctx context.Context) (*auth.Claims, error) {
+	token, present := auth.ExtractBearerToken(ctx)
+	if !present {
+		return nil, nil
 	}
-	if authHeader == "" {
+	if token == "" {
 		return nil, biz.ErrUnauthorized
 	}
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 || parts[0] != "Bearer" {
+	claims, err := auth.ParseClaimsFromContext(ctx, nil)
+	if err != nil {
 		return nil, biz.ErrUnauthorized
 	}
-	return pkg.ParseToken(ua, parts[1])
+	return claims, nil
+}
+
+func getJwtClaim(ctx context.Context) (*auth.Claims, error) {
+	claims, err := auth.ParseClaimsFromContext(ctx, nil)
+	if err != nil {
+		return nil, biz.ErrUnauthorized
+	}
+	return claims, nil
 }
 
 func toMessage(plan *biz.Plan) *pb.PlanMessage {

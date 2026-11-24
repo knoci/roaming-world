@@ -32,7 +32,7 @@ type foodQueryTrace struct {
 
 func (l *foodQueryTrace) Trace(_ context.Context, _ time.Time, query func() (string, int64), _ error) {
 	sql, rows := query()
-	if strings.Contains(sql, "ORDER BY random()") {
+	if strings.Contains(sql, "ORDER BY fid") && strings.Contains(sql, "LIMIT 1") {
 		l.randomRows = rows
 	}
 }

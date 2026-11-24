@@ -40,8 +40,6 @@ replicas:
     count: 1
   - name: meilisearch
     count: 1
-  - name: etcd
-    count: 1
 
 patches:
   # 本地镜像用 IfNotPresent，避免 minikube 去 Docker Hub 拉 latest。

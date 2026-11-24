@@ -28,6 +28,12 @@ var (
 	// ErrReportNotFound 举报不存在
 	ErrReportNotFound = errors.New(404, "REPORT_NOT_FOUND", "举报不存在")
 
+	// ErrReportAlreadyResolved 举报已处理
+	ErrReportAlreadyResolved = errors.New(409, "REPORT_ALREADY_RESOLVED", "举报已处理")
+
 	// ErrParentCommentNotFound 父评论不存在
 	ErrParentCommentNotFound = errors.New(404, "PARENT_COMMENT_NOT_FOUND", "回复的评论不存在")
+
+	// ErrArticleNotFound 文章不存在或未发布
+	ErrArticleNotFound = errors.New(404, "ARTICLE_NOT_FOUND", "文章不存在")
 )

@@ -1,16 +1,17 @@
-# Local development config imported into Nacos (Data ID: roaming-world.yaml)
+# Local development config template rendered and imported into Nacos (Data ID: roaming-world.yaml)
+# Placeholders (__POSTGRES_PASSWORD__, __REDIS_PASSWORD__, __MEILI_MASTER_KEY__) are substituted by nacos-init.
 postgre:
   host: postgres
   port: 5432
   user: roaming
-  password: roaming
+  password: "__POSTGRES_PASSWORD__"
   dbname: roaming_world
   sslmode: disable
 
 redis:
   host: redis
   port: 6379
-  password: ""
+  password: "__REDIS_PASSWORD__"
   db: 0
 
 kafka:
@@ -18,17 +19,14 @@ kafka:
   topic:
     comment-event: comment-events
 
-etcd:
-  endpoints: etcd:2379
-  dialTimeout: 5
-
 jwt:
-  # nanoseconds: 120h
-  expiration: 432000000000000
+  # nanoseconds: 30m access token, 7d refresh token
+  expiration: 1800000000000
+  refresh_expiration: 604800000000000
 
 meili:
   host: http://meilisearch:7700
-  key: roaming-meili-master-key
+  key: "__MEILI_MASTER_KEY__"
 
 email:
   host: smtp.example.com

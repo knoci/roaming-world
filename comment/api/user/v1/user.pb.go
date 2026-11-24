@@ -171,8 +171,10 @@ func (x *RegisterReply) GetAvatar() string {
 
 // 发送验证码请求
 type SendVerificationCodeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Email string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	// register (默认)、reset_password 或 change_email。更换邮箱需要登录。
+	Purpose       string `protobuf:"bytes,2,opt,name=purpose,proto3" json:"purpose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -214,10 +216,16 @@ func (x *SendVerificationCodeRequest) GetEmail() string {
 	return ""
 }
 
+func (x *SendVerificationCodeRequest) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
+	}
+	return ""
+}
+
 // 发送验证码响应
 type SendVerificationCodeReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -250,13 +258,6 @@ func (x *SendVerificationCodeReply) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SendVerificationCodeReply.ProtoReflect.Descriptor instead.
 func (*SendVerificationCodeReply) Descriptor() ([]byte, []int) {
 	return file_user_v1_user_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *SendVerificationCodeReply) GetCode() string {
-	if x != nil {
-		return x.Code
-	}
-	return ""
 }
 
 // 登录请求
@@ -1011,9 +1012,11 @@ func (x *ConfirmUserReply) GetStatus() string {
 
 // 邮箱确认请求
 type ConfirmEmailRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Email string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Code  string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	// 与发码时的用途一致。此接口只检查验证码，最终业务操作负责消费。
+	Purpose       string `protobuf:"bytes,3,opt,name=purpose,proto3" json:"purpose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1058,6 +1061,13 @@ func (x *ConfirmEmailRequest) GetEmail() string {
 func (x *ConfirmEmailRequest) GetCode() string {
 	if x != nil {
 		return x.Code
+	}
+	return ""
+}
+
+func (x *ConfirmEmailRequest) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
 	}
 	return ""
 }
@@ -2073,23 +2083,23 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\n" +
 	"\x12user/v1/user.proto\x12\auser.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17validate/validate.proto\"\xac\x01\n" +
 	"\x0fRegisterRequest\x12\x1d\n" +
-	"\x04name\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x02\x18\fR\x04name\x12\x1d\n" +
+	"\x04name\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x01\x18\x14R\x04name\x12\x1d\n" +
 	"\x05email\x18\x02 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12%\n" +
-	"\bpassword\x18\x03 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18\x14R\bpassword\x12\x1c\n" +
+	"\bpassword\x18\x03 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18HR\bpassword\x12\x1c\n" +
 	"\x04code\x18\x04 \x01(\tB\b\xfaB\x05r\x03\x98\x01\x06R\x04code\x12\x16\n" +
 	"\x06avatar\x18\x05 \x01(\tR\x06avatar\"c\n" +
 	"\rRegisterReply\x12\x10\n" +
 	"\x03uid\x18\x01 \x01(\tR\x03uid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\x12\x16\n" +
-	"\x06avatar\x18\x04 \x01(\tR\x06avatar\"<\n" +
+	"\x06avatar\x18\x04 \x01(\tR\x06avatar\"V\n" +
 	"\x1bSendVerificationCodeRequest\x12\x1d\n" +
-	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\"/\n" +
-	"\x19SendVerificationCodeReply\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\"T\n" +
+	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12\x18\n" +
+	"\apurpose\x18\x02 \x01(\tR\apurpose\"'\n" +
+	"\x19SendVerificationCodeReplyJ\x04\b\x01\x10\x02R\x04code\"T\n" +
 	"\fLoginRequest\x12\x1d\n" +
 	"\x05email\x18\x01 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12%\n" +
-	"\bpassword\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18\x12R\bpassword\"`\n" +
+	"\bpassword\x18\x02 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18HR\bpassword\"`\n" +
 	"\n" +
 	"LoginReply\x12\x10\n" +
 	"\x03uid\x18\x01 \x01(\tR\x03uid\x12\x12\n" +
@@ -2107,7 +2117,7 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x0fDeleteUserReply\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\"\x81\x01\n" +
 	"\x15UpdateUserInfoRequest\x12$\n" +
-	"\bnew_name\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x02\x18\x14R\anewName\x12$\n" +
+	"\bnew_name\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x01\x18\x14R\anewName\x12$\n" +
 	"\tnew_email\x18\x02 \x01(\tB\a\xfaB\x04r\x02`\x01R\bnewEmail\x12\x1c\n" +
 	"\x04code\x18\x03 \x01(\tB\b\xfaB\x05r\x03\x98\x01\x06R\x04code\"Q\n" +
 	"\x13UpdateUserInfoReply\x12\x10\n" +
@@ -2115,10 +2125,10 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\"\xa0\x01\n" +
 	"\x14ResetPasswordRequest\x12\x1d\n" +
-	"\x04name\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x02\x18\x14R\x04name\x12\x1d\n" +
+	"\x04name\x18\x01 \x01(\tB\t\xfaB\x06r\x04\x10\x01\x18\x14R\x04name\x12\x1d\n" +
 	"\x05email\x18\x02 \x01(\tB\a\xfaB\x04r\x02`\x01R\x05email\x12\x1c\n" +
 	"\x04code\x18\x03 \x01(\tB\b\xfaB\x05r\x03\x98\x01\x06R\x04code\x12,\n" +
-	"\fnew_password\x18\x04 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18\x14R\vnewPassword\",\n" +
+	"\fnew_password\x18\x04 \x01(\tB\t\xfaB\x06r\x04\x10\x06\x18HR\vnewPassword\",\n" +
 	"\x12ResetPasswordReply\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\"\x15\n" +
 	"\x13UploadAvatarRequest\"Q\n" +
@@ -2130,10 +2140,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\"*\n" +
 	"\x10ConfirmUserReply\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status\"?\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\"Y\n" +
 	"\x13ConfirmEmailRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x12\n" +
-	"\x04code\x18\x02 \x01(\tR\x04code\"+\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x18\n" +
+	"\apurpose\x18\x03 \x01(\tR\apurpose\"+\n" +
 	"\x11ConfirmEmailReply\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\"%\n" +
 	"\x11FollowUserRequest\x12\x10\n" +
@@ -2195,10 +2206,10 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"actor_name\x18\x04 \x01(\tR\tactorName\x12\x18\n" +
 	"\apayload\x18\x05 \x01(\tR\apayload\"1\n" +
 	"\x17CreateNotificationReply\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status2\xba\x0e\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status2\xbd\x0e\n" +
 	"\x04User\x12Z\n" +
-	"\bRegister\x12\x18.user.v1.RegisterRequest\x1a\x16.user.v1.RegisterReply\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/user/register\x12y\n" +
-	"\x14SendVerificationCode\x12$.user.v1.SendVerificationCodeRequest\x1a\".user.v1.SendVerificationCodeReply\"\x17\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/user/verify\x12N\n" +
+	"\bRegister\x12\x18.user.v1.RegisterRequest\x1a\x16.user.v1.RegisterReply\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/user/register\x12|\n" +
+	"\x14SendVerificationCode\x12$.user.v1.SendVerificationCodeRequest\x1a\".user.v1.SendVerificationCodeReply\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/user/verify\x12N\n" +
 	"\x05Login\x12\x15.user.v1.LoginRequest\x1a\x13.user.v1.LoginReply\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/user/login\x12S\n" +
 	"\bFindUser\x12\x18.user.v1.FindUserRequest\x1a\x16.user.v1.FindUserReply\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/user/find\x12T\n" +
 	"\n" +

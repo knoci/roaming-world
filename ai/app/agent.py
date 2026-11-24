@@ -53,7 +53,7 @@ def _summary(query: str, rows: list[dict], kind: str) -> str:
     lines = [f"{kind}检索结果："]
     for row in rows[:3]:
         name = row.get("name") or row.get("title") or ""
-        desc = row.get("describe") or row.get("content") or ""
+        desc = row.get("describe") or row.get("excerpt") or row.get("content") or ""
         desc = desc.replace("\n", " ")[:100]
         lines.append(f"- {name}：{desc}")
     return "\n".join(lines)
@@ -75,7 +75,8 @@ def run_agent(query: str, mcp) -> AgentResult:
             rows = mcp.call_tool(tool, {"query": city, "limit": 8})
         except Exception as exc:
             calls.append({"tool": tool, "ok": False, "error": str(exc)})
-            rows = []
+            groups[kind] = []
+            continue
         if isinstance(rows, dict):
             rows = [rows]
         if not isinstance(rows, list):

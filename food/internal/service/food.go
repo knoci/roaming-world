@@ -20,8 +20,8 @@ func NewFoodService(food *biz.FoodUsecase, logger log.Logger) *FoodService {
 func (s *FoodService) CreateFood(ctx context.Context, req *pb.CreateFoodRequest) (*pb.CreateFoodReply, error) {
 	s.log.WithContext(ctx).Infof("foodService: CreateFood: %v", req.Name)
 
-	if !isAdmin(ctx) {
-		return nil, biz.ErrUnauthorized
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
 	}
 
 	food, err := s.food.CreateFood(ctx, req)

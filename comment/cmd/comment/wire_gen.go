@@ -32,7 +32,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	commentUsecase := biz.NewCommentUsecase(commentRepo, logger)
 	commentService := service.NewCommentService(commentUsecase, logger)
 	grpcServer := server.NewGRPCServer(confServer, commentService, logger)
-	httpServer := server.NewHTTPServer(confServer, commentService, logger)
+	httpServer := server.NewHTTPServer(confServer, commentService, dataData, logger)
 	app := newApp(logger, grpcServer, httpServer)
 	return app, func() {
 		cleanup()

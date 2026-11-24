@@ -11,7 +11,7 @@ import (
 )
 
 func (s *UserService) FollowUser(ctx context.Context, req *pb.FollowUserRequest) (*pb.FollowUserReply, error) {
-	claims, err := GetJwtClaim(ctx)
+	claims, err := s.getJwtClaim(ctx)
 	if err != nil {
 		return nil, biz.ErrUnauthorized
 	}
@@ -22,7 +22,7 @@ func (s *UserService) FollowUser(ctx context.Context, req *pb.FollowUserRequest)
 }
 
 func (s *UserService) UnfollowUser(ctx context.Context, req *pb.UnfollowUserRequest) (*pb.UnfollowUserReply, error) {
-	claims, err := GetJwtClaim(ctx)
+	claims, err := s.getJwtClaim(ctx)
 	if err != nil {
 		return nil, biz.ErrUnauthorized
 	}
@@ -82,7 +82,7 @@ func hasInternalRPCToken(ctx context.Context, envName string) bool {
 }
 
 func (s *UserService) GetNotifications(ctx context.Context, req *pb.GetNotificationsRequest) (*pb.GetNotificationsReply, error) {
-	claims, err := GetJwtClaim(ctx)
+	claims, err := s.getJwtClaim(ctx)
 	if err != nil {
 		return nil, biz.ErrUnauthorized
 	}
@@ -101,7 +101,7 @@ func (s *UserService) GetNotifications(ctx context.Context, req *pb.GetNotificat
 }
 
 func (s *UserService) MarkNotificationRead(ctx context.Context, req *pb.MarkNotificationReadRequest) (*pb.MarkNotificationReadReply, error) {
-	claims, err := GetJwtClaim(ctx)
+	claims, err := s.getJwtClaim(ctx)
 	if err != nil {
 		return nil, biz.ErrUnauthorized
 	}

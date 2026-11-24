@@ -1,4 +1,4 @@
-# 一次性：把 k8s/roaming-world.yaml.example 导入 Nacos（embedded 模式）。
+# 一次性：渲染并把 k8s/roaming-world.yaml.example 导入 Nacos（embedded 模式）。
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -12,31 +12,88 @@ spec:
       containers:
         - name: import
           image: curlimages/curl:8.8.0
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: roaming-world-secrets
+                  key: postgre-password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: roaming-world-secrets
+                  key: redis-password
+                  optional: true
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: roaming-world-secrets
+                  key: meili-master-key
           command:
             - sh
             - -c
             - |
               set -eu
+              awk '
+              function yaml_escape(s,    out, i, c) {
+                out = ""
+                for (i = 1; i <= length(s); i++) {
+                  c = substr(s, i, 1)
+                  if (c == "\\" || c == "\"") out = out "\\" c
+                  else out = out c
+                }
+                return out
+              }
+              function replace_all(str, pat, rep,    idx, res, plen) {
+                res = ""
+                plen = length(pat)
+                while ((idx = index(str, pat)) > 0) {
+                  res = res substr(str, 1, idx - 1) rep
+                  str = substr(str, idx + plen)
+                }
+                return res str
+              }
+              BEGIN {
+                pg = yaml_escape(ENVIRON["POSTGRES_PASSWORD"])
+                rd = yaml_escape(ENVIRON["REDIS_PASSWORD"])
+                mk = yaml_escape(ENVIRON["MEILI_MASTER_KEY"])
+              }
+              {
+                line = $0
+                line = replace_all(line, "__POSTGRES_PASSWORD__", pg)
+                line = replace_all(line, "__REDIS_PASSWORD__", rd)
+                line = replace_all(line, "__MEILI_MASTER_KEY__", mk)
+                print line
+              }
+              ' /config/roaming-world.yaml > /tmp/roaming-world.yaml
+
               until curl -fsS "http://nacos-service:8848/nacos/actuator/health" >/dev/null 2>&1; do
                 echo "waiting for nacos..."
                 sleep 2
               done
+              imported=0
               for i in 1 2 3 4 5; do
                 if curl -fsS -X POST "http://nacos-service:8848/nacos/v1/cs/configs" \
                   -H "Content-Type: application/x-www-form-urlencoded" \
                   -d "dataId=roaming-world.yaml" \
                   -d "group=DEFAULT_GROUP" \
                   -d "type=yaml" \
-                  --data-urlencode "content@/config/roaming-world.yaml" \
-                  -o /tmp/import.out; then
+                  --data-urlencode "content@/tmp/roaming-world.yaml" \
+                  -o /tmp/import.out && [ "$(tr -d '\r\n' < /tmp/import.out)" = "true" ]; then
                   echo "import response: $(cat /tmp/import.out)"
+                  imported=1
                   break
                 fi
-                echo "import failed, retry..."
+                echo "import failed (attempt $i/5), retry..."
                 sleep 2
               done
+              if [ "$imported" -ne 1 ]; then
+                echo "nacos config import failed after 5 attempts" >&2
+                exit 1
+              fi
               curl -fsS "http://nacos-service:8848/nacos/v1/cs/configs?dataId=roaming-world.yaml&group=DEFAULT_GROUP&tenant=" -o /tmp/imported.yaml
               test -s /tmp/imported.yaml
+              rm -f /tmp/roaming-world.yaml /tmp/import.out /tmp/imported.yaml
               echo "nacos config imported"
           volumeMounts:
             - name: config

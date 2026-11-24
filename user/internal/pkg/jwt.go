@@ -1,174 +1,55 @@
 package pkg
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"errors"
-	"io"
-	"os"
 	"time"
 
-	jwt "github.com/golang-jwt/jwt/v5"
-	nacos "github.com/knoci/roaming-world/user/internal/conf/nacos"
+	"github.com/knoci/roaming-world/pkg/auth"
 )
 
+const (
+	DefaultAccessTTL  = auth.DefaultAccessTTL
+	DefaultRefreshTTL = auth.DefaultRefreshTTL
+)
+
+// Claims aliases the shared standard JWT claims from pkg/auth.
+type Claims = auth.Claims
+
+// ValidateJWTSigningKey validates JWT_SIGNING_KEY at startup.
 func ValidateJWTSigningKey() error {
-	_, err := jwtSigningKey()
-	return err
+	return auth.ValidateJWTSigningKey()
 }
 
-func jwtSigningKey() ([]byte, error) {
-	key, err := base64.StdEncoding.DecodeString(os.Getenv("JWT_SIGNING_KEY"))
-	if err != nil || len(key) < 32 {
-		return nil, errors.New("JWT_SIGNING_KEY must be standard base64 for at least 32 bytes")
-	}
-	return key, nil
+// GenerateAccessToken signs a standard short-lived HS256 JWT access token with jti and token version.
+func GenerateAccessToken(uid, name, email, avatar, role string, tokenVersion int64, ttl time.Duration) (token string, jti string, err error) {
+	return auth.GenerateAccessToken(uid, name, email, avatar, role, tokenVersion, ttl)
 }
 
-// Claims 包含自定义的 JWT 声明
-type Claims struct {
-	UID    string `json:"uid"`
-	Name   string `json:"name"`
-	Email  string `json:"email"`
-	Avatar string `json:"avatar"`
-	Role   string `json:"role"`
-	jwt.RegisteredClaims
+// GenerateToken signs a standard short-lived HS256 JWT access token using DefaultAccessTTL.
+func GenerateToken(uid, name, email, avatar, role string, tokenVersion int64) (token string, jti string, err error) {
+	return auth.GenerateAccessToken(uid, name, email, avatar, role, tokenVersion, auth.DefaultAccessTTL)
 }
 
-// GenerateToken 生成加密的 JWT token，使用UA作为加密密钥
-func GenerateToken(ua, uid, name, email, avatar, role string) (string, error) {
-	signingKey, err := jwtSigningKey()
-	if err != nil {
-		return "", err
-	}
-
-	expiration := time.Duration(nacos.GetConfigInt(nacos.GetConfig(), "jwt.expiration"))
-	if expiration == 0 {
-		expiration = time.Hour * 120 // 默认120小时
-	}
-
-	claims := &Claims{
-		UID:    uid,
-		Name:   name,
-		Email:  email,
-		Avatar: avatar,
-		Role:   role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	// 生成原始JWT
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(signingKey)
-	if err != nil {
-		return "", err
-	}
-
-	// 使用UA作为密钥进行二次加密
-	encryptedToken, err := encryptToken(tokenString, ua)
-	if err != nil {
-		return "", err
-	}
-
-	return encryptedToken, nil
+// ParseAccessToken verifies a standard HS256 JWT access token.
+func ParseAccessToken(tokenString string) (*Claims, error) {
+	return auth.ParseAccessToken(tokenString)
 }
 
-// ParseToken 解析加密的 JWT token，使用UA作为解密密钥
-func ParseToken(ua, encryptedToken string) (*Claims, error) {
-	signingKey, err := jwtSigningKey()
-	if err != nil {
-		return nil, err
-	}
-
-	// 使用UA作为密钥解密令牌
-	tokenString, err := decryptToken(encryptedToken, ua)
-	if err != nil {
-		return nil, err
-	}
-
-	// 然后解析JWT
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(_ *jwt.Token) (interface{}, error) {
-		return signingKey, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, jwt.ErrInvalidKey
+// ParseToken verifies a standard HS256 JWT access token.
+func ParseToken(tokenString string) (*Claims, error) {
+	return auth.ParseAccessToken(tokenString)
 }
 
-// 加密函数 (AES-GCM)，使用UA作为密钥
-func encryptToken(tokenString, ua string) (string, error) {
-	// 从UA生成固定长度的密钥
-	key := deriveKeyFromUA(ua)
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, []byte(tokenString), nil)
-	return base64.URLEncoding.EncodeToString(ciphertext), nil
+// GenerateRefreshToken generates a cryptographically random opaque refresh token.
+func GenerateRefreshToken() (string, error) {
+	return auth.GenerateRefreshToken()
 }
 
-// 解密函数，使用UA作为密钥
-func decryptToken(encryptedToken, ua string) (string, error) {
-	// 从UA生成固定长度的密钥
-	key := deriveKeyFromUA(ua)
-
-	ciphertext, err := base64.URLEncoding.DecodeString(encryptedToken)
-	if err != nil {
-		return "", err
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return "", errors.New("ciphertext too short")
-	}
-
-	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
+// HashRefreshToken computes the SHA-256 hex digest of a refresh token.
+func HashRefreshToken(token string) string {
+	return auth.HashRefreshToken(token)
 }
 
-// 从UA生成固定长度的密钥(32字节)
-func deriveKeyFromUA(ua string) []byte {
-	hash := sha256.New()
-	hash.Write([]byte(ua))
-	return hash.Sum(nil)
+// ResetKeyCacheForTest clears the cached signing key between unit tests.
+func ResetKeyCacheForTest() {
+	auth.ResetKeyCacheForTest()
 }

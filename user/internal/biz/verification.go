@@ -45,6 +45,7 @@ func (target VerificationTarget) validate() error {
 }
 
 func (uc *UserUsecase) SendVerificationCode(ctx context.Context, target VerificationTarget) error {
+	target.Email = normalizeEmail(target.Email)
 	if err := target.validate(); err != nil {
 		return err
 	}
@@ -74,10 +75,12 @@ func (uc *UserUsecase) SendVerificationCode(ctx context.Context, target Verifica
 }
 
 func (uc *UserUsecase) ConfirmEmail(ctx context.Context, target VerificationTarget, code string) error {
+	target.Email = normalizeEmail(target.Email)
 	return uc.checkVerificationCode(ctx, target, code, false)
 }
 
 func (uc *UserUsecase) checkVerificationCode(ctx context.Context, target VerificationTarget, code string, consume bool) error {
+	target.Email = normalizeEmail(target.Email)
 	if err := target.validate(); err != nil {
 		return err
 	}

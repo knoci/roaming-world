@@ -22,6 +22,8 @@ const (
 	User_Register_FullMethodName             = "/user.v1.User/Register"
 	User_SendVerificationCode_FullMethodName = "/user.v1.User/SendVerificationCode"
 	User_Login_FullMethodName                = "/user.v1.User/Login"
+	User_RefreshToken_FullMethodName         = "/user.v1.User/RefreshToken"
+	User_Logout_FullMethodName               = "/user.v1.User/Logout"
 	User_FindUser_FullMethodName             = "/user.v1.User/FindUser"
 	User_DeleteUser_FullMethodName           = "/user.v1.User/DeleteUser"
 	User_UpdateUserInfo_FullMethodName       = "/user.v1.User/UpdateUserInfo"
@@ -51,6 +53,10 @@ type UserClient interface {
 	SendVerificationCode(ctx context.Context, in *SendVerificationCodeRequest, opts ...grpc.CallOption) (*SendVerificationCodeReply, error)
 	// 用户登录
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginReply, error)
+	// 刷新令牌
+	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenReply, error)
+	// 退出登录
+	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutReply, error)
 	// 查找用户
 	FindUser(ctx context.Context, in *FindUserRequest, opts ...grpc.CallOption) (*FindUserReply, error)
 	// 删除用户
@@ -115,6 +121,26 @@ func (c *userClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.C
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoginReply)
 	err := c.cc.Invoke(ctx, User_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userClient) RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshTokenReply)
+	err := c.cc.Invoke(ctx, User_RefreshToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LogoutReply)
+	err := c.cc.Invoke(ctx, User_Logout_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -283,6 +309,10 @@ type UserServer interface {
 	SendVerificationCode(context.Context, *SendVerificationCodeRequest) (*SendVerificationCodeReply, error)
 	// 用户登录
 	Login(context.Context, *LoginRequest) (*LoginReply, error)
+	// 刷新令牌
+	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenReply, error)
+	// 退出登录
+	Logout(context.Context, *LogoutRequest) (*LogoutReply, error)
 	// 查找用户
 	FindUser(context.Context, *FindUserRequest) (*FindUserReply, error)
 	// 删除用户
@@ -331,6 +361,12 @@ func (UnimplementedUserServer) SendVerificationCode(context.Context, *SendVerifi
 }
 func (UnimplementedUserServer) Login(context.Context, *LoginRequest) (*LoginReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedUserServer) RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefreshToken not implemented")
+}
+func (UnimplementedUserServer) Logout(context.Context, *LogoutRequest) (*LogoutReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
 }
 func (UnimplementedUserServer) FindUser(context.Context, *FindUserRequest) (*FindUserReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FindUser not implemented")
@@ -448,6 +484,42 @@ func _User_Login_Handler(srv interface{}, ctx context.Context, dec func(interfac
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _User_RefreshToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServer).RefreshToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: User_RefreshToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServer).RefreshToken(ctx, req.(*RefreshTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _User_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LogoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServer).Logout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: User_Logout_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServer).Logout(ctx, req.(*LogoutRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -740,6 +812,14 @@ var User_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _User_Login_Handler,
+		},
+		{
+			MethodName: "RefreshToken",
+			Handler:    _User_RefreshToken_Handler,
+		},
+		{
+			MethodName: "Logout",
+			Handler:    _User_Logout_Handler,
 		},
 		{
 			MethodName: "FindUser",

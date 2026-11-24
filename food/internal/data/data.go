@@ -2,19 +2,25 @@ package data
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 	"github.com/knoci/roaming-world/food/internal/conf"
 	nacos "github.com/knoci/roaming-world/food/internal/conf/nacos"
-	"gorm.io/driver/postgres"
+	"github.com/knoci/roaming-world/pkg/dbx"
+	"github.com/knoci/roaming-world/pkg/health"
+	"github.com/knoci/roaming-world/pkg/nacosx"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewFoodRepo)
+var ProviderSet = wire.NewSet(
+	NewData,
+	NewHealthChecks,
+	NewFoodRepo,
+)
 
 // Data .
 type Data struct {
@@ -24,58 +30,87 @@ type Data struct {
 
 // NewData .
 func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
-	log := log.NewHelper(logger)
+	helper := log.NewHelper(logger)
 
 	cfg := nacos.GetConfig()
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
+	dsn := dbx.BuildPostgresDSN(
 		nacos.GetConfigString(cfg, "postgre.host"),
 		nacos.GetConfigString(cfg, "postgre.user"),
 		nacos.GetConfigString(cfg, "postgre.password"),
 		nacos.GetConfigString(cfg, "postgre.dbname"),
 		nacos.GetConfigInt(cfg, "postgre.port"),
-		nacos.GetConfigString(cfg, "postgre.sslmode"),
+		nacosx.GetStringOrDefault(cfg, "postgre.sslmode", "disable"),
 	)
 
-	// 连接数据库
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	// 连接数据库并配置连接池
+	db, err := dbx.OpenPostgres(dsn, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			NameReplacer: nil,
 		},
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
+	}, dbx.DefaultPoolConfig())
 	if err != nil {
-		log.Errorf("foodData: failed to connect database: %v", err)
+		helper.Errorf("foodData: failed to connect database: %v", err)
 		return nil, nil, err
 	}
 
-	// 自动迁移表结构
-	err = db.AutoMigrate(&Food{})
-	if err != nil {
-		log.Errorf("foodData: failed to auto migrate: %v", err)
-		return nil, nil, err
+	if dbx.ShouldAutoMigrate() {
+		if err = db.AutoMigrate(&Food{}); err != nil {
+			helper.Errorf("foodData: failed to auto migrate: %v", err)
+			return nil, nil, err
+		}
 	}
 
-	d := &Data{db: db, log: log}
+	d := &Data{db: db, log: helper}
 
 	cleanup := func() {
-		log.Info("foodData: closing the data resources")
-		sqlDB, err := d.db.DB()
-		if err != nil {
-			log.Errorf("foodData: failed to get sqlDB: %v", err)
-			return
+		helper.Info("foodData: closing the data resources")
+		if d.db != nil {
+			sqlDB, err := d.db.DB()
+			if err != nil {
+				helper.Errorf("foodData: failed to get sqlDB: %v", err)
+				return
+			}
+			if err := sqlDB.Close(); err != nil {
+				helper.Errorf("foodData: failed to close sqlDB: %v", err)
+			}
 		}
-		sqlDB.Close()
 	}
 
 	return d, cleanup, nil
 }
 
+// NewHealthChecks 返回美食服务就绪探针所需的依赖检查项。
+func NewHealthChecks(d *Data) []health.Check {
+	return []health.Check{
+		{
+			Name: "postgres",
+			Fn: func(ctx context.Context) error {
+				if d == nil || d.db == nil {
+					return errors.New("postgres not initialized")
+				}
+				sqlDB, err := d.db.DB()
+				if err != nil {
+					return err
+				}
+				return sqlDB.PingContext(ctx)
+			},
+		},
+	}
+}
+
 func (d *Data) LogSQLAudit(ctx context.Context, key string, sql string, params []interface{}) error {
+	if d == nil || d.log == nil {
+		return nil
+	}
 	d.log.WithContext(ctx).Debugf("sql audit: %s", sql)
 	return nil
 }
 
 func (d *Data) LogError(ctx context.Context, key string, errmsg string, errop string, errdata any) error {
+	if d == nil || d.log == nil {
+		return nil
+	}
 	d.log.WithContext(ctx).Errorf("module=%s op=%s error=%s data=%v", key, errop, errmsg, errdata)
 	return nil
 }

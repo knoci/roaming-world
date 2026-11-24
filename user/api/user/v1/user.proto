@@ -20,7 +20,8 @@ service User {
   // 发送验证码
   rpc SendVerificationCode(SendVerificationCodeRequest) returns (SendVerificationCodeReply) {
     option (google.api.http) = {
-      get: "/v1/user/verify"
+      post: "/v1/user/verify"
+      body: "*"
     };
   }
 
@@ -28,6 +29,22 @@ service User {
   rpc Login(LoginRequest) returns (LoginReply) {
     option (google.api.http) = {
       post: "/v1/user/login"
+      body: "*"
+    };
+  }
+
+  // 刷新令牌
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenReply) {
+    option (google.api.http) = {
+      post: "/v1/user/refresh"
+      body: "*"
+    };
+  }
+
+  // 退出登录
+  rpc Logout(LogoutRequest) returns (LogoutReply) {
+    option (google.api.http) = {
+      post: "/v1/user/logout"
       body: "*"
     };
   }
@@ -137,9 +154,9 @@ service User {
 
 // 注册请求
 message RegisterRequest {
-  string name = 1 [(validate.rules).string = {min_len: 2, max_len: 12}];
+  string name = 1 [(validate.rules).string = {min_len: 1, max_len: 20}];
   string email = 2 [(validate.rules).string.email = true];
-  string password = 3 [(validate.rules).string = {min_len: 6, max_len: 20}];
+  string password = 3 [(validate.rules).string = {min_len: 6, max_len: 72}];
   string code = 4 [(validate.rules).string.len = 6];
   string avatar = 5;
 }
@@ -150,6 +167,7 @@ message RegisterReply {
   string name = 2;
   string token = 3;
   string avatar = 4;
+  string refresh_token = 5;
 }
 
 // 发送验证码请求
@@ -168,7 +186,7 @@ message SendVerificationCodeReply {
 // 登录请求
 message LoginRequest {
   string email = 1 [(validate.rules).string.email = true];
-  string password = 2 [(validate.rules).string = {min_len: 6, max_len: 18}];
+  string password = 2 [(validate.rules).string = {min_len: 6, max_len: 72}];
 }
 
 // 登录响应
@@ -177,6 +195,28 @@ message LoginReply {
   string name = 2;
   string token = 3;
   string avatar = 4;
+  string refresh_token = 5;
+}
+
+// 刷新令牌请求
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+// 刷新令牌响应
+message RefreshTokenReply {
+  string token = 1;
+  string refresh_token = 2;
+}
+
+// 退出登录请求
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+// 退出登录响应
+message LogoutReply {
+  string status = 1;
 }
 
 
@@ -203,7 +243,7 @@ message DeleteUserReply {
 
 // 更新用户信息请求
 message UpdateUserInfoRequest {
-  string new_name = 1 [(validate.rules).string = {min_len: 2, max_len: 20}];
+  string new_name = 1 [(validate.rules).string = {min_len: 1, max_len: 20}];
   string new_email = 2 [(validate.rules).string.email = true];
   string code = 3 [(validate.rules).string.len = 6];
 }
@@ -217,10 +257,10 @@ message UpdateUserInfoReply {
 
 // 重置密码请求
 message ResetPasswordRequest {
-  string name = 1 [(validate.rules).string = {min_len: 2, max_len: 20}];
+  string name = 1 [(validate.rules).string = {min_len: 1, max_len: 20}];
   string email = 2 [(validate.rules).string.email = true];
   string code = 3 [(validate.rules).string.len = 6];
-  string new_password = 4 [(validate.rules).string = {min_len: 6, max_len: 20}];
+  string new_password = 4 [(validate.rules).string = {min_len: 6, max_len: 72}];
 }
 
 // 重置密码响应

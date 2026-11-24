@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 )
 
@@ -60,6 +61,7 @@ type CommentRepo interface {
 	Like(ctx context.Context, uid, cid string) error
 	Unlike(ctx context.Context, uid, cid string) error
 	FindComment(ctx context.Context, cid string) (*Comment, error)
+	IsArticlePublished(ctx context.Context, aid string) (bool, error)
 	GetCommentList(ctx context.Context, aid string, page, limit int) ([]*Comment, int64, error)
 	GetReplyList(ctx context.Context, cid string, page, limit int) ([]*Comment, int64, error)
 	GetCommentListWithReplies(ctx context.Context, aid string, page, limit int) ([]*Comment, int64, error)
@@ -82,18 +84,47 @@ func NewCommentUsecase(repo CommentRepo, logger log.Logger) *CommentUsecase {
 
 // CreateComment 创建评论
 func (uc *CommentUsecase) CreateComment(ctx context.Context, uid, target, content, replycid, replyname string) (*Comment, error) {
+	// 检查目标文章是否已发布
+	published, err := uc.repo.IsArticlePublished(ctx, target)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("commentUsecase: check article published failed: %v", err)
+		return nil, ErrInternalError
+	}
+	if !published {
+		return nil, ErrArticleNotFound
+	}
+
 	// 获取用户信息
 	user, err := uc.repo.FindUser(ctx, uid)
 	if err != nil {
-		return nil, errors.New("用户不存在")
+		if errors.Is(err, ErrUserNotFound) || kerrors.IsNotFound(err) {
+			return nil, ErrUserNotFound
+		}
+		uc.log.WithContext(ctx).Errorf("commentUsecase: find user failed: %v", err)
+		return nil, ErrInternalError
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
 	}
 
 	// 回复：父评论必须存在、未删除，且属于同一目标；只保留两级。
+	// 一级评论（replycid 为空）强制清空 replyname，防止客户端伪造。
+	replycid = strings.TrimSpace(replycid)
 	notifyUID := ""
-	if replycid != "" {
+	if replycid == "" {
+		replycid = ""
+		replyname = ""
+	} else {
 		parentComment, err := uc.repo.FindComment(ctx, replycid)
-		if err != nil || parentComment.Status != "active" || parentComment.Target != target {
-			return nil, errors.New("回复的评论不存在")
+		if err != nil {
+			if errors.Is(err, ErrCommentNotFound) || errors.Is(err, ErrParentCommentNotFound) || kerrors.IsNotFound(err) {
+				return nil, ErrParentCommentNotFound
+			}
+			uc.log.WithContext(ctx).Errorf("commentUsecase: find parent comment failed: %v", err)
+			return nil, ErrInternalError
+		}
+		if parentComment == nil || parentComment.Status != "active" || parentComment.Target != target {
+			return nil, ErrParentCommentNotFound
 		}
 		replyname = parentComment.Name
 		notifyUID = parentComment.UID
@@ -134,7 +165,13 @@ func (uc *CommentUsecase) DeleteComment(ctx context.Context, uid, cid string) er
 // LikeComment 点赞评论
 func (uc *CommentUsecase) LikeComment(ctx context.Context, uid, cid string) error {
 	comment, err := uc.repo.FindComment(ctx, cid)
-	if err != nil || comment.Status != "active" {
+	if err != nil {
+		if errors.Is(err, ErrCommentNotFound) || kerrors.IsNotFound(err) {
+			return ErrCommentNotFound
+		}
+		return ErrInternalError
+	}
+	if comment == nil || comment.Status != "active" {
 		return ErrCommentNotFound
 	}
 	return uc.repo.Like(ctx, uid, cid)
@@ -142,7 +179,13 @@ func (uc *CommentUsecase) LikeComment(ctx context.Context, uid, cid string) erro
 
 func (uc *CommentUsecase) UnlikeComment(ctx context.Context, uid, cid string) error {
 	comment, err := uc.repo.FindComment(ctx, cid)
-	if err != nil || comment.Status != "active" {
+	if err != nil {
+		if errors.Is(err, ErrCommentNotFound) || kerrors.IsNotFound(err) {
+			return ErrCommentNotFound
+		}
+		return ErrInternalError
+	}
+	if comment == nil || comment.Status != "active" {
 		return ErrCommentNotFound
 	}
 	return uc.repo.Unlike(ctx, uid, cid)
@@ -150,6 +193,14 @@ func (uc *CommentUsecase) UnlikeComment(ctx context.Context, uid, cid string) er
 
 // GetCommentList 获取一级评论列表
 func (uc *CommentUsecase) GetCommentList(ctx context.Context, aid string, page, limit int) ([]*Comment, int64, error) {
+	published, err := uc.repo.IsArticlePublished(ctx, aid)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("commentUsecase: check article published failed: %v", err)
+		return nil, 0, ErrInternalError
+	}
+	if !published {
+		return []*Comment{}, 0, nil
+	}
 	page, limit = normalizePage(page, limit)
 	return uc.repo.GetCommentList(ctx, aid, page, limit)
 }
@@ -162,6 +213,14 @@ func (uc *CommentUsecase) GetReplyList(ctx context.Context, cid string, page, li
 
 // GetCommentListWithReplies 获取一级评论列表及其前两条二级评论
 func (uc *CommentUsecase) GetCommentListWithReplies(ctx context.Context, aid string, page, limit int) ([]*Comment, int64, error) {
+	published, err := uc.repo.IsArticlePublished(ctx, aid)
+	if err != nil {
+		uc.log.WithContext(ctx).Errorf("commentUsecase: check article published failed: %v", err)
+		return nil, 0, ErrInternalError
+	}
+	if !published {
+		return []*Comment{}, 0, nil
+	}
 	page, limit = normalizePage(page, limit)
 	return uc.repo.GetCommentListWithReplies(ctx, aid, page, limit)
 }
@@ -185,7 +244,13 @@ func (uc *CommentUsecase) ReportComment(ctx context.Context, uid, cid, reason st
 		return nil, ErrInvalidArgument
 	}
 	comment, err := uc.repo.FindComment(ctx, cid)
-	if err != nil || comment.Status != "active" {
+	if err != nil {
+		if errors.Is(err, ErrCommentNotFound) || kerrors.IsNotFound(err) {
+			return nil, ErrCommentNotFound
+		}
+		return nil, ErrInternalError
+	}
+	if comment == nil || comment.Status != "active" {
 		return nil, ErrCommentNotFound
 	}
 	if comment.UID == uid {
